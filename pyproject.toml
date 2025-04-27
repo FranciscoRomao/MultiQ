@@ -1,0 +1,22 @@
+[tool.poetry]
+name = "multiq"
+version = "0.1"
+description = "The description of the package"
+license = "MIT"
+authors = [
+    "Dan Vonk <dan@danvonk.com>"
+]
+
+repository = "https://github.com/python-poetry/poetry"
+homepage = "https://python-poetry.org"
+
+# README file(s) are used as the package description
+readme = ["README.md"]
+
+# Keywords (translated to tags on the package index)
+keywords = ["quantum", "compilers"]
+
+[tool.poetry.dependencies]
+# Compatible Python versions
+python = "^3.10"
+qiskit = "^1.4.2"
