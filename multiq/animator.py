@@ -125,6 +125,11 @@ class TileAnimation():
         # get which piecewise schedule f is in
         interval_ends = [interval[0] for interval in self.piecewise_schedule]
         index = bisect.bisect_right(interval_ends, true_frame)
+
+        if index >= len(self.piecewise_schedule):
+            # Our tile has finished but the animation continues for another tile
+            return
+        
         tmp = self.piecewise_schedule[index]
         # calculate true time of this frame: tmp[2] is the end time of this
         # period. tmp[0] is the end frame of this period. So we deduct the
@@ -430,23 +435,6 @@ class Animator():
                 -CANVAS_PADDING + self.architecture.arch_range[0][1],
                 CANVAS_PADDING + self.architecture.arch_range[1][1]
             ])
-
-        # rydberg_range is a list. Each entry is for an entanglement zone,
-        # each entry is a pair [[bottom_left x, y], [top_right x,y]]
-        # self.entanglement_rect_range is for matplotlib plotting. the first
-        # entry is the bottom_left x,y (with padding). The second entry is
-        # the width, and the third entry is the height.
-        # self.entanglement_rect_range = [
-        #     (
-        #         (
-        #             range_pair[0][0] - self.RYDBERG_PADDING,
-        #             range_pair[0][1] - self.RYDBERG_PADDING
-        #         ),
-        #         range_pair[1][0] - range_pair[0][0] + 2 * self.RYDBERG_PADDING,
-        #         range_pair[1][1] - range_pair[0][1] + 2 * self.RYDBERG_PADDING,
-        #     )
-        #     for range_pair in self.architecture.rydberg_range
-        # ]
 
         return fig, axes
 

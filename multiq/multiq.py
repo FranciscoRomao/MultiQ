@@ -16,7 +16,6 @@ class Tile():
 class MultiQ():
     def __init__(self):
         self.print_configuration()
-        self.init_zac()
         self.tiles = []
 
 
@@ -30,7 +29,7 @@ class MultiQ():
 
 
     def init_zac(self):
-        with open("/home/dan/dev/quantum/multiq/zac_config/multiq_architecture.json", "r") as f:
+        with open("/home/dan/dev/quantum/multiq/zac_config/toy_architecture.json", "r") as f:
             arch = zac.Architecture(json.load(f))
             arch.preprocessing()
             self.arch = arch
@@ -44,15 +43,21 @@ class MultiQ():
             "window_size": 1000,
             "reuse": True
         }
-        self.zac = zac.ZAC()
-        self.zac.parse_setting(zac_settings)
-        self.zac.set_architecture(arch)
+        
+        zacc = zac.ZAC()
+        zacc.parse_setting(zac_settings)
+        zacc.set_architecture(arch)
+
+        return zacc
 
     def set_inputs(self, input_files: list[str]):
         codes = []
         for input in input_files:
-            self.zac.set_program(input)
-            code_dict = self.zac.solve(save_file=False)
+            print("Input file is", input)
+
+            zacc = self.init_zac()
+            zacc.set_program(input)
+            code_dict = zacc.solve(save_file=False)
             codes.append(code_dict)
 
             #t = Tile(code_dict["instructions"])
