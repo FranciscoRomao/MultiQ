@@ -18,5 +18,8 @@ keywords = ["quantum", "compilers"]
 
 [tool.poetry.dependencies]
 # Compatible Python versions
-python = "^3.10"
-qiskit = "^1.4.2"
+python = "^3.12"
+qiskit = "^2.0.0"
+matplotlib = "^3.0"
+pylatexenc = "^2.0"
+zac = {path = "/home/dan/dev/quantum/ZAC"}
