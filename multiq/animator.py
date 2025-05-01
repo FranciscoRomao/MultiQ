@@ -1,3 +1,9 @@
+"""
+This file contains the implementation of the animator class, 
+which allows multiple tiles to be shown side-by-side. It is 
+based upon the animator in ZAC but has been extended and cleaned-up.
+"""
+
 from matplotlib.animation import FFMpegWriter, FuncAnimation
 import matplotlib.pyplot as plt
 import matplotlib
@@ -12,7 +18,7 @@ PT_MICRON = 8  # scaling factor: points per micron
 MUS_PER_FRM = 150 / FPS  # microseconds per frame
 MUS_PER_FRM_SLOW = 7 / FPS  # in slow motion, i.e., Rydberg
 # Padding between outer-most tile and graph axes
-CANVAS_PADDING = 10
+CANVAS_PADDING = 2
 # Padding between each tile
 TILE_PADDING = 1
 # Padding around each entanglement zone
@@ -129,7 +135,7 @@ class TileAnimation():
         if index >= len(self.piecewise_schedule):
             # Our tile has finished but the animation continues for another tile
             return
-        
+
         tmp = self.piecewise_schedule[index]
         # calculate true time of this frame: tmp[2] is the end time of this
         # period. tmp[0] is the end frame of this period. So we deduct the
@@ -344,19 +350,6 @@ class TileAnimation():
         return self.piecewise_schedule[-1][0]
 
 
-###########################################################################
-###########################################################################
-###########################################################################
-###########################################################################
-###########################################################################
-###########################################################################
-###########################################################################
-###########################################################################
-###########################################################################
-###########################################################################
-###########################################################################
-
-
 class Animator():
     def __init__(self, architecture: Architecture):
         self.architecture = architecture
@@ -377,7 +370,7 @@ class Animator():
 
         self.fig, self.axes = self.setup_canvas(scaling_factor)
         self.inst_str = ''
-        
+
         # Create the animation classes for the tiles
         self.tiles = [TileAnimation(
             tiles_codes[i], self.architecture, self.axes[i]) for i in range(self.n_tiles)]
