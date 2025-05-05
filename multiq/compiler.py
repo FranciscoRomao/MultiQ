@@ -9,7 +9,7 @@ import time
 
 import qiskit.qasm2 as qasm2
 
-from configuration import MultiQConfig
+from .configuration import MultiQConfig
 from .router import Router_mixin
 
 
@@ -37,6 +37,13 @@ class ZacTile(Scheduler_mixin, Placer_mixin, Verifier_mixin, Router_mixin):
         self.reuse = True
         self.resyn = True
         self.common_1q = 0
+        
+        self.gate_scheduling = None
+        self.gate_scheduling_idx = None
+        self.gate_1q_scheduling = None
+        self.reuse_qubit = None
+        self.qubit_mapping = []
+
 
     def load_program(self, source_file: str):
         self.g_q = []
@@ -94,11 +101,6 @@ class ZacTile(Scheduler_mixin, Placer_mixin, Verifier_mixin, Router_mixin):
         self.code_filename = self.dir + \
             f"code/{self.result_json['name']}_code.json"
         # member to hold intermedite results
-        self.gate_scheduling = None
-        self.gate_scheduling_idx = None
-        self.gate_1q_scheduling = None
-        self.reuse_qubit = None
-        self.qubit_mapping = []
 
         # todo: check if the program input is valid, i.e., #q < #p
         t_s = time.time()
@@ -232,12 +234,14 @@ class Compiler():
         while any([len(t.gate_scheduling) > 0 for t in self.tiles]):
 
             iteration = 0
-            unprocessed_nodes = {set() for _ in range(len(self.tiles))}
+            unprocessed_nodes = [set() for _ in range(len(self.tiles))]
 
             for tile_id, tile in enumerate(self.tiles):
-                for gate in tile.scheduling_layer[layer]:
+                for gate in tile.gate_scheduling[layer]:
+                    initial_mapping = tile.qubit_mapping[2 * layer]
+                    gate_mapping = tile.qubit_mapping[2 * layer + 1]
                     for q in gate:
-                        if tile.final_mapping[q] != tile.gate_mapping[q]:
+                        if initial_mapping[q] != gate_mapping[q]:
                             unprocessed_nodes[tile_id].add(q)
 
             while any([len(unproc) > 0 for unproc in unprocessed_nodes]):
@@ -249,16 +253,19 @@ class Compiler():
                     tile.gate_scheduling.pop(0)
 
                 combined_nodes, combined_edges = self.combine_graphs(graphs)
-                combined_edges.append(self.tilewise_violations(combined_nodes))
+                combined_edges.extend(self.tilewise_violations(combined_nodes))
+                print("combined nodes", combined_nodes)
+                print("combined edges", combined_edges)
 
                 independent_set_indices = Router_mixin.maximalis_solve(
                     combined_nodes, combined_edges)
                 independent_nodes = [combined_nodes[i]
                                      for i in independent_set_indices]
 
-                processed_nodes = {set() for _ in range(len(self.tiles))}
+                processed_nodes = [set() for _ in range(len(self.tiles))]
                 for i_node in independent_nodes:
-                    tile_id, movement = i_node
+                    tile_id = i_node[0]
+                    movement = i_node[1]
                     processed_nodes[tile_id].add(movement)
 
                 for tile_id, tile in enumerate(self.tiles):
@@ -277,9 +284,9 @@ class Compiler():
         tile = 0
         for id, nodes, edges in graphs:
             n_nodes = len(nodes)  # number of movements in one tile
-            combined_nodes.append(nodes)
+            combined_nodes.extend([(id, *n) for n in nodes])
             # An edge is a pair of indices. Need to adjust new indices for each subgraph
-            combined_edges.append([(i + tile, j + tile) for i, j in edges])
+            combined_edges.extend([(i + tile, j + tile) for i, j in edges])
             tile += n_nodes
 
         return combined_nodes, combined_edges
@@ -289,14 +296,15 @@ class Compiler():
         violations = []
         for i in range(len(nodes)):
             for j in range(i+1, len(nodes)):
-                _, vector_a = nodes[i]
-                _, vector_b = nodes[j]
+                _, *vector_a = nodes[i]
+                _, *vector_b = nodes[j]
                 if not self.tilewise_compatible(vector_a, vector_b):
                     violations.append((i, j))
 
-    # Across multiple tiles, only moves that share row coords can be done in parallel
+        return violations
 
-    def tilewise_compatible(a, b) -> bool:
+    # Across multiple tiles, only moves that share row coords can be done in parallel
+    def tilewise_compatible(self, a, b) -> bool:
         # a = (start_row, end_row, start_col, end_col)
         if a[0] != b[0]:
             return False
@@ -331,7 +339,7 @@ class Compiler():
             
     def set_programs(self, source_files: list[str]):
         for source_file in source_files:
-            tile = ZacTile()
+            tile = ZacTile(self.config)
             zac_settings = {
                 "routing_strategy": "maximalis",
                 "scheduling": "asap",

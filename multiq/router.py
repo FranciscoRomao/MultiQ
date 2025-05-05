@@ -4,7 +4,15 @@ from random import seed
 from copy import deepcopy
 from itertools import chain
 
+import typing
+
 seed(0)
+
+class Movement(typing.NamedTuple):
+    start_x: int
+    end_x: int
+    start_y: int
+    end_y: int
 
 class Router_mixin:
 
@@ -137,12 +145,15 @@ class Router_mixin:
             vector_length = min(self.window_size, len(remain_graph))
         else:
             vector_length = len(remain_graph)
-        vectors = [(0,0,0,0, ) for _ in range(vector_length)]
+        #vectors = [(0,0,0,0, ) for _ in range(vector_length)]
+
+        vectors = [Movement(0, 0, 0, 0) for _ in range(vector_length)]
         i = 0
         for i, q in enumerate(remain_graph):
             (q_x, q_y) = self.architecture.exact_SLM_location_tuple(initial_mapping[q])
             (site_x, site_y) = self.architecture.exact_SLM_location_tuple(final_mapping[q])
-            vectors[i] = (q_x, site_x, q_y, site_y, )
+            #vectors[i] = (q_x, site_x, q_y, site_y, )
+            vectors[i] = Movement(q_x, site_x, q_y, site_y)
         return vectors
     
     def collect_violation(self, vectors: list) -> list[(int, int)]:
@@ -157,10 +168,15 @@ class Router_mixin:
         """
         solve maximal independent set
         """
-        # t_tmp = time.time()
-        # assum the vertices are sorted based on qubit distance
-        is_node_conflict = [False for _ in range(n)]
-        node_neighbors = {i: [] for i in range(n)}
+        # assume the vertices are sorted based on qubit distance
+        n_nodes = 0
+        if n is int:
+            n_nodes = n
+        else:
+            n_nodes = len(n)
+            
+        is_node_conflict = [False for _ in range(n_nodes)]
+        node_neighbors = {i: [] for i in range(n_nodes)}
         for edge in edges:
             node_neighbors[edge[0]].append(edge[1])
             node_neighbors[edge[1]].append(edge[0])
@@ -172,10 +188,9 @@ class Router_mixin:
                 result.append(i)
                 for j in node_neighbors[i]:
                     is_node_conflict[j] = True
-        # print("time for mis solving: {}".format(time.time() - t_tmp))
         return result
 
-    def compatible_2D(a, b):
+    def compatible_2D(self, a, b):
         """
         check if move a and b can be performed simultaneously
         """
