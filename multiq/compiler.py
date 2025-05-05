@@ -6,8 +6,6 @@ from zac.ds.architecture import Architecture
 from scipy.sparse import csr_matrix
 from scipy.sparse.csgraph import maximum_bipartite_matching
 import time
-import json
-from qiskit import transpile, QuantumCircuit, qpy
 
 import qiskit.qasm2 as qasm2
 
@@ -102,9 +100,6 @@ class ZacTile(Scheduler_mixin, Placer_mixin, Verifier_mixin, Router_mixin):
         self.reuse_qubit = None
         self.qubit_mapping = []
 
-        print(
-            "[INFO] MultiQ/ZAC: A compiler for neutral atom-based compute-store architecture")
-        # self.print_setting()
         # todo: check if the program input is valid, i.e., #q < #p
         t_s = time.time()
         # gate scheduling with graph coloring
@@ -114,36 +109,15 @@ class ZacTile(Scheduler_mixin, Placer_mixin, Verifier_mixin, Router_mixin):
         if self.reuse:
             self.collect_reuse_qubit()
         else:
-            self.reuse_qubit = [set() for _ in range(len(self.gate_scheduling))]
+            self.reuse_qubit = [set()
+                                for _ in range(len(self.gate_scheduling))]
 
         self.place_qubit_initial()
-        
-        print("[INFO]               Time for initial placement: {}s".format(
-            self.runtime_analysis["initial placement"]))
-        self.place_qubit_intermedeiate()
-        print("[INFO]               Time for intermediate placement: {}s".format(
-            self.runtime_analysis["intermediate placement"]))
 
-            
+        self.place_qubit_intermedeiate()
 
         self.route_qubit()
         self.runtime_analysis["total"] = time.time() - t_s
-        print("[INFO]               Time for routing: {}s".format(
-            self.runtime_analysis["routing"]))
-
-            
-
-        print("[INFO] ZAC: Toal Time: {}s".format(
-            self.runtime_analysis["total"]))
-        if save_file:
-            if not self.dir:
-                self.dir = "./result/"
-            self.code_filename = self.dir + \
-                f"code/{self.result_json['name']}_code.json"
-            with open(self.code_filename, 'w') as f:
-                json.dump(self.result_json, f)
-            with open(self.dir + f"time/{self.result_json['name']}_time.json", 'w') as f:
-                json.dump(self.runtime_analysis, f)
 
         if self.to_verify:
             print("[INFO] ZAC: Start Verification")
@@ -241,15 +215,98 @@ class ZAC():
 
     def __init__(self, arch: Architecture):
         self.architecture = arch
-        self.tiles = []
+        self.tiles: ZacTile = []
         self.config: MultiQConfig = None
 
         # global aod
         self.aod_end_time = [(0, i) for i in range(len(arch.dict_AOD))]
         self.aod_dependency = [0 for i in range(len(arch.dict_AOD))]
 
-    def route_global_batch(self):
+    def route_global_layer(self, layer_id: int):
         pass
+
+    def route_global_batch(self):
+        layer: int = 0
+        # interference graph for each individual tile at a specific layer
+        graphs: list[(int, list, list)] = []
+        while any([len(t.gate_scheduling) > 0 for t in self.tiles]):
+            
+            iteration = 0
+            unprocessed_nodes = { set() for _ in range(len(self.tiles))}
+            
+            for tile_id, tile in enumerate(self.tiles):
+                for gate in tile.scheduling_layer[layer]:
+                    for q in gate:
+                        if tile.final_mapping[q] != tile.gate_mapping[q]:
+                            unprocessed_nodes[tile_id].add(q)
+            
+            while any([len(unproc) > 0 for unproc in unprocessed_nodes]):
+
+                for tile_id, tile in enumerate(self.tiles):
+                    # node is a movement (q_x, site_x, q_y, site_y)
+                    nodes, edges = tile.construct_interference_graph(layer)
+                    graphs.append((tile_id, nodes, edges))
+                    tile.gate_scheduling.pop(0)
+
+                combined_nodes, combined_edges = self.combine_graphs(graphs)
+                combined_edges.append(self.tilewise_violations(combined_nodes))
+
+                independent_set_indices = Router_mixin.maximalis_solve(
+                    combined_nodes, combined_edges)
+                independent_nodes = [combined_nodes[i]
+                                     for i in independent_set_indices]
+
+                processed_nodes = { set() for _ in range(len(self.tiles))}
+                for i_node in independent_nodes:
+                    tile_id, movement = i_node
+                    processed_nodes[tile_id].add(movement)
+
+                for tile_id, tile in enumerate(self.tiles):
+                    tile.process_movement_layer(
+                        processed_nodes[tile_id], self.qubit_mapping[2 * layer], self.qubit_mapping[2 * layer + 1])
+                iteration += 1
+
+            for t in self.tiles:
+                t.process_gate_layer(layer, self.qubit_mapping[2 * layer + 1])
+            layer += 1
+
+        # for each layer:
+        # 1. for each tile: construct remain_graph + violations
+        # 2. create batches of movements until remain graph empty
+        pass
+
+    def combine_graphs(self, graphs: list[(int, list, list)]):
+        combined_nodes = []
+        combined_edges = []
+
+        tile = 0
+        for id, nodes, edges in graphs:
+            n_nodes = len(nodes)  # number of movements in one tile
+            combined_nodes.append(nodes)
+            # An edge is a pair of indices. Need to adjust new indices for each subgraph
+            combined_edges.append([(i + tile, j + tile) for i, j in edges])
+            tile += n_nodes
+
+        return combined_nodes, combined_edges
+
+    def tilewise_violations(self, nodes):
+        """ Compute the incompatibilities between tiles """
+        violations = []
+        for i in range(len(nodes)):
+            for j in range(i+1, len(nodes)):
+                _, vector_a = nodes[i]
+                _, vector_b = nodes[j]
+                if not self.tilewise_compatible(vector_a, vector_b):
+                    violations.append((i, j))
+
+    # Across multiple tiles, only moves that share row coords can be done in parallel
+
+    def tilewise_compatible(a, b) -> bool:
+        # a = (start_row, end_row, start_col, end_col)
+        if a[0] != b[0]:
+            return False
+        if a[1] != b[1]:
+            return False
 
     # def parse_setting(self, setting: dict):
     #     self.config = MultiQConfig.from_config(setting)

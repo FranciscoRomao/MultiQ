@@ -1,11 +1,9 @@
 import logging
 import argparse
-import zac
 
 from multiq.multiq import MultiQ
 
 logger = logging.getLogger("multiq")
-
 
 def main():
     logging.basicConfig(format='%(levelname)s: %(message)s', level=logging.INFO)
