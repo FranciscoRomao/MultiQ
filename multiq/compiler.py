@@ -38,12 +38,12 @@ class ZacTile(Scheduler_mixin, Placer_mixin, Verifier_mixin, Router_mixin):
         self.resyn = True
         self.common_1q = 0
 
-    def load_program(self, source: str):
+    def load_program(self, source_file: str):
         self.g_q = []
         self.dict_g_1q_parent = {-1: []}
         n_single_qubit_gate = 0
 
-        cz_circuit = qasm2.loads(source)
+        cz_circuit = qasm2.load(source_file)
         self.n_q = cz_circuit.num_qubits
 
         list_qubit_last_2q_gate = [-1 for _ in range(self.n_q)]
@@ -210,7 +210,7 @@ class ZacTile(Scheduler_mixin, Placer_mixin, Verifier_mixin, Router_mixin):
         self.architecture = arch
 
 
-class ZAC():
+class Compiler():
     """class to solve QLS problem."""
 
     def __init__(self, arch: Architecture):
@@ -230,16 +230,16 @@ class ZAC():
         # interference graph for each individual tile at a specific layer
         graphs: list[(int, list, list)] = []
         while any([len(t.gate_scheduling) > 0 for t in self.tiles]):
-            
+
             iteration = 0
-            unprocessed_nodes = { set() for _ in range(len(self.tiles))}
-            
+            unprocessed_nodes = {set() for _ in range(len(self.tiles))}
+
             for tile_id, tile in enumerate(self.tiles):
                 for gate in tile.scheduling_layer[layer]:
                     for q in gate:
                         if tile.final_mapping[q] != tile.gate_mapping[q]:
                             unprocessed_nodes[tile_id].add(q)
-            
+
             while any([len(unproc) > 0 for unproc in unprocessed_nodes]):
 
                 for tile_id, tile in enumerate(self.tiles):
@@ -256,7 +256,7 @@ class ZAC():
                 independent_nodes = [combined_nodes[i]
                                      for i in independent_set_indices]
 
-                processed_nodes = { set() for _ in range(len(self.tiles))}
+                processed_nodes = {set() for _ in range(len(self.tiles))}
                 for i_node in independent_nodes:
                     tile_id, movement = i_node
                     processed_nodes[tile_id].add(movement)
@@ -269,11 +269,6 @@ class ZAC():
             for t in self.tiles:
                 t.process_gate_layer(layer, self.qubit_mapping[2 * layer + 1])
             layer += 1
-
-        # for each layer:
-        # 1. for each tile: construct remain_graph + violations
-        # 2. create batches of movements until remain graph empty
-        pass
 
     def combine_graphs(self, graphs: list[(int, list, list)]):
         combined_nodes = []
@@ -318,10 +313,24 @@ class ZAC():
         # todo: check if the given mapping is valid
         self.given_initial_mapping = mapping
 
+    def compile(self):
+        for tile in self.tiles:
+            t_s = time.time()
+            # gate scheduling with graph coloring
+            tile.scheduling()
+            if tile.reuse:
+                tile.collect_reuse_qubit()
+            else:
+                tile.reuse_qubit = [set()
+                                    for _ in range(len(self.gate_scheduling))]
+            tile.place_qubit_initial()
+            tile.place_qubit_intermedeiate()
+
+        # Routing must be done globally
+        self.route_global_batch()
+            
     def set_programs(self, source_files: list[str]):
         for source_file in source_files:
-            with open(source_file, 'r') as f:
-                source = f.read()
             tile = ZacTile()
             zac_settings = {
                 "routing_strategy": "maximalis",
@@ -334,6 +343,5 @@ class ZAC():
             }
             tile.parse_setting(zac_settings)
             tile.set_architecture(self.architecture)
-            tile.load_program(source)
-            tile.solve(save_file=False)
+            tile.load_program(source_file)
             self.tiles.append(tile)
