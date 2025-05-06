@@ -4,10 +4,13 @@ from random import seed
 from copy import deepcopy
 from itertools import chain
 
+import networkx as nx
+
 import typing
 
 seed(0)
 
+# AoD movement for a specific qubit
 class Movement(typing.NamedTuple):
     start_x: int
     end_x: int
@@ -43,7 +46,7 @@ class Router_mixin:
         self.flatten_rearrangment_instruction()
         self.runtime_analysis["routing"] = time_mis
 
-        
+
     def construct_interference_graph(self, layer: int, forward: bool = True) -> list:
         initial_mapping = self.qubit_mapping[2 * layer] # even indices in storage
         gate_mapping = self.qubit_mapping[2 * layer+1] # odd indices inside entanglement zone
@@ -85,7 +88,7 @@ class Router_mixin:
                 if initial_mapping[q] != gate_mapping[q]:
                     assert(initial_mapping[q][0] == 0 or gate_mapping[q][0] == 0)
                     remain_graph.append(q)
-        
+
         id_layer_start = len(self.result_json['instructions']) # end of instruction stream
         batch = 0
         # NOTE: in each iter, find largest possible set of movements that can be performed in parallel
@@ -95,6 +98,7 @@ class Router_mixin:
             # collect violations (indices into the vectors which conflict)
             violations = self.collect_violation(vectors)
             # solve MIS
+            # returns indices into `vectors` that are independent
             moved_qubits = self.maximalis_solve(len(vectors), violations)
 
             set_aod = {remain_graph[i] for i in moved_qubits} # use to record aods per movement layer
@@ -139,23 +143,34 @@ class Router_mixin:
             self.aod_assignment(id_layer_start)
                 
     
-    def graph_construction(self, remain_graph: list, initial_mapping: list, final_mapping: list):
+    def graph_construction(self, remain_graph: list, initial_mapping: list, final_mapping: list, include_qubit=False):
         vectors = []
         if self.use_window:
             vector_length = min(self.window_size, len(remain_graph))
         else:
             vector_length = len(remain_graph)
         #vectors = [(0,0,0,0, ) for _ in range(vector_length)]
-
         vectors = [Movement(0, 0, 0, 0) for _ in range(vector_length)]
         i = 0
         for i, q in enumerate(remain_graph):
             (q_x, q_y) = self.architecture.exact_SLM_location_tuple(initial_mapping[q])
             (site_x, site_y) = self.architecture.exact_SLM_location_tuple(final_mapping[q])
-            #vectors[i] = (q_x, site_x, q_y, site_y, )
-            vectors[i] = Movement(q_x, site_x, q_y, site_y)
+            if include_qubit:
+                vectors[i] = Movement(q_x, site_x, q_y, site_y)
+            else:
+                vectors[i] = Movement(q_x, site_x, q_y, site_y)
         return vectors
     
+    def nx_graph(self, vectors: list) -> nx.Graph:
+        G = nx.Graph()
+        G.add_nodes_from(range(len(vectors))) # each node represents an index into `vectors`
+        
+        for i in range(len(vectors)):
+            for j in range(i+1, len(vectors)):
+                if not self.compatible_2D(vectors[i], vectors[j]):
+                    G.add_edge(i, j)
+        return G
+        
     def collect_violation(self, vectors: list) -> list[(int, int)]:
         violations = []
         for i in range(len(vectors)):
@@ -251,6 +266,8 @@ class Router_mixin:
             self.result_json['instructions'][-1]["end_time"] = (self.architecture.time_1qGate * len(result_gate)) # due to sequential execution
 
     def process_movement_layer(self, set_aod_qubit: set, initial_mapping: list, final_mapping: list):
+        print("process movement layer. initial mapping:", initial_mapping)
+        print("process movement layer. set_aod_dict:", set_aod_qubit)
         """
         generate layers for row-by-row based atom transfer
         """
@@ -313,6 +330,8 @@ class Router_mixin:
         dependency["qubit"] = list(set_qubit_dependency)
         dependency["site"] = list(set_site_dependency)
         self.write_rearrangement_instruction(inst_idx, list_aod_qubits, list_begin_location, list_end_location, dependency)
+
+        print("Wrote movement layer!")
     
     def write_rearrangement_instruction(self, inst_idx: int, aod_qubits: list, begin_location: list, end_location: list, dependency: dict):    
         inst = {

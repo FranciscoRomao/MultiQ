@@ -8,9 +8,10 @@ from scipy.sparse.csgraph import maximum_bipartite_matching
 import time
 
 import qiskit.qasm2 as qasm2
+import networkx as nx
 
 from .configuration import MultiQConfig
-from .router import Router_mixin
+from .router import Router_mixin, Movement
 
 
 class ZacTile(Scheduler_mixin, Placer_mixin, Verifier_mixin, Router_mixin):
@@ -37,13 +38,12 @@ class ZacTile(Scheduler_mixin, Placer_mixin, Verifier_mixin, Router_mixin):
         self.reuse = True
         self.resyn = True
         self.common_1q = 0
-        
+
         self.gate_scheduling = None
         self.gate_scheduling_idx = None
         self.gate_1q_scheduling = None
         self.reuse_qubit = None
         self.qubit_mapping = []
-
 
     def load_program(self, source_file: str):
         self.g_q = []
@@ -234,15 +234,19 @@ class Compiler():
         while any([len(t.gate_scheduling) > 0 for t in self.tiles]):
 
             iteration = 0
+            # qubits in each tile which need to be analysed
             unprocessed_nodes = [set() for _ in range(len(self.tiles))]
 
             for tile_id, tile in enumerate(self.tiles):
                 for gate in tile.gate_scheduling[layer]:
                     initial_mapping = tile.qubit_mapping[2 * layer]
                     gate_mapping = tile.qubit_mapping[2 * layer + 1]
+                    # print("initial mapping", initial_mapping)
+                    # print("gate_mapping", gate_mapping)
                     for q in gate:
                         if initial_mapping[q] != gate_mapping[q]:
                             unprocessed_nodes[tile_id].add(q)
+                print(f"unprocessed_nodes = {unprocessed_nodes[tile_id]} for tile_id={tile_id}")
 
             while any([len(unproc) > 0 for unproc in unprocessed_nodes]):
 
@@ -253,7 +257,7 @@ class Compiler():
                     tile.gate_scheduling.pop(0)
 
                 combined_nodes, combined_edges = self.combine_graphs(graphs)
-                combined_edges.extend(self.tilewise_violations(combined_nodes))
+                #combined_edges.extend(self.tilewise_violations(combined_nodes))
                 print("combined nodes", combined_nodes)
                 print("combined edges", combined_edges)
 
@@ -262,15 +266,19 @@ class Compiler():
                 independent_nodes = [combined_nodes[i]
                                      for i in independent_set_indices]
 
+                print("indp set indices", independent_set_indices)
+                print("indp_nodes", independent_nodes)
+
                 processed_nodes = [set() for _ in range(len(self.tiles))]
                 for i_node in independent_nodes:
                     tile_id = i_node[0]
                     movement = i_node[1]
                     processed_nodes[tile_id].add(movement)
 
+                print("processed nodes", processed_nodes)
                 for tile_id, tile in enumerate(self.tiles):
                     tile.process_movement_layer(
-                        processed_nodes[tile_id], self.qubit_mapping[2 * layer], self.qubit_mapping[2 * layer + 1])
+                        processed_nodes[tile_id], tile.qubit_mapping[2 * layer], tile.qubit_mapping[2 * layer + 1])
                 iteration += 1
 
             for t in self.tiles:
@@ -291,25 +299,35 @@ class Compiler():
 
         return combined_nodes, combined_edges
 
-    def tilewise_violations(self, nodes):
-        """ Compute the incompatibilities between tiles """
-        violations = []
-        for i in range(len(nodes)):
-            for j in range(i+1, len(nodes)):
-                _, *vector_a = nodes[i]
-                _, *vector_b = nodes[j]
-                if not self.tilewise_compatible(vector_a, vector_b):
-                    violations.append((i, j))
+        
+    def combine_nx_graphs(self, graphs: list[(int, nx.Graph, list[Movement])]):
+        """ Take a list of (tile_id, conflict graph, movement list) and combine it into a single graph """
+        graph_data = [g for _,g,_ in graphs]
+        combined_graph = nx.disjoint_union_all(graph_data) # nodes become [0,...,len(g_1),...,len(g_2),...]
+        # combined_graph's nodes index into this list
+        global_move_data = []
 
-        return violations
+        for tile_id, _, moves_for_tile in graphs:
+            for move in moves_for_tile:
+                global_move_data.append((tile_id, move))
 
+        for i, tile_id, mov in enumerate(global_move_data):
+            for j, tile_id2, mov2 in enumerate(global_move_data):
+                if tile_id != tile_id2:
+                    if not self.tilewise_compatible(mov, mov2):
+                        combined_graph.add_edge(i, j)
+         
+        return combined_graph, global_move_data
+                
+            
     # Across multiple tiles, only moves that share row coords can be done in parallel
-    def tilewise_compatible(self, a, b) -> bool:
-        # a = (start_row, end_row, start_col, end_col)
+    def tilewise_compatible(self, a: Movement, b: Movement) -> bool:
+        # a,b must be from different tiles
         if a[0] != b[0]:
             return False
         if a[1] != b[1]:
             return False
+        return True
 
     # def parse_setting(self, setting: dict):
     #     self.config = MultiQConfig.from_config(setting)
@@ -336,7 +354,7 @@ class Compiler():
 
         # Routing must be done globally
         self.route_global_batch()
-            
+
     def set_programs(self, source_files: list[str]):
         for source_file in source_files:
             tile = ZacTile(self.config)
