@@ -9,12 +9,7 @@ from .compiler import Compiler
 
 logger = logging.getLogger("multiq")
 
-class Tile():
-    def __init__(self, instructions):
-        self.instructions = instructions
-
-
-class MultiQ():
+class MultiQ:
     def __init__(self):
         self.print_configuration()
         self.tiles = []
