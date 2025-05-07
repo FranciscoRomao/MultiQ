@@ -13,7 +13,6 @@ import networkx as nx
 from .configuration import MultiQConfig
 from .router import Router_mixin, Movement
 
-
 class ZacTile(Scheduler_mixin, Placer_mixin, Verifier_mixin, Router_mixin):
     def __init__(self, config: MultiQConfig):
         self.config = config
@@ -55,6 +54,8 @@ class ZacTile(Scheduler_mixin, Placer_mixin, Verifier_mixin, Router_mixin):
             len(self.architecture.dict_AOD))]
         self.rydberg_dependency = [0 for i in range(
             len(self.architecture.entanglement_zone))]
+
+        self.write_initial_instruction()
 
     def load_program(self, source_file: str):
         self.g_q = []
@@ -249,10 +250,14 @@ class Compiler():
 
             graphs: list[(int, list, list)] = []
             for tile_id, tile in enumerate(self.tiles):
-                # node is a movement (q_x, site_x, q_y, site_y)
+                if layer >= len(tile.gate_scheduling):
+                    continue
                 graph, moves = tile.nx_interference_graph(layer)
                 graphs.append((tile_id, graph, moves))
                 tile.gate_scheduling.pop(0)
+
+            if len(graphs) == 0:
+                break
 
             graph, global_moves = self.combine_nx_graphs(graphs)
 
@@ -277,6 +282,13 @@ class Compiler():
             for t in self.tiles:
                 t.process_gate_layer(layer, t.qubit_mapping[2 * layer + 1])
             layer += 1
+
+            
+        print("===")
+        print("The tiles are")
+        for t in self.tiles:
+            print(t.result_json["instructions"])
+        print("===")
 
     def combine_graphs(self, graphs: list[(int, list, list)]):
         combined_nodes = []
@@ -332,9 +344,9 @@ class Compiler():
     def set_architecture_spec_path(self, path: str):
         self.result_json['architecture_spec_path'] = path
 
-    def set_initial_mapping(self, mapping):
-        # todo: check if the given mapping is valid
-        self.given_initial_mapping = mapping
+    #def set_initial_mapping(self, mapping):
+    #    # todo: check if the given mapping is valid
+    #    self.given_initial_mapping = mapping
 
     def compile(self):
         for tile in self.tiles:
