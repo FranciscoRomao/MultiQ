@@ -43,7 +43,18 @@ class ZacTile(Scheduler_mixin, Placer_mixin, Verifier_mixin, Router_mixin):
         self.gate_scheduling_idx = None
         self.gate_1q_scheduling = None
         self.reuse_qubit = None
+
         self.qubit_mapping = []
+
+    def prepare_routing(self):
+        self.qubit_dependency = [0 for i in range(self.n_q)]
+        self.site_dependency = dict()
+        self.aod_end_time = [(0, i)
+                             for i in range(len(self.architecture.dict_AOD))]
+        self.aod_dependency = [0 for i in range(
+            len(self.architecture.dict_AOD))]
+        self.rydberg_dependency = [0 for i in range(
+            len(self.architecture.entanglement_zone))]
 
     def load_program(self, source_file: str):
         self.g_q = []
@@ -92,6 +103,7 @@ class ZacTile(Scheduler_mixin, Placer_mixin, Verifier_mixin, Router_mixin):
 
         self.n_g = len(self.g_q)
         self.g_s = tuple(['CRZ' for _ in range(self.n_g)])
+
         print("[INFO]           number of qubits: {}".format(self.n_q))
         print("[INFO]           number of two-qubit gates: {}".format(len(self.g_q)))
         print(
@@ -228,61 +240,42 @@ class Compiler():
         pass
 
     def route_global_batch(self):
+        for t in self.tiles:
+            t.prepare_routing()
+        
         layer: int = 0
         # interference graph for each individual tile at a specific layer
-        graphs: list[(int, list, list)] = []
         while any([len(t.gate_scheduling) > 0 for t in self.tiles]):
 
-            iteration = 0
-            # qubits in each tile which need to be analysed
-            unprocessed_nodes = [set() for _ in range(len(self.tiles))]
-
+            graphs: list[(int, list, list)] = []
             for tile_id, tile in enumerate(self.tiles):
-                for gate in tile.gate_scheduling[layer]:
-                    initial_mapping = tile.qubit_mapping[2 * layer]
-                    gate_mapping = tile.qubit_mapping[2 * layer + 1]
-                    # print("initial mapping", initial_mapping)
-                    # print("gate_mapping", gate_mapping)
-                    for q in gate:
-                        if initial_mapping[q] != gate_mapping[q]:
-                            unprocessed_nodes[tile_id].add(q)
-                print(f"unprocessed_nodes = {unprocessed_nodes[tile_id]} for tile_id={tile_id}")
+                # node is a movement (q_x, site_x, q_y, site_y)
+                graph, moves = tile.nx_interference_graph(layer)
+                graphs.append((tile_id, graph, moves))
+                tile.gate_scheduling.pop(0)
 
-            while any([len(unproc) > 0 for unproc in unprocessed_nodes]):
+            graph, global_moves = self.combine_nx_graphs(graphs)
 
+            while graph.number_of_nodes() > 0:
+                indp_nodes = nx.maximal_independent_set(graph)
+                indp_moves_per_tile = [[] for _ in range(len(self.tiles))]
+
+                # partition the independent set by tile
+                for i_node in indp_nodes:
+                    (tile_id, movement) = global_moves[i_node]
+                    indp_moves_per_tile[tile_id].append(movement)
+
+                # process the instructions on the tile level
                 for tile_id, tile in enumerate(self.tiles):
-                    # node is a movement (q_x, site_x, q_y, site_y)
-                    nodes, edges = tile.construct_interference_graph(layer)
-                    graphs.append((tile_id, nodes, edges))
-                    tile.gate_scheduling.pop(0)
-
-                combined_nodes, combined_edges = self.combine_graphs(graphs)
-                #combined_edges.extend(self.tilewise_violations(combined_nodes))
-                print("combined nodes", combined_nodes)
-                print("combined edges", combined_edges)
-
-                independent_set_indices = Router_mixin.maximalis_solve(
-                    combined_nodes, combined_edges)
-                independent_nodes = [combined_nodes[i]
-                                     for i in independent_set_indices]
-
-                print("indp set indices", independent_set_indices)
-                print("indp_nodes", independent_nodes)
-
-                processed_nodes = [set() for _ in range(len(self.tiles))]
-                for i_node in independent_nodes:
-                    tile_id = i_node[0]
-                    movement = i_node[1]
-                    processed_nodes[tile_id].add(movement)
-
-                print("processed nodes", processed_nodes)
-                for tile_id, tile in enumerate(self.tiles):
+                    tile_moves = indp_moves_per_tile[tile_id]
+                    qubits = {move.qubit_index for move in tile_moves}
                     tile.process_movement_layer(
-                        processed_nodes[tile_id], tile.qubit_mapping[2 * layer], tile.qubit_mapping[2 * layer + 1])
-                iteration += 1
+                        qubits, tile.qubit_mapping[2 * layer], tile.qubit_mapping[2 * layer + 1])
+
+                graph.remove_nodes_from(indp_nodes)
 
             for t in self.tiles:
-                t.process_gate_layer(layer, self.qubit_mapping[2 * layer + 1])
+                t.process_gate_layer(layer, t.qubit_mapping[2 * layer + 1])
             layer += 1
 
     def combine_graphs(self, graphs: list[(int, list, list)]):
@@ -299,11 +292,11 @@ class Compiler():
 
         return combined_nodes, combined_edges
 
-        
-    def combine_nx_graphs(self, graphs: list[(int, nx.Graph, list[Movement])]):
+    def combine_nx_graphs(self, graphs: list[(int, nx.Graph, list[Movement])]) -> tuple[nx.Graph, list[(int, Movement)]]:
         """ Take a list of (tile_id, conflict graph, movement list) and combine it into a single graph """
-        graph_data = [g for _,g,_ in graphs]
-        combined_graph = nx.disjoint_union_all(graph_data) # nodes become [0,...,len(g_1),...,len(g_2),...]
+        graph_data = [g for _, g, _ in graphs]
+        # nodes become [0,...,len(g_1),...,len(g_2),...]
+        combined_graph = nx.disjoint_union_all(graph_data)
         # combined_graph's nodes index into this list
         global_move_data = []
 
@@ -311,22 +304,26 @@ class Compiler():
             for move in moves_for_tile:
                 global_move_data.append((tile_id, move))
 
-        for i, tile_id, mov in enumerate(global_move_data):
-            for j, tile_id2, mov2 in enumerate(global_move_data):
+        for i, (tile_id, mov) in enumerate(global_move_data):
+            for j, (tile_id2, mov2) in enumerate(global_move_data):
                 if tile_id != tile_id2:
                     if not self.tilewise_compatible(mov, mov2):
                         combined_graph.add_edge(i, j)
-         
+
         return combined_graph, global_move_data
-                
-            
+
     # Across multiple tiles, only moves that share row coords can be done in parallel
+
     def tilewise_compatible(self, a: Movement, b: Movement) -> bool:
         # a,b must be from different tiles
-        if a[0] != b[0]:
+        a_x1, a_y1, a_x2, a_y2 = a.start_x, a.start_y, a.end_x, a.end_y
+        b_x1, b_y1, b_x2, b_y2 = b.start_x, b.start_y, b.end_x, b.end_y
+
+        if a_x1 != b_x1:
             return False
-        if a[1] != b[1]:
+        if a_x2 != b_x2:
             return False
+
         return True
 
     # def parse_setting(self, setting: dict):

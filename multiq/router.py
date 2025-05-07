@@ -12,6 +12,7 @@ seed(0)
 
 # AoD movement for a specific qubit
 class Movement(typing.NamedTuple):
+    qubit_index: int
     start_x: int
     end_x: int
     start_y: int
@@ -69,7 +70,29 @@ class Router_mixin:
 
         return vectors, violations
 
+    def nx_interference_graph(self, layer: int):
+        initial_mapping = self.qubit_mapping[2 * layer] # even indices in storage
+        gate_mapping = self.qubit_mapping[2 * layer+1] # odd indices inside entanglement zone
+        # if layer + 2 < len(self.qubit_mapping):
+        #     final_mapping = self.qubit_mapping[2 * layer+2]
+        # else:
+        #     final_mapping = None # final movement, don't need to move qubits back after exec
 
+        remain_graph = [] # consist of qubits to be moved
+        for gate in self.gate_scheduling[layer]:
+            for q in gate:
+                # exclude 1q gates or no moves
+                if initial_mapping[q] != gate_mapping[q]:
+                    assert(initial_mapping[q][0] == 0 or gate_mapping[q][0] == 0)
+                    remain_graph.append(q)
+                    
+         # graph constructions
+        vectors = self.graph_construction(remain_graph, initial_mapping, gate_mapping)
+        graph = self.nx_graph(vectors)
+
+        return graph, vectors
+        
+        
     # operates on one gate layer
     def route_qubit_mis(self, layer:int):
         """
@@ -143,22 +166,20 @@ class Router_mixin:
             self.aod_assignment(id_layer_start)
                 
     
-    def graph_construction(self, remain_graph: list, initial_mapping: list, final_mapping: list, include_qubit=False):
+    def graph_construction(self, remain_graph: list, initial_mapping: list, final_mapping: list):
         vectors = []
         if self.use_window:
             vector_length = min(self.window_size, len(remain_graph))
         else:
             vector_length = len(remain_graph)
+
         #vectors = [(0,0,0,0, ) for _ in range(vector_length)]
-        vectors = [Movement(0, 0, 0, 0) for _ in range(vector_length)]
-        i = 0
+        vectors = [Movement(0, 0, 0, 0, 0) for _ in range(vector_length)]
+
         for i, q in enumerate(remain_graph):
             (q_x, q_y) = self.architecture.exact_SLM_location_tuple(initial_mapping[q])
             (site_x, site_y) = self.architecture.exact_SLM_location_tuple(final_mapping[q])
-            if include_qubit:
-                vectors[i] = Movement(q_x, site_x, q_y, site_y)
-            else:
-                vectors[i] = Movement(q_x, site_x, q_y, site_y)
+            vectors[i] = Movement(q, q_x, site_x, q_y, site_y)
         return vectors
     
     def nx_graph(self, vectors: list) -> nx.Graph:
@@ -205,29 +226,32 @@ class Router_mixin:
                     is_node_conflict[j] = True
         return result
 
-    def compatible_2D(self, a, b):
+    def compatible_2D(self, a: Movement, b: Movement) -> bool:
         """
         check if move a and b can be performed simultaneously
         """
-    # a = (start_row, end_row, start_col, end_col)
+        
+        a_x1, a_y1, a_x2, a_y2 = a.start_x, a.start_y, a.end_x, a.end_y
+        b_x1, b_y1, b_x2, b_y2 = b.start_x, b.start_y, b.end_x, b.end_y
+        
         # x-axis
-        if a[0] == b[0] and a[1] != b[1]:
+        if a_x1 == b_x1 and a_y1 != b_y1:
             return False
-        if a[1] == b[1] and a[0] != b[0]:
+        if a_y1 == b_y1 and a_x1 != b_x1:
             return False
-        if a[0] < b[0] and a[1] >= b[1]:
+        if a_x1 < b_x1 and a_y1 >= b_y1:
             return False
-        if a[0] > b[0] and a[1] <= b[1]:
+        if a_x1 > b_x1 and a_y1 <= b_y1:
             return False
 
         # y-axis
-        if a[2] == b[2] and a[3] != b[3]:
+        if a_x2 == b_x2 and a_y2 != b_y2:
             return False
-        if a[3] == b[3] and a[2] != b[2]:
+        if a_y2 == b_y2 and a_x2 != b_x2:
             return False
-        if a[2] < b[2] and a[3] >= b[3]:
+        if a_x2 < b_x2 and a_y2 >= b_y2:
             return False
-        if a[2] > b[2] and a[3] <= b[3]:
+        if a_x2 > b_x2 and a_y2 <= b_y2:
             return False
         return True
     
@@ -344,9 +368,6 @@ class Router_mixin:
                 "dependency": dependency
             }
         inst["insts"] = self.expand_arrangement(inst)
-        # inst["aod_qubits"] = list(chain.from_iterable(inst["aod_qubits"]))
-        # inst["begin_locs"] = list(chain.from_iterable(inst["begin_locs"]))
-        # inst["end_locs"] = list(chain.from_iterable(inst["end_locs"]))
         self.result_json['instructions'].append(inst)
     
     def flatten_rearrangment_instruction(self):    
