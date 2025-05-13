@@ -31,7 +31,7 @@ QUBIT_COLOR = 'k'
 AOD_COLORS = ['r', 'c', 'm', 'y']  # max 4 aods so far
 AOD_TRANS = 0.7
 
-class TileAnimation():
+class TileAnimation:
     def __init__(self, code: dict, architecture: Architecture, ax):
         self.code = code
         self.inst_str = ""

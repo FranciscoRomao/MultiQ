@@ -18,61 +18,44 @@ class Movement(typing.NamedTuple):
     start_y: int
     end_y: int
 
+class AoDOperation(typing.NamedTuple):
+    tile_id: int
+    operation_type: str
+    moves: typing.Optional[list[Movement]] = None
+
 class Router_mixin:
 
     # constant, the distance of AOD row and col to some trap. We use 1um here.
     PARKING_DIST = 1
     
     # @profile
-    def route_qubit(self):
-        """
-        generate rearrangement layers between two Rydberg layers
-        """
-        self.aod_end_time = [(0, i) for i in range(len(self.architecture.dict_AOD))]
-        self.aod_dependency = [0 for _ in range(len(self.architecture.dict_AOD))]
-        self.rydberg_dependency = [0 for _ in range(len(self.architecture.entanglement_zone))]
-        time_mis = 0
-        self.qubit_dependency = [0 for _ in range(self.n_q)]
-        self.site_dependency = dict()
-        self.write_initial_instruction()
+    # def route_qubit(self):
+    #     """
+    #     generate rearrangement layers between two Rydberg layers
+    #     """
+    #     self.aod_end_time = [(0, i) for i in range(len(self.architecture.dict_AOD))]
+    #     self.aod_dependency = [0 for _ in range(len(self.architecture.dict_AOD))]
+    #     self.rydberg_dependency = [0 for _ in range(len(self.architecture.entanglement_zone))]
+    #     time_mis = 0
+    #     self.qubit_dependency = [0 for _ in range(self.n_q)]
+    #     self.site_dependency = dict()
+    #     self.write_initial_instruction()
         
-        for layer in range(len(self.gate_scheduling)):
-            # extract sets of movement that can be perform simultaneously
-            t_s = time.time()
-            self.route_qubit_mis(layer)
-            time_mis += (time.time() - t_s)
-            print("[INFO] ZAC: Solve for Rydberg stage {}/{}. mis time={:2f}".format(layer+1, len(self.gate_scheduling), time_mis))
+    #     for layer in range(len(self.gate_scheduling)):
+    #         # extract sets of movement that can be perform simultaneously
+    #         t_s = time.time()
+    #         self.route_qubit_mis(layer)
+    #         time_mis += (time.time() - t_s)
+    #         print("[INFO] ZAC: Solve for Rydberg stage {}/{}. mis time={:2f}".format(layer+1, len(self.gate_scheduling), time_mis))
 
         
-        self.flatten_rearrangment_instruction()
-        self.runtime_analysis["routing"] = time_mis
+    #     self.flatten_rearrangment_instruction()
+    #     self.runtime_analysis["routing"] = time_mis
 
-
-    def construct_interference_graph(self, layer: int, forward: bool = True) -> list:
-        initial_mapping = self.qubit_mapping[2 * layer] # even indices in storage
-        gate_mapping = self.qubit_mapping[2 * layer+1] # odd indices inside entanglement zone
-        # if layer + 2 < len(self.qubit_mapping):
-        #     final_mapping = self.qubit_mapping[2 * layer+2]
-        # else:
-        #     final_mapping = None # final movement, don't need to move qubits back after exec
-
-        remain_graph = [] # consist of qubits to be moved
-        for gate in self.gate_scheduling[layer]:
-            for q in gate:
-                # exclude 1q gates or no moves
-                if initial_mapping[q] != gate_mapping[q]:
-                    assert(initial_mapping[q][0] == 0 or gate_mapping[q][0] == 0)
-                    remain_graph.append(q)
-        
-        # graph constructions
-        vectors = self.graph_construction(remain_graph, initial_mapping, gate_mapping)
-        violations = self.collect_violation(vectors)
-
-        return vectors, violations
 
     def nx_interference_graph(self, layer: int):
         initial_mapping = self.qubit_mapping[2 * layer] # even indices in storage
-        gate_mapping = self.qubit_mapping[2 * layer+1] # odd indices inside entanglement zone
+        gate_mapping = self.qubit_mapping[2 * layer + 1] # odd indices inside entanglement zone
         # if layer + 2 < len(self.qubit_mapping):
         #     final_mapping = self.qubit_mapping[2 * layer+2]
         # else:
@@ -94,76 +77,76 @@ class Router_mixin:
         
         
     # operates on one gate layer
-    def route_qubit_mis(self, layer:int):
-        """
-        process layers of movement from storage zone to Rydberg and back to storage zone
-        """
-        initial_mapping = self.qubit_mapping[2 * layer] # even indices in storage
-        gate_mapping = self.qubit_mapping[2 * layer+1] # odd indices inside entanglement zone
-        if layer + 2 < len(self.qubit_mapping):
-            final_mapping = self.qubit_mapping[2 * layer+2]
-        else:
-            final_mapping = None # final movement, don't need to move qubits back after exec
+    # def route_qubit_mis(self, layer:int):
+    #     """
+    #     process layers of movement from storage zone to Rydberg and back to storage zone
+    #     """
+    #     initial_mapping = self.qubit_mapping[2 * layer] # even indices in storage
+    #     gate_mapping = self.qubit_mapping[2 * layer+1] # odd indices inside entanglement zone
+    #     if layer + 2 < len(self.qubit_mapping):
+    #         final_mapping = self.qubit_mapping[2 * layer+2]
+    #     else:
+    #         final_mapping = None # final movement, don't need to move qubits back after exec
 
-        remain_graph = [] # consist of the qubits to be moved
-        for gate in self.gate_scheduling[layer]:
-            for q in gate:
-                if initial_mapping[q] != gate_mapping[q]:
-                    assert(initial_mapping[q][0] == 0 or gate_mapping[q][0] == 0)
-                    remain_graph.append(q)
+    #     remain_graph = [] # consist of the qubits to be moved
+    #     for gate in self.gate_scheduling[layer]:
+    #         for q in gate:
+    #             if initial_mapping[q] != gate_mapping[q]:
+    #                 assert(initial_mapping[q][0] == 0 or gate_mapping[q][0] == 0)
+    #                 remain_graph.append(q)
 
-        id_layer_start = len(self.result_json['instructions']) # end of instruction stream
-        batch = 0
-        # NOTE: in each iter, find largest possible set of movements that can be performed in parallel
-        while remain_graph:
-            # graph construction
-            vectors = self.graph_construction(remain_graph, initial_mapping, gate_mapping)
-            # collect violations (indices into the vectors which conflict)
-            violations = self.collect_violation(vectors)
-            # solve MIS
-            # returns indices into `vectors` that are independent
-            moved_qubits = self.maximalis_solve(len(vectors), violations)
+    #     id_layer_start = len(self.result_json['instructions']) # end of instruction stream
+    #     batch = 0
+    #     # NOTE: in each iter, find largest possible set of movements that can be performed in parallel
+    #     while remain_graph:
+    #         # graph construction
+    #         vectors = self.graph_construction(remain_graph, initial_mapping, gate_mapping)
+    #         # collect violations (indices into the vectors which conflict)
+    #         violations = self.collect_violation(vectors)
+    #         # solve MIS
+    #         # returns indices into `vectors` that are independent
+    #         moved_qubits = self.maximalis_solve(len(vectors), violations)
 
-            set_aod = {remain_graph[i] for i in moved_qubits} # use to record aods per movement layer
-            self.process_movement_layer(set_aod, initial_mapping, gate_mapping)
-            tmp = [q for q in remain_graph if q not in set_aod]
-            remain_graph = tmp
-            batch += 1
-            # print("time for post processsing: {}".format(time.time() - t_tmp))
-            # layer_time.append(float(time.time() - start_time))
+    #         set_aod = {remain_graph[i] for i in moved_qubits} # use to record aods per movement layer
+    #         self.process_movement_layer(set_aod, initial_mapping, gate_mapping)
+    #         tmp = [q for q in remain_graph if q not in set_aod]
+    #         remain_graph = tmp
+    #         batch += 1
+    #         # print("time for post processsing: {}".format(time.time() - t_tmp))
+    #         # layer_time.append(float(time.time() - start_time))
 
-        # append a layer for gate execution 
-        self.process_gate_layer(layer, gate_mapping)
-        # move qubit back to the final location
-        if final_mapping is not None:
-            if self.dynamic_placement or self.reuse:
-                # print("find reverse movement")
-                # print(gate_mapping)
-                # print(final_mapping)
-                remain_graph = [] # consist qubits to be moved
-                for gate in self.gate_scheduling[layer]:
-                    for q in gate:
-                        if final_mapping[q] != gate_mapping[q]:
-                            remain_graph.append(q)
+    #     # append a layer for gate execution 
+    #     self.process_gate_layer(layer, gate_mapping)
+    #     # move qubit back to the final location
+    #     if final_mapping is not None:
+    #         if self.dynamic_placement or self.reuse:
+    #             # print("find reverse movement")
+    #             # print(gate_mapping)
+    #             # print(final_mapping)
+    #             remain_graph = [] # consist qubits to be moved
+    #             for gate in self.gate_scheduling[layer]:
+    #                 for q in gate:
+    #                     if final_mapping[q] != gate_mapping[q]:
+    #                         remain_graph.append(q)
                 
-                while remain_graph:                
-                    # graph construction
-                    vectors = self.graph_construction(remain_graph, final_mapping, gate_mapping)
-                    # collect violation
-                    violations = self.collect_violation(vectors)
+    #             while remain_graph:                
+    #                 # graph construction
+    #                 vectors = self.graph_construction(remain_graph, final_mapping, gate_mapping)
+    #                 # collect violation
+    #                 violations = self.collect_violation(vectors)
 
-                    if self.routing_strategy == "mis":
-                        moved_qubits = self.kamis_solve(len(vectors), violations, batch)
-                    else:
-                        moved_qubits = self.maximalis_solve(len(vectors), violations)
-                    # todo: add layer
-                    set_aod = {remain_graph[i] for i in moved_qubits} # use to record aods per movement layer
-                    self.process_movement_layer(set_aod, gate_mapping, final_mapping)
+    #                 if self.routing_strategy == "mis":
+    #                     moved_qubits = self.kamis_solve(len(vectors), violations, batch)
+    #                 else:
+    #                     moved_qubits = self.maximalis_solve(len(vectors), violations)
+    #                 # todo: add layer
+    #                 set_aod = {remain_graph[i] for i in moved_qubits} # use to record aods per movement layer
+    #                 self.process_movement_layer(set_aod, gate_mapping, final_mapping)
                     
-                    tmp = [q for q in remain_graph if q not in set_aod]
-                    remain_graph = tmp
-                    batch += 1
-            self.aod_assignment(id_layer_start)
+    #                 tmp = [q for q in remain_graph if q not in set_aod]
+    #                 remain_graph = tmp
+    #                 batch += 1
+    #         self.aod_assignment(id_layer_start)
                 
     
     def graph_construction(self, remain_graph: list, initial_mapping: list, final_mapping: list):
@@ -199,32 +182,6 @@ class Router_mixin:
                 if not self.compatible_2D(vectors[i], vectors[j]):
                     violations.append((i, j))
         return violations
-
-    def maximalis_solve(n, edges):
-        """
-        solve maximal independent set
-        """
-        # assume the vertices are sorted based on qubit distance
-        n_nodes = 0
-        if n is int:
-            n_nodes = n
-        else:
-            n_nodes = len(n)
-            
-        is_node_conflict = [False for _ in range(n_nodes)]
-        node_neighbors = {i: [] for i in range(n_nodes)}
-        for edge in edges:
-            node_neighbors[edge[0]].append(edge[1])
-            node_neighbors[edge[1]].append(edge[0])
-        result = []
-        for i in range(len(is_node_conflict)):
-            if is_node_conflict[i]:
-                continue
-            else:
-                result.append(i)
-                for j in node_neighbors[i]:
-                    is_node_conflict[j] = True
-        return result
 
     def compatible_2D(self, a: Movement, b: Movement) -> bool:
         """
