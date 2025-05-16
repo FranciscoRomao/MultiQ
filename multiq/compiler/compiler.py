@@ -13,7 +13,8 @@ import time
 import logging
 
 from multiq.configuration import MultiQConfig
-from multiq.router.router import Router_mixin, Movement
+from multiq.router import Movement, Router_mixin
+
 from .tile import ZacTile
 
 logger = logging.getLogger("multiq")
@@ -24,30 +25,25 @@ class Compiler():
 
     def __init__(self, arch: Architecture):
         self.architecture = arch
-        self.tiles: ZacTile = []
+        self.tiles: list[ZacTile] = []
         self.config: MultiQConfig = None
+        self.instr_builder = InstructionBuilder(self)
 
-        # global aod
-        self.aod_end_time = [(0, i) for i in range(len(arch.dict_AOD))]
-        self.aod_dependency = [0 for i in range(len(arch.dict_AOD))]
+        # all operations on all tiles are measured according to this global time
+        self.global_time = 0.0
 
-        self.global_instructions = []
-        self.global_runtime = 0
+        self.aod_end_time = 0.0  # finish time of currently executing instruction on AoD
 
-        self.global_aod_end_time = [(0, i) for i in range(len(arch.dict_AOD))]
-        self.global_aod_dependency = [0 for i in range(len(arch.dict_AOD))]
-
-        self.global_qubit_dependency = {}
-        self.global_site_dependency = {}
-        self.global_rydberg_dependency = [0 for i in range(
-            len(self.architecture.entanglement_zone))]
-
-    def route_global_layer(self, layer_id: int):
-        pass
+        self.aod_dependency = 0  # index of last instruction executed on the AoD
+        self.rydberg_dependency = 0.0
 
     def route_global_batch(self):
         for t in self.tiles:
             t.prepare_routing()
+
+        # write_initial_instruction() returns end_time. Global schedule waits till last tile is finished
+        self.global_time = max(
+            [self.instr_builder.write_initial_instruction(t) for t in self.tiles])
 
         layer: int = 0
         # interference graph for each individual tile at a specific layer
@@ -57,9 +53,11 @@ class Compiler():
             for tile_id, tile in enumerate(self.tiles):
                 if layer >= len(tile.gate_scheduling):
                     continue
+
                 graph, moves = tile.nx_interference_graph(layer)
                 graphs.append((tile_id, graph, moves))
-                tile.gate_scheduling.pop(0)
+                # NOTE: why needed?
+                # tile.gate_scheduling.pop(0)
 
             if len(graphs) == 0:
                 break
@@ -75,17 +73,17 @@ class Compiler():
                     (tile_id, movement) = global_moves[i_node]
                     indp_moves_per_tile[tile_id].append(movement)
 
-                # process the instructions on the tile level
-                for tile_id, tile in enumerate(self.tiles):
-                    tile_moves = indp_moves_per_tile[tile_id]
-                    qubits = {move.qubit_index for move in tile_moves}
-                    tile.process_movement_layer(
-                        qubits, tile.qubit_mapping[2 * layer], tile.qubit_mapping[2 * layer + 1])
-
+                tile_instr_start_indices = self.process_movement(layer, indp_moves_per_tile)
                 graph.remove_nodes_from(indp_nodes)
 
-            for t in self.tiles:
-                t.process_gate_layer(layer, t.qubit_mapping[2 * layer + 1])
+                # add gate layers
+                self.process_gates(layer)
+                # add reverse movements
+
+                self.aod_assignment(tile_instr_start_indices)
+
+            # for t in self.tiles:
+            #     t.process_gate_layer(layer, t.qubit_mapping[2 * layer + 1])
             layer += 1
 
         print("The tiles are")
@@ -97,13 +95,13 @@ class Compiler():
         combined_nodes = []
         combined_edges = []
 
-        tile = 0
+        tile_offset = 0
         for id, nodes, edges in graphs:
             n_nodes = len(nodes)  # number of movements in one tile
             combined_nodes.extend([(id, *n) for n in nodes])
             # An edge is a pair of indices. Need to adjust new indices for each subgraph
-            combined_edges.extend([(i + tile, j + tile) for i, j in edges])
-            tile += n_nodes
+            combined_edges.extend([(i + tile_offset, j + tile_offset) for i, j in edges])
+            tile_offset += n_nodes
 
         return combined_nodes, combined_edges
 
@@ -141,10 +139,36 @@ class Compiler():
 
         return True
 
-    def global_aod_timing_assignment(self):
-        pass
+    # move to builder.py soon
+    def process_movement(self, layer: int, indp_moves_per_tile: list[list[Movement]]):
+        # process the instructions on the tile level
 
-    def global_get_begin_time(self):
+        tile_instr_start_indices = [0 for _ in range(len(self.tiles))]
+
+        for tile_id, tile in enumerate(self.tiles):
+            tile_moves = indp_moves_per_tile[tile_id]
+            qubits = {move.qubit_index for move in tile_moves}
+            id = tile.process_movement_layer(
+                qubits, tile.qubit_mapping[2 * layer], tile.qubit_mapping[2 * layer + 1])
+            tile_instr_start_indices[tile_id] = id
+
+        return tile_instr_start_indices
+
+    def aod_assignment(self, instr_start_indices: list[int]):
+        global_end_time = 0
+
+        for id, tile in enumerate(self.tiles):
+            global_end_time = max(global_end_time, tile.aod_assignment(instr_start_indices[id], self.aod_end_time))
+
+        self.aod_end_time = global_end_time
+
+
+    def process_gates(self, layer: int):
+        for tile_id, tile in enumerate(self.tiles):
+            tile.process_gate_layer(layer, tile.qubit_mapping[2 * layer + 1])
+    
+
+    def process_reverse_movement(self, layer: int):
         pass
 
     # def parse_setting(self, setting: dict):
@@ -153,20 +177,17 @@ class Compiler():
     def set_architecture_spec_path(self, path: str):
         self.result_json['architecture_spec_path'] = path
 
-    # def set_initial_mapping(self, mapping):
-    #    # todo: check if the given mapping is valid
-    #    self.given_initial_mapping = mapping
-
     def compile(self):
         # gate shceduling and placement are done per-tile with no cross-tile considerations
         for tile in self.tiles:
             # gate scheduling with graph colouring
             tile.scheduling()
-            if tile.reuse:
-                tile.collect_reuse_qubit()
-            else:
-                tile.reuse_qubit = [set()
-                                    for _ in range(len(self.gate_scheduling))]
+            # NOTE: turn back on when schedling works!
+            # if tile.reuse:
+            #    tile.collect_reuse_qubit()
+            # else:
+            tile.reuse_qubit = [set()
+                                for _ in range(len(tile.gate_scheduling))]
             tile.place_qubit_initial()
             tile.place_qubit_intermedeiate()
 
@@ -189,3 +210,74 @@ class Compiler():
             tile.set_architecture(self.architecture)
             tile.load_program(source_file)
             self.tiles.append(tile)
+
+
+# build (global) instructions and append them to responsible tile
+class InstructionBuilder:
+    def __init__(self, compiler: Compiler):
+        self.compiler = compiler
+
+        self.instructions = []
+        self.current_id = 0
+
+    def write_initial_instruction(self, tile: ZacTile):
+        end_time = 0.0
+        tile.result_json["instructions"].clear()
+        tile.result_json["instructions"].append(
+            {
+                "type": "init",
+                "id": 0,
+                "begin_time": 0,
+                "end_time": 0,
+                # (aod_idx=0, row, col) for each qubit
+                "init_locs": [[i, tile.qubit_mapping[0][i][0], tile.qubit_mapping[0][i][1], tile.qubit_mapping[0][i][2]]
+                              for i in range(tile.n_q)]
+            }
+        )
+
+        # process single-qubit gates
+        set_qubit_dependency = set()
+        inst_idx = len(tile.result_json['instructions'])
+        list_1q_gate = [gate_1q for gate_1q in tile.dict_g_1q_parent[-1]]
+        result_gate = []
+
+        for gate_info in list_1q_gate:
+            # collect qubit dependency
+            set_qubit_dependency.add(tile.qubit_dependency[gate_info[1]])
+            tile.qubit_dependency[gate_info[1]] = inst_idx
+            result_gate.append({
+                "name": gate_info[0],
+                "q": gate_info[1]
+            })
+
+        dependency = {"qubit": []}
+        dependency["qubit"] = list(set_qubit_dependency)
+
+        if len(result_gate) > 0:
+            end_time = tile.architecture.time_1qGate * len(result_gate)
+            self.write_1q_gate_instruction(tile,
+                                           inst_idx, result_gate, dependency, tile.qubit_mapping[0])
+            tile.result_json['instructions'][-1]["begin_time"] = 0
+            tile.result_json['instructions'][-1]["end_time"] = (
+                # due to sequential execution
+                end_time
+            )
+
+        return end_time
+
+    def write_1q_gate_instruction(self, tile: ZacTile, inst_idx: int, result_gate: list, dependency: dict, gate_mapping: list):
+        locs = []
+        for gate in result_gate:
+            locs.append((gate["q"], gate_mapping[gate["q"]][0],
+                        gate_mapping[gate["q"]][1], gate_mapping[gate["q"]][2]))
+
+        tile.result_json['instructions'].append(
+            {
+                "type": "1qGate",
+                "unitary": "u3",
+                "id": inst_idx,
+                "locs": locs,
+                "gates": result_gate,
+                "dependency": dependency
+            }
+        )

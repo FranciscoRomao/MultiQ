@@ -1,11 +1,11 @@
 import logging
 import json
 
-import qiskit.qasm2
 import zac.zac as zac
 
-from .animator.animator import Animator
-from .compiler.compiler import Compiler
+from multiq.compiler.compiler import Compiler
+from multiq.animator.animator import Animator
+
 
 logger = logging.getLogger("multiq")
 

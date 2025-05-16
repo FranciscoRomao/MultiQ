@@ -1,14 +1,11 @@
 import time
 import heapq
-from random import seed
 from copy import deepcopy
 from itertools import chain
+import typing
+from dataclasses import dataclass, field
 
 import networkx as nx
-
-import typing
-
-seed(0)
 
 # AoD movement for a specific qubit
 class Movement(typing.NamedTuple):
@@ -18,136 +15,55 @@ class Movement(typing.NamedTuple):
     start_y: int
     end_y: int
 
-class AoDOperation(typing.NamedTuple):
-    tile_id: int
-    operation_type: str
-    moves: typing.Optional[list[Movement]] = None
+@dataclass
+class AODOperation:
+    id: int
+    begin_time: float
+    end_time: float
+
+@dataclass
+class LocalMoveOp(AODOperation):
+    qubits: set[int] # pickup set
+    begin_locs: list[tuple[int,int,int]] # (qubit_index, row, col)
+    end_locs: list[tuple[int,int,int]] # (qubit_index, row, col)
+
+@dataclass
+class SingleQubitOperation(AODOperation):
+    unitary: str
+    locs: list[tuple[int, int, int]] # (qubit_index, row, col)
+    gates: list[tuple[str, int]] # (name, qubit_index)
+
+    
+@dataclass
+class GlobalMoveOp(AODOperation):
+    id: int
+    
 
 class Router_mixin:
-
-    # constant, the distance of AOD row and col to some trap. We use 1um here.
     PARKING_DIST = 1
-    
-    # @profile
-    # def route_qubit(self):
-    #     """
-    #     generate rearrangement layers between two Rydberg layers
-    #     """
-    #     self.aod_end_time = [(0, i) for i in range(len(self.architecture.dict_AOD))]
-    #     self.aod_dependency = [0 for _ in range(len(self.architecture.dict_AOD))]
-    #     self.rydberg_dependency = [0 for _ in range(len(self.architecture.entanglement_zone))]
-    #     time_mis = 0
-    #     self.qubit_dependency = [0 for _ in range(self.n_q)]
-    #     self.site_dependency = dict()
-    #     self.write_initial_instruction()
-        
-    #     for layer in range(len(self.gate_scheduling)):
-    #         # extract sets of movement that can be perform simultaneously
-    #         t_s = time.time()
-    #         self.route_qubit_mis(layer)
-    #         time_mis += (time.time() - t_s)
-    #         print("[INFO] ZAC: Solve for Rydberg stage {}/{}. mis time={:2f}".format(layer+1, len(self.gate_scheduling), time_mis))
-
-        
-    #     self.flatten_rearrangment_instruction()
-    #     self.runtime_analysis["routing"] = time_mis
-
 
     def nx_interference_graph(self, layer: int):
         initial_mapping = self.qubit_mapping[2 * layer] # even indices in storage
         gate_mapping = self.qubit_mapping[2 * layer + 1] # odd indices inside entanglement zone
-        # if layer + 2 < len(self.qubit_mapping):
-        #     final_mapping = self.qubit_mapping[2 * layer+2]
-        # else:
-        #     final_mapping = None # final movement, don't need to move qubits back after exec
+        # TODO: handle this
+        if layer + 2 < len(self.qubit_mapping):
+            final_mapping = self.qubit_mapping[2 * layer+2]
+        else:
+            final_mapping = None # final movement, don't need to move qubits back after exec
 
-        remain_graph = [] # consist of qubits to be moved
+        qubits_in_layer = [] # consist of qubits to be moved
         for gate in self.gate_scheduling[layer]:
             for q in gate:
                 # exclude 1q gates or no moves
                 if initial_mapping[q] != gate_mapping[q]:
                     assert(initial_mapping[q][0] == 0 or gate_mapping[q][0] == 0)
-                    remain_graph.append(q)
+                    qubits_in_layer.append(q)
                     
          # graph constructions
-        vectors = self.graph_construction(remain_graph, initial_mapping, gate_mapping)
+        vectors = self.graph_construction(qubits_in_layer, initial_mapping, gate_mapping)
         graph = self.nx_graph(vectors)
 
         return graph, vectors
-        
-        
-    # operates on one gate layer
-    # def route_qubit_mis(self, layer:int):
-    #     """
-    #     process layers of movement from storage zone to Rydberg and back to storage zone
-    #     """
-    #     initial_mapping = self.qubit_mapping[2 * layer] # even indices in storage
-    #     gate_mapping = self.qubit_mapping[2 * layer+1] # odd indices inside entanglement zone
-    #     if layer + 2 < len(self.qubit_mapping):
-    #         final_mapping = self.qubit_mapping[2 * layer+2]
-    #     else:
-    #         final_mapping = None # final movement, don't need to move qubits back after exec
-
-    #     remain_graph = [] # consist of the qubits to be moved
-    #     for gate in self.gate_scheduling[layer]:
-    #         for q in gate:
-    #             if initial_mapping[q] != gate_mapping[q]:
-    #                 assert(initial_mapping[q][0] == 0 or gate_mapping[q][0] == 0)
-    #                 remain_graph.append(q)
-
-    #     id_layer_start = len(self.result_json['instructions']) # end of instruction stream
-    #     batch = 0
-    #     # NOTE: in each iter, find largest possible set of movements that can be performed in parallel
-    #     while remain_graph:
-    #         # graph construction
-    #         vectors = self.graph_construction(remain_graph, initial_mapping, gate_mapping)
-    #         # collect violations (indices into the vectors which conflict)
-    #         violations = self.collect_violation(vectors)
-    #         # solve MIS
-    #         # returns indices into `vectors` that are independent
-    #         moved_qubits = self.maximalis_solve(len(vectors), violations)
-
-    #         set_aod = {remain_graph[i] for i in moved_qubits} # use to record aods per movement layer
-    #         self.process_movement_layer(set_aod, initial_mapping, gate_mapping)
-    #         tmp = [q for q in remain_graph if q not in set_aod]
-    #         remain_graph = tmp
-    #         batch += 1
-    #         # print("time for post processsing: {}".format(time.time() - t_tmp))
-    #         # layer_time.append(float(time.time() - start_time))
-
-    #     # append a layer for gate execution 
-    #     self.process_gate_layer(layer, gate_mapping)
-    #     # move qubit back to the final location
-    #     if final_mapping is not None:
-    #         if self.dynamic_placement or self.reuse:
-    #             # print("find reverse movement")
-    #             # print(gate_mapping)
-    #             # print(final_mapping)
-    #             remain_graph = [] # consist qubits to be moved
-    #             for gate in self.gate_scheduling[layer]:
-    #                 for q in gate:
-    #                     if final_mapping[q] != gate_mapping[q]:
-    #                         remain_graph.append(q)
-                
-    #             while remain_graph:                
-    #                 # graph construction
-    #                 vectors = self.graph_construction(remain_graph, final_mapping, gate_mapping)
-    #                 # collect violation
-    #                 violations = self.collect_violation(vectors)
-
-    #                 if self.routing_strategy == "mis":
-    #                     moved_qubits = self.kamis_solve(len(vectors), violations, batch)
-    #                 else:
-    #                     moved_qubits = self.maximalis_solve(len(vectors), violations)
-    #                 # todo: add layer
-    #                 set_aod = {remain_graph[i] for i in moved_qubits} # use to record aods per movement layer
-    #                 self.process_movement_layer(set_aod, gate_mapping, final_mapping)
-                    
-    #                 tmp = [q for q in remain_graph if q not in set_aod]
-    #                 remain_graph = tmp
-    #                 batch += 1
-    #         self.aod_assignment(id_layer_start)
-                
     
     def graph_construction(self, remain_graph: list, initial_mapping: list, final_mapping: list):
         vectors = []
@@ -156,7 +72,6 @@ class Router_mixin:
         else:
             vector_length = len(remain_graph)
 
-        #vectors = [(0,0,0,0, ) for _ in range(vector_length)]
         vectors = [Movement(0, 0, 0, 0, 0) for _ in range(vector_length)]
 
         for i, q in enumerate(remain_graph):
@@ -211,40 +126,6 @@ class Router_mixin:
         if a_x2 > b_x2 and a_y2 <= b_y2:
             return False
         return True
-    
-
-    def write_initial_instruction(self):
-        self.result_json['instructions'].clear()
-        self.result_json['instructions'].append(
-            {
-                "type": "init",
-                "id": 0,
-                "begin_time": 0,
-                "end_time": 0,
-                "init_locs": [ [i, self.qubit_mapping[0][i][0], self.qubit_mapping[0][i][1], self.qubit_mapping[0][i][2]]
-                 for i in range(self.n_q)]
-            }
-        )
-
-        # process single-qubit gates
-        set_qubit_dependency = set()
-        inst_idx = len(self.result_json['instructions'])
-        list_1q_gate = [gate_1q for gate_1q in self.dict_g_1q_parent[-1]]
-        result_gate = []
-        for gate_info in list_1q_gate:
-            # collect qubit dependency
-            set_qubit_dependency.add(self.qubit_dependency[gate_info[1]])
-            self.qubit_dependency[gate_info[1]] = inst_idx
-            result_gate.append({
-                "name": gate_info[0],
-                "q": gate_info[1]
-            })
-        dependency = { "qubit": []}
-        dependency["qubit"] = list(set_qubit_dependency)
-        if len(result_gate) > 0:
-            self.write_1q_gate_instruction(inst_idx, result_gate, dependency, self.qubit_mapping[0])
-            self.result_json['instructions'][-1]["begin_time"] = 0
-            self.result_json['instructions'][-1]["end_time"] = (self.architecture.time_1qGate * len(result_gate)) # due to sequential execution
 
     def process_movement_layer(self, set_aod_qubit: set, initial_mapping: list, final_mapping: list):
         print("process movement layer. initial mapping:", initial_mapping)
@@ -312,255 +193,10 @@ class Router_mixin:
         dependency["site"] = list(set_site_dependency)
         self.write_rearrangement_instruction(inst_idx, list_aod_qubits, list_begin_location, list_end_location, dependency)
 
-        print("Wrote movement layer!")
-    
-    def write_rearrangement_instruction(self, inst_idx: int, aod_qubits: list, begin_location: list, end_location: list, dependency: dict):    
-        inst = {
-                "type": "rearrangeJob",
-                "id": inst_idx,
-                "aod_id": -1,
-                "aod_qubits": aod_qubits,
-                "begin_locs": begin_location,
-                "end_locs": end_location,
-                "dependency": dependency
-            }
-        inst["insts"] = self.expand_arrangement(inst)
-        self.result_json['instructions'].append(inst)
-    
-    def flatten_rearrangment_instruction(self):    
-        for inst in self.result_json['instructions']:
-            if inst["type"] == "rearrangeJob":
-                inst["aod_qubits"] = list(chain.from_iterable(inst["aod_qubits"]))
-                inst["begin_locs"] = list(chain.from_iterable(inst["begin_locs"]))
-                inst["end_locs"] = list(chain.from_iterable(inst["end_locs"]))
-    
-    def process_gate_layer(self, layer: int, gate_mapping: list):
-        """
-        generate a layer for gate execution
-        """
-        list_gate_idx = self.gate_scheduling_idx[layer]
-        list_gate = self.gate_scheduling[layer]
-        list_1q_gate = self.gate_1q_scheduling[layer]
-        dict_gate_zone = dict()
-        for i in range(len(list_gate)):
-            slm_idx = gate_mapping[list_gate[i][0]][0]
-            zone_idx = self.architecture.dict_SLM[slm_idx].entanglement_id
-            if zone_idx not in dict_gate_zone:
-                dict_gate_zone[zone_idx] = [i]
-            else:
-                dict_gate_zone[zone_idx].append(i)
-        for rydberg_idx in dict_gate_zone:
-            result_gate = [{"id": list_gate_idx[i], "q0": list_gate[i][0], "q1": list_gate[i][1]} for i in dict_gate_zone[rydberg_idx]]
-            set_qubit_dependency = set()
-            inst_idx = len(self.result_json['instructions'])
-            for gate_idx in dict_gate_zone[rydberg_idx]:
-                gate = list_gate[gate_idx]
-                # collect qubit dependency
-                set_qubit_dependency.add(self.qubit_dependency[gate[0]])
-                self.qubit_dependency[gate[0]] = inst_idx
-                set_qubit_dependency.add(self.qubit_dependency[gate[1]])
-                self.qubit_dependency[gate[1]] = inst_idx
-            dependency = { "qubit": [], "rydberg": self.rydberg_dependency[rydberg_idx]}
-            self.rydberg_dependency[rydberg_idx] = inst_idx
-            dependency["qubit"] = list(set_qubit_dependency)
-            self.write_gate_instruction(inst_idx, rydberg_idx, result_gate, dependency)
-        
-        # process single-qubit gates
-        inst_idx = len(self.result_json['instructions'])
-        result_gate = []
-        set_qubit_dependency = set()
-        for gate_info in list_1q_gate:
-            # collect qubit dependency
-            set_qubit_dependency.add(self.qubit_dependency[gate_info[1]])
-            self.qubit_dependency[gate_info[1]] = inst_idx
-            result_gate.append({
-                "name": gate_info[0],
-                "q": gate_info[1]
-            })
-        dependency = { "qubit": []}
-        dependency["qubit"] = list(set_qubit_dependency)
-        if len(result_gate) > 0:
-            self.write_1q_gate_instruction(inst_idx, result_gate, dependency, gate_mapping)
+        return inst_idx
 
-    def write_gate_instruction(self, inst_idx: int, rydberg_idx: int, result_gate: list, dependency: dict):
-        self.result_json['instructions'].append(
-            {
-                "type": "rydberg",
-                "id": inst_idx,
-                "zone_id": rydberg_idx,
-                "gates": result_gate,
-                "dependency": dependency
-            }
-        )
-    
-    def write_1q_gate_instruction(self, inst_idx: int, result_gate: list, dependency: dict, gate_mapping: list):
-        locs = []
-        for gate in result_gate:
-            locs.append((gate["q"], gate_mapping[gate["q"]][0], gate_mapping[gate["q"]][1], gate_mapping[gate["q"]][2]))
-
-        self.result_json['instructions'].append(
-            {
-                "type": "1qGate",
-                "unitary": "u3",
-                "id": inst_idx,
-                "locs": locs,
-                "gates": result_gate,
-                "dependency": dependency
-            }
-        )
-
-    def construct_reverse_layer(self, id_layer_start: int, initial_mapping: list, final_mapping: list):
-        """
-        construct reverse movement layer by processing the forward movement
-        """
-        id_layer_end = len(self.result_json['instructions'])
-        for layer in range(id_layer_start, id_layer_end):
-            if self.result_json['instructions'][layer]["type"] == "rydberg":
-                break
-            else:
-                # process a rearrangement layer
-                inst_idx = len(self.result_json['instructions'])
-                dependency = {
-                    "qubit": [],
-                    "site": [],
-                }
-                # process aod dependency
-                set_qubit_dependency = set()
-                set_site_dependency = set()
-                list_aod_qubits = self.result_json['instructions'][layer]["aod_qubits"]
-                list_end_location = []
-                list_begin_location = []
-                for sub_list_qubits in list_aod_qubits:
-                    row_begin_location = []
-                    row_end_location = []
-                    for q in sub_list_qubits:
-                        row_begin_location.append([q, initial_mapping[q][0], initial_mapping[q][1], initial_mapping[q][2]])
-                        row_end_location.append([q, final_mapping[q][0], final_mapping[q][1], final_mapping[q][2]])
-                        # process site dependency
-                        site_key = (final_mapping[q][0], final_mapping[q][1], final_mapping[q][2])
-                        if site_key in self.site_dependency:
-                            set_site_dependency.add(self.site_dependency[site_key])
-                        site_key = (initial_mapping[q][0], initial_mapping[q][1], initial_mapping[q][2])
-                        self.site_dependency[site_key] = inst_idx
-                        # collect qubit dependency
-                        set_qubit_dependency.add(self.qubit_dependency[q])
-                        self.qubit_dependency[q] = inst_idx
-
-                    list_begin_location.append(row_begin_location)
-                    list_end_location.append(row_end_location)
-                dependency["qubit"] = list(set_qubit_dependency)
-                dependency["site"] = list(set_site_dependency)
-                self.write_rearrangement_instruction(inst_idx, 
-                                                     list_aod_qubits,
-                                                     list_begin_location,
-                                                     list_end_location, 
-                                                     dependency)
-                
-
-    def aod_assignment(self, id_layer_start: int):
-        """
-        processs the aod assignment between two Rydberg stages
-        """
-        list_instruction_duration = [[], []]
-        id_layer_end = len(self.result_json['instructions'])
-        duration_idx = 0
-        list_gate_layer_idx = []
-        for idx in range(id_layer_start, id_layer_end):
-            if self.result_json['instructions'][idx]["type"] != "rearrangeJob":
-                duration_idx = 1
-                list_gate_layer_idx.append(idx)
-                continue
-            duration = self.get_duration(self.result_json['instructions'][idx])
-            list_instruction_duration[duration_idx].append((duration, idx))
-        list_instruction_duration[0] = sorted(list_instruction_duration[0], reverse=True)
-        list_instruction_duration[1] = sorted(list_instruction_duration[1], reverse=True)
-        # assign instruction according to the duration in descending order
-        # print("list_instruction_duration")
-        # print(list_instruction_duration)
-        for i in range(2):
-            for item in list_instruction_duration[i]:
-                duration = item[0]
-                inst = self.result_json['instructions'][item[1]]
-                # print(inst)
-                begin_time, aod_id = heapq.heappop(self.aod_end_time)
-                begin_time = max(begin_time, self.get_begin_time(item[1], inst["dependency"]))
-                end_time = begin_time + duration
-                inst["dependency"]["aod"] = self.aod_dependency[aod_id]
-                self.aod_dependency[aod_id] = item[1]
-                inst["begin_time"] = begin_time
-                inst["end_time"] = end_time
-                inst["aod_id"] = aod_id
-                heapq.heappush(self.aod_end_time, (end_time, aod_id))
-                # !
-                for detail_inst in inst["insts"]: 
-                    detail_inst["begin_time"] += begin_time
-                    detail_inst["end_time"] += begin_time
-                if self.result_json["runtime"] < end_time:
-                    self.result_json["runtime"] = end_time
-                # print("process instruction:")
-                # print(inst)
-                # input()
-            if i == 0:
-                # print("list_gate_layer_idx")
-                # print(list_gate_layer_idx)
-                for gate_layer_idx in list_gate_layer_idx:    
-                    # ! laser scheduling
-                    inst = self.result_json['instructions'][gate_layer_idx]
-                    # print(inst)
-                    # print(gate_layer_idx)
-                    # print(inst["dependency"])
-                    begin_time = self.get_begin_time(gate_layer_idx, inst["dependency"])
-                    if inst["type"] == "rydberg":
-                        end_time = begin_time + self.architecture.time_rydberg
-                    else:
-                        end_time = begin_time + (self.architecture.time_1qGate * len(inst["gates"])) + self.common_1q # for sequential gate execution
-                    if self.result_json["runtime"] < end_time:
-                        self.result_json["runtime"] = end_time
-                    inst["begin_time"] = begin_time
-                    inst["end_time"] = end_time
-                    # input()
-            
-    def get_begin_time(self, cur_inst_idx: int, dependency: dict):
-        begin_time = 0
-        for dependency_type in dependency:
-            if isinstance(dependency[dependency_type], int):
-                inst_idx = dependency[dependency_type]
-                if begin_time < self.result_json['instructions'][inst_idx]["end_time"]:
-                    begin_time = self.result_json['instructions'][inst_idx]["end_time"]
-            else:
-                if dependency_type == "site":
-                    for inst_idx in dependency[dependency_type]:
-                        if self.result_json['instructions'][inst_idx]["type"] == "rearrangeJob":
-                            # find the time that the instruction finish atom transfer
-                            # ! 
-                            atom_transfer_finish_time = 0
-                            for detail_inst in self.result_json['instructions'][inst_idx]["insts"]:
-                                inst_type = detail_inst["type"].split(":")[0]
-                                if inst_type == "activate":
-                                    atom_transfer_finish_time = max(detail_inst["end_time"], atom_transfer_finish_time)
-                            # find the time until dropping of the qubits
-                            atom_transfer_begin_time = 0
-                            for detail_inst in self.result_json['instructions'][cur_inst_idx]["insts"]:
-                                inst_type = detail_inst["type"].split(":")[0]
-                                if inst_type == "deactivate":
-                                    atom_transfer_begin_time = max(detail_inst["begin_time"], atom_transfer_begin_time)
-                                    break
-                            tmp_begin_time = atom_transfer_finish_time - atom_transfer_begin_time
-                            if begin_time < tmp_begin_time:
-                                begin_time = tmp_begin_time
-                            # print("cur_inst_idx: ", cur_inst_idx)
-                            # print("atom_transfer_finish_time: ", atom_transfer_finish_time)
-                            # print("atom_transfer_begin_time: ", atom_transfer_begin_time)
-                            # print("begin time for site depend: ", tmp_begin_time)
-                        else:
-                            if begin_time < self.result_json['instructions'][inst_idx]["end_time"]:
-                                begin_time = self.result_json['instructions'][inst_idx]["end_time"]
-                else:
-                    for inst_idx in dependency[dependency_type]:
-                        if begin_time < self.result_json['instructions'][inst_idx]["end_time"]:
-                            begin_time = self.result_json['instructions'][inst_idx]["end_time"]
-        return begin_time
-    
+  
+    # calculate the total time required for the instructions in a rearrangeJob. 
     def get_duration(self, inst: dict):
         list_detail_inst = inst["insts"]
         duration = 0
@@ -576,6 +212,7 @@ class Router_mixin:
             detail_inst["begin_time"] = duration
             if inst_type == "activate" or inst_type == "deactivate":
                 duration += self.architecture.time_atom_transfer
+                # NB: set time
                 detail_inst["end_time"] = duration
             elif inst_type == "move":
                 move_duration = 0
@@ -585,6 +222,8 @@ class Router_mixin:
                         # tmp = min(self.architecture.movement_duration(col_begin, row_begin, col_end, row_end), unit_move) # !
                         if move_duration < tmp:
                             move_duration = tmp
+                            
+                # NB: set time
                 detail_inst["end_time"] = move_duration + duration
                 duration += move_duration
             else:
@@ -592,7 +231,28 @@ class Router_mixin:
         
        
         return duration
-
+    
+    
+    def write_rearrangement_instruction(self, inst_idx: int, aod_qubits: list, begin_location: list, end_location: list, dependency: dict):    
+        inst = {
+                "type": "rearrangeJob",
+                "id": inst_idx,
+                "aod_id": 0,
+                "aod_qubits": aod_qubits,
+                "begin_locs": begin_location,
+                "end_locs": end_location,
+                "dependency": dependency
+            }
+        inst["insts"] = self.expand_arrangement(inst)
+        self.result_json['instructions'].append(inst)
+    
+    def flatten_rearrangment_instruction(self):    
+        for inst in self.result_json['instructions']:
+            if inst["type"] == "rearrangeJob":
+                inst["aod_qubits"] = list(chain.from_iterable(inst["aod_qubits"]))
+                inst["begin_locs"] = list(chain.from_iterable(inst["begin_locs"]))
+                inst["end_locs"] = list(chain.from_iterable(inst["end_locs"]))
+ 
     def expand_arrangement(self, inst: dict):
         details = []  # all detailed instructions
 
@@ -899,3 +559,244 @@ class Router_mixin:
             detail_inst["id"] = inst_counter
 
         return details 
+    
+    def aod_assignment(self, id_layer_start: int, aod_begin_time: float):
+        """
+        processs the aod assignment between two Rydberg stages
+        """
+        list_instruction_duration = [[], []]
+        id_layer_end = len(self.result_json['instructions'])
+        duration_idx = 0
+        list_gate_layer_idx = []
+
+        aod_end_time = 0
+        
+
+        for idx in range(id_layer_start, id_layer_end):
+            if self.result_json['instructions'][idx]["type"] != "rearrangeJob":
+                duration_idx = 1
+                list_gate_layer_idx.append(idx)
+                continue
+            duration = self.get_duration(self.result_json['instructions'][idx])
+            list_instruction_duration[duration_idx].append((duration, idx))
+        list_instruction_duration[0] = sorted(list_instruction_duration[0], reverse=True)
+        list_instruction_duration[1] = sorted(list_instruction_duration[1], reverse=True)
+        # assign instruction according to the duration in descending order
+        # print("list_instruction_duration")
+        # print(list_instruction_duration)
+        for i in range(2):
+            for item in list_instruction_duration[i]:
+                duration = item[0]
+                inst = self.result_json['instructions'][item[1]]
+                # print(inst)
+                # begin_time, aod_id = heapq.heappop(self.aod_end_time)
+                begin_time = max(aod_begin_time, self.get_begin_time(item[1], inst["dependency"]))
+                end_time = begin_time + duration
+                inst["dependency"]["aod"] = -1
+                # self.aod_dependency[aod_id] = item[1]
+                inst["begin_time"] = begin_time
+                inst["end_time"] = end_time
+                inst["aod_id"] = 0
+                aod_end_time = end_time
+
+                for detail_inst in inst["insts"]: 
+                    detail_inst["begin_time"] += begin_time
+                    detail_inst["end_time"] += begin_time
+                if self.result_json["runtime"] < end_time:
+                    self.result_json["runtime"] = end_time
+                # print("process instruction:")
+                # print(inst)
+                # input()
+            if i == 0:
+                # print("list_gate_layer_idx")
+                # print(list_gate_layer_idx)
+                for gate_layer_idx in list_gate_layer_idx:    
+                    # ! laser scheduling
+                    inst = self.result_json['instructions'][gate_layer_idx]
+                    # print(inst)
+                    # print(gate_layer_idx)
+                    # print(inst["dependency"])
+                    begin_time = self.get_begin_time(gate_layer_idx, inst["dependency"])
+                    if inst["type"] == "rydberg":
+                        end_time = begin_time + self.architecture.time_rydberg
+                    else:
+                        end_time = begin_time + (self.architecture.time_1qGate * len(inst["gates"])) + self.common_1q # for sequential gate execution
+                    if self.result_json["runtime"] < end_time:
+                        self.result_json["runtime"] = end_time
+                    inst["begin_time"] = begin_time
+                    inst["end_time"] = end_time
+                    # input()
+        return aod_end_time
+    
+    def get_begin_time(self, cur_inst_idx: int, dependency: dict):
+        begin_time = 0
+        for dependency_type in dependency:
+            if isinstance(dependency[dependency_type], int):
+                inst_idx = dependency[dependency_type]
+                if begin_time < self.result_json['instructions'][inst_idx]["end_time"]:
+                    begin_time = self.result_json['instructions'][inst_idx]["end_time"]
+            else:
+                if dependency_type == "site":
+                    for inst_idx in dependency[dependency_type]:
+                        if self.result_json['instructions'][inst_idx]["type"] == "rearrangeJob":
+                            # find the time that the instruction finish atom transfer
+                            # ! 
+                            atom_transfer_finish_time = 0
+                            for detail_inst in self.result_json['instructions'][inst_idx]["insts"]:
+                                inst_type = detail_inst["type"].split(":")[0]
+                                if inst_type == "activate":
+                                    atom_transfer_finish_time = max(detail_inst["end_time"], atom_transfer_finish_time)
+                            # find the time until dropping of the qubits
+                            atom_transfer_begin_time = 0
+                            for detail_inst in self.result_json['instructions'][cur_inst_idx]["insts"]:
+                                inst_type = detail_inst["type"].split(":")[0]
+                                if inst_type == "deactivate":
+                                    atom_transfer_begin_time = max(detail_inst["begin_time"], atom_transfer_begin_time)
+                                    break
+                            tmp_begin_time = atom_transfer_finish_time - atom_transfer_begin_time
+                            if begin_time < tmp_begin_time:
+                                begin_time = tmp_begin_time
+                            # print("cur_inst_idx: ", cur_inst_idx)
+                            # print("atom_transfer_finish_time: ", atom_transfer_finish_time)
+                            # print("atom_transfer_begin_time: ", atom_transfer_begin_time)
+                            # print("begin time for site depend: ", tmp_begin_time)
+                        else:
+                            if begin_time < self.result_json['instructions'][inst_idx]["end_time"]:
+                                begin_time = self.result_json['instructions'][inst_idx]["end_time"]
+                else:
+                    for inst_idx in dependency[dependency_type]:
+                        if begin_time < self.result_json['instructions'][inst_idx]["end_time"]:
+                            begin_time = self.result_json['instructions'][inst_idx]["end_time"]
+        return begin_time
+    
+    def process_gate_layer(self, layer: int, gate_mapping: list):
+        """
+        generate a layer for gate execution
+        """
+        
+        print("process gate layer")
+        list_gate_idx = self.gate_scheduling_idx[layer]
+        print("list_gate_idx:", list_gate_idx)
+        print("gate_mapping:", gate_mapping)
+        print("gate scheduling", self.gate_scheduling)
+
+        list_gate = self.gate_scheduling[layer]
+        list_1q_gate = self.gate_1q_scheduling[layer]
+        dict_gate_zone = dict()
+        for i in range(len(list_gate)):
+            slm_idx = gate_mapping[list_gate[i][0]][0]
+            zone_idx = self.architecture.dict_SLM[slm_idx].entanglement_id
+            if zone_idx not in dict_gate_zone:
+                dict_gate_zone[zone_idx] = [i]
+            else:
+                dict_gate_zone[zone_idx].append(i)
+        for rydberg_idx in dict_gate_zone:
+            result_gate = [{"id": list_gate_idx[i], "q0": list_gate[i][0], "q1": list_gate[i][1]} for i in dict_gate_zone[rydberg_idx]]
+            set_qubit_dependency = set()
+            inst_idx = len(self.result_json['instructions'])
+            for gate_idx in dict_gate_zone[rydberg_idx]:
+                gate = list_gate[gate_idx]
+                # collect qubit dependency
+                set_qubit_dependency.add(self.qubit_dependency[gate[0]])
+                self.qubit_dependency[gate[0]] = inst_idx
+                set_qubit_dependency.add(self.qubit_dependency[gate[1]])
+                self.qubit_dependency[gate[1]] = inst_idx
+            dependency = { "qubit": [], "rydberg": self.rydberg_dependency[rydberg_idx]}
+            self.rydberg_dependency[rydberg_idx] = inst_idx
+            dependency["qubit"] = list(set_qubit_dependency)
+            self.write_gate_instruction(inst_idx, rydberg_idx, result_gate, dependency)
+        
+        # process single-qubit gates
+        inst_idx = len(self.result_json['instructions'])
+        result_gate = []
+        set_qubit_dependency = set()
+        for gate_info in list_1q_gate:
+            # collect qubit dependency
+            set_qubit_dependency.add(self.qubit_dependency[gate_info[1]])
+            self.qubit_dependency[gate_info[1]] = inst_idx
+            result_gate.append({
+                "name": gate_info[0],
+                "q": gate_info[1]
+            })
+        dependency = { "qubit": []}
+        dependency["qubit"] = list(set_qubit_dependency)
+        if len(result_gate) > 0:
+            self.write_1q_gate_instruction(inst_idx, result_gate, dependency, gate_mapping)
+
+    def write_gate_instruction(self, inst_idx: int, rydberg_idx: int, result_gate: list, dependency: dict):
+        self.result_json['instructions'].append(
+            {
+                "type": "rydberg",
+                "id": inst_idx,
+                "zone_id": rydberg_idx,
+                "gates": result_gate,
+                "dependency": dependency
+            }
+        )
+
+    def write_1q_gate_instruction(self, inst_idx: int, result_gate: list, dependency: dict, gate_mapping: list):
+        locs = []
+        for gate in result_gate:
+            locs.append((gate["q"], gate_mapping[gate["q"]][0],
+                        gate_mapping[gate["q"]][1], gate_mapping[gate["q"]][2]))
+
+        self.result_json['instructions'].append(
+            {
+                "type": "1qGate",
+                "unitary": "u3",
+                "id": inst_idx,
+                "locs": locs,
+                "gates": result_gate,
+                "dependency": dependency
+            }
+        )
+
+    def construct_reverse_layer(self, id_layer_start: int, initial_mapping: list, final_mapping: list):
+        """
+        construct reverse movement layer by processing the forward movement
+        """
+        id_layer_end = len(self.result_json['instructions'])
+        for layer in range(id_layer_start, id_layer_end):
+            if self.result_json['instructions'][layer]["type"] == "rydberg":
+                break
+            else:
+                # process a rearrangement layer
+                inst_idx = len(self.result_json['instructions'])
+                dependency = {
+                    "qubit": [],
+                    "site": [],
+                }
+                # process aod dependency
+                set_qubit_dependency = set()
+                set_site_dependency = set()
+                list_aod_qubits = self.result_json['instructions'][layer]["aod_qubits"]
+                list_end_location = []
+                list_begin_location = []
+                for sub_list_qubits in list_aod_qubits:
+                    row_begin_location = []
+                    row_end_location = []
+                    for q in sub_list_qubits:
+                        row_begin_location.append([q, initial_mapping[q][0], initial_mapping[q][1], initial_mapping[q][2]])
+                        row_end_location.append([q, final_mapping[q][0], final_mapping[q][1], final_mapping[q][2]])
+                        # process site dependency
+                        site_key = (final_mapping[q][0], final_mapping[q][1], final_mapping[q][2])
+                        if site_key in self.site_dependency:
+                            set_site_dependency.add(self.site_dependency[site_key])
+                        site_key = (initial_mapping[q][0], initial_mapping[q][1], initial_mapping[q][2])
+                        self.site_dependency[site_key] = inst_idx
+                        # collect qubit dependency
+                        set_qubit_dependency.add(self.qubit_dependency[q])
+                        self.qubit_dependency[q] = inst_idx
+
+                    list_begin_location.append(row_begin_location)
+                    list_end_location.append(row_end_location)
+                dependency["qubit"] = list(set_qubit_dependency)
+                dependency["site"] = list(set_site_dependency)
+                self.write_rearrangement_instruction(inst_idx, 
+                                                     list_aod_qubits,
+                                                     list_begin_location,
+                                                     list_end_location, 
+                                                     dependency)
+                
+
+

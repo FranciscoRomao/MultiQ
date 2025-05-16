@@ -7,10 +7,12 @@ from scipy.sparse.csgraph import maximum_bipartite_matching
 import time
 
 import qiskit.qasm2 as qasm2
+from qiskit import transpile
 import networkx as nx
 
 from multiq.configuration import MultiQConfig
 from multiq.router.router import Router_mixin, Movement
+
 
 class ZacTile(Scheduler_mixin, Placer_mixin, Verifier_mixin, Router_mixin):
     def __init__(self, config: MultiQConfig):
@@ -45,16 +47,16 @@ class ZacTile(Scheduler_mixin, Placer_mixin, Verifier_mixin, Router_mixin):
         self.qubit_mapping = []
 
     def prepare_routing(self):
+
+        # last instruction ID which accessed a particular qubit
         self.qubit_dependency = [0 for i in range(self.n_q)]
         self.site_dependency = dict()
-        self.aod_end_time = [(0, i)
-                             for i in range(len(self.architecture.dict_AOD))]
-        self.aod_dependency = [0 for i in range(
-            len(self.architecture.dict_AOD))]
+        # self.aod_end_time = [(0, i)
+        #                      for i in range(len(self.architecture.dict_AOD))]
+        # self.aod_dependency = [0 for i in range(
+        #     len(self.architecture.dict_AOD))]
         self.rydberg_dependency = [0 for i in range(
             len(self.architecture.entanglement_zone))]
-
-        self.write_initial_instruction()
 
     def load_program(self, source_file: str):
         self.g_q = []
@@ -62,6 +64,10 @@ class ZacTile(Scheduler_mixin, Placer_mixin, Verifier_mixin, Router_mixin):
         n_single_qubit_gate = 0
 
         cz_circuit = qasm2.load(source_file)
+        cz_circuit = transpile(cz_circuit, basis_gates=["cz", "id", "u2", "u1", "u3"],
+                               optimization_level=3,
+                               seed_transpiler=0)
+
         self.n_q = cz_circuit.num_qubits
 
         list_qubit_last_2q_gate = [-1 for _ in range(self.n_q)]
@@ -103,40 +109,6 @@ class ZacTile(Scheduler_mixin, Placer_mixin, Verifier_mixin, Router_mixin):
 
         self.n_g = len(self.g_q)
         self.g_s = tuple(['CRZ' for _ in range(self.n_g)])
-
-        print("[INFO]           number of qubits: {}".format(self.n_q))
-        print("[INFO]           number of two-qubit gates: {}".format(len(self.g_q)))
-        print(
-            "[INFO]           number of single-qubit gates: {}".format(n_single_qubit_gate))
-
-    def solve(self, save_file: bool = True):
-        self.code_filename = self.dir + \
-            f"code/{self.result_json['name']}_code.json"
-        # member to hold intermedite results
-
-        # todo: check if the program input is valid, i.e., #q < #p
-        t_s = time.time()
-        # gate scheduling with graph coloring
-        print("[INFO] ZAC: Run scheduling")
-        self.scheduling()
-
-        if self.reuse:
-            self.collect_reuse_qubit()
-        else:
-            self.reuse_qubit = [set()
-                                for _ in range(len(self.gate_scheduling))]
-
-        self.place_qubit_initial()
-
-        self.place_qubit_intermedeiate()
-
-        self.route_qubit()
-        self.runtime_analysis["total"] = time.time() - t_s
-
-        if self.to_verify:
-            print("[INFO] ZAC: Start Verification")
-            self.verify_scheduling(self.gate_scheduling_idx)
-            self.verify_qubit_mapping(0)
 
     def collect_reuse_qubit(self):
         """
@@ -222,4 +194,3 @@ class ZacTile(Scheduler_mixin, Placer_mixin, Verifier_mixin, Router_mixin):
 
     def set_architecture(self, arch: Architecture):
         self.architecture = arch
-
