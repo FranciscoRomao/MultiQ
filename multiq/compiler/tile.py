@@ -51,10 +51,9 @@ class ZacTile(Scheduler_mixin, Placer_mixin, Verifier_mixin, Router_mixin):
         # last instruction ID which accessed a particular qubit
         self.qubit_dependency = [0 for i in range(self.n_q)]
         self.site_dependency = dict()
-        # self.aod_end_time = [(0, i)
-        #                      for i in range(len(self.architecture.dict_AOD))]
-        # self.aod_dependency = [0 for i in range(
-        #     len(self.architecture.dict_AOD))]
+
+        # instr_id of instruction which last used rydberg
+        # TODO: change rydberg to a global dependency
         self.rydberg_dependency = [0 for i in range(
             len(self.architecture.entanglement_zone))]
 

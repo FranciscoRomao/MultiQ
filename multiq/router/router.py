@@ -15,41 +15,34 @@ class Movement(typing.NamedTuple):
     start_y: int
     end_y: int
 
-@dataclass
-class AODOperation:
-    id: int
-    begin_time: float
-    end_time: float
-
-@dataclass
-class LocalMoveOp(AODOperation):
-    qubits: set[int] # pickup set
-    begin_locs: list[tuple[int,int,int]] # (qubit_index, row, col)
-    end_locs: list[tuple[int,int,int]] # (qubit_index, row, col)
-
-@dataclass
-class SingleQubitOperation(AODOperation):
-    unitary: str
-    locs: list[tuple[int, int, int]] # (qubit_index, row, col)
-    gates: list[tuple[str, int]] # (name, qubit_index)
-
-    
-@dataclass
-class GlobalMoveOp(AODOperation):
-    id: int
-    
-
 class Router_mixin:
     PARKING_DIST = 1
+
+    # TODO merge forward and reverse 
+    def nx_reverse_interference_graph(self, layer: int):
+        if layer + 2 >= len(self.qubit_mapping):
+            return None, None
+        
+        gate_mapping = self.qubit_mapping[2 * layer + 1] # odd indices inside entanglement zone
+        final_mapping = self.qubit_mapping[2 * layer + 2]
+
+        qubits_in_layer = [] # consist of qubits to be moved
+        for gate in self.gate_scheduling[layer]:
+            for q in gate:
+                # exclude 1q gates or no moves
+                if final_mapping[q] != gate_mapping[q]:
+                    qubits_in_layer.append(q)
+                    
+         # graph constructions
+        vectors = self.graph_construction(qubits_in_layer, final_mapping, gate_mapping)
+        graph = self.nx_graph(vectors)
+
+        return graph, vectors
+
 
     def nx_interference_graph(self, layer: int):
         initial_mapping = self.qubit_mapping[2 * layer] # even indices in storage
         gate_mapping = self.qubit_mapping[2 * layer + 1] # odd indices inside entanglement zone
-        # TODO: handle this
-        if layer + 2 < len(self.qubit_mapping):
-            final_mapping = self.qubit_mapping[2 * layer+2]
-        else:
-            final_mapping = None # final movement, don't need to move qubits back after exec
 
         qubits_in_layer = [] # consist of qubits to be moved
         for gate in self.gate_scheduling[layer]:
@@ -142,13 +135,14 @@ class Router_mixin:
                 pickup_dict[y].append(q)
             else:
                 pickup_dict[y] = [q]
-        list_aod_qubits = []
+        list_aod_qubits = [] # row-by-row grouped qubits
         list_end_location = []
         list_begin_location = []
         dependency = {
             "qubit": [],
             "site": [],
         }
+
         # process aod dependency
         inst_idx = len(self.result_json['instructions'])
 
@@ -569,7 +563,7 @@ class Router_mixin:
         duration_idx = 0
         list_gate_layer_idx = []
 
-        aod_end_time = 0
+        aod_end_time = 0.0
         
 
         for idx in range(id_layer_start, id_layer_end):
@@ -584,12 +578,11 @@ class Router_mixin:
         # assign instruction according to the duration in descending order
         # print("list_instruction_duration")
         # print(list_instruction_duration)
+
         for i in range(2):
             for item in list_instruction_duration[i]:
                 duration = item[0]
                 inst = self.result_json['instructions'][item[1]]
-                # print(inst)
-                # begin_time, aod_id = heapq.heappop(self.aod_end_time)
                 begin_time = max(aod_begin_time, self.get_begin_time(item[1], inst["dependency"]))
                 end_time = begin_time + duration
                 inst["dependency"]["aod"] = -1
@@ -665,8 +658,15 @@ class Router_mixin:
                                 begin_time = self.result_json['instructions'][inst_idx]["end_time"]
                 else:
                     for inst_idx in dependency[dependency_type]:
-                        if begin_time < self.result_json['instructions'][inst_idx]["end_time"]:
-                            begin_time = self.result_json['instructions'][inst_idx]["end_time"]
+                        # key error
+                        try:
+                            if begin_time < self.result_json['instructions'][inst_idx]["end_time"]:
+                                begin_time = self.result_json['instructions'][inst_idx]["end_time"]
+                        except:
+                            print("instruction has no end_time", self.result_json['instructions'][inst_idx])
+                            raise
+                        
+                        
         return begin_time
     
     def process_gate_layer(self, layer: int, gate_mapping: list):
@@ -758,10 +758,13 @@ class Router_mixin:
         id_layer_end = len(self.result_json['instructions'])
         for layer in range(id_layer_start, id_layer_end):
             if self.result_json['instructions'][layer]["type"] == "rydberg":
+                # we have reached the end of the move instructions and found a gate instruction
                 break
             else:
                 # process a rearrangement layer
-                inst_idx = len(self.result_json['instructions'])
+
+                inst_idx = len(self.result_json['instructions']) # the new instruction ID
+                # dependencies for this operation
                 dependency = {
                     "qubit": [],
                     "site": [],
@@ -772,13 +775,18 @@ class Router_mixin:
                 list_aod_qubits = self.result_json['instructions'][layer]["aod_qubits"]
                 list_end_location = []
                 list_begin_location = []
+
+                # for each grouped qubit row
                 for sub_list_qubits in list_aod_qubits:
                     row_begin_location = []
                     row_end_location = []
                     for q in sub_list_qubits:
+                        # current position is result of forward mapping
                         row_begin_location.append([q, initial_mapping[q][0], initial_mapping[q][1], initial_mapping[q][2]])
+                        # end position is the new final mapping
                         row_end_location.append([q, final_mapping[q][0], final_mapping[q][1], final_mapping[q][2]])
                         # process site dependency
+                        # transitively add dependencies
                         site_key = (final_mapping[q][0], final_mapping[q][1], final_mapping[q][2])
                         if site_key in self.site_dependency:
                             set_site_dependency.add(self.site_dependency[site_key])

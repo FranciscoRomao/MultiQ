@@ -19,8 +19,7 @@ from .tile import ZacTile
 
 logger = logging.getLogger("multiq")
 
-
-class Compiler():
+class Compiler:
     """class to solve QLS problem."""
 
     def __init__(self, arch: Architecture):
@@ -31,12 +30,7 @@ class Compiler():
 
         # all operations on all tiles are measured according to this global time
         self.global_time = 0.0
-
         self.aod_end_time = 0.0  # finish time of currently executing instruction on AoD
-
-        self.aod_dependency = 0  # index of last instruction executed on the AoD
-        self.rydberg_dependency = 0.0
-
         self.active_tiles: list[int] = [] # indices of the active tiles
 
     def route_global_batch(self):
@@ -68,13 +62,14 @@ class Compiler():
 
                 graph, moves = tile.nx_interference_graph(layer)
                 graphs.append((tile_id, graph, moves))
-                # NOTE: why needed?
-                # tile.gate_scheduling.pop(0)
 
             if len(graphs) == 0:
                 break
 
             graph, global_moves = self.combine_nx_graphs(graphs)
+            tile_instr_start_indices = [0 for _ in range(len(self.active_tiles))]
+
+            tile_st = [len(t.result_json['instructions']) for t in self.tiles]
 
             while graph.number_of_nodes() > 0:
                 indp_nodes = nx.maximal_independent_set(graph)
@@ -88,14 +83,36 @@ class Compiler():
                 tile_instr_start_indices = self.process_movement(layer, indp_moves_per_tile)
                 graph.remove_nodes_from(indp_nodes)
 
-                # add gate layers
-                self.process_gates(layer)
-                # add reverse movements
-                self.process_reverse_movement(layer, tile_instr_start_indices)
-                # assign global aod resource
-                self.aod_assignment(tile_instr_start_indices)
+            # add gate layers
+            self.process_gates(layer)
+
+            graphs.clear()
+            for tile_id in self.active_tiles:
+                tile = self.tiles[tile_id]
+                graph, moves = tile.nx_reverse_interference_graph(layer)
+                if graph is not None:
+                    graphs.append((tile_id, graph, moves))
+
+            graph, global_moves = self.combine_nx_graphs(graphs)
+            while graph.number_of_nodes() > 0:
+                indp_nodes = nx.maximal_independent_set(graph)
+                indp_moves_per_tile = [[] for _ in range(len(self.active_tiles))]
+                for i_node in indp_nodes:
+                    (tile_id, movement) = global_moves[i_node]
+                    indp_moves_per_tile[tile_id].append(movement)
+
+                self.process_rev_movement(layer, indp_moves_per_tile)
+                graph.remove_nodes_from(indp_nodes)
+                
+
+            print("finished layer. Now assign aod...")
+            # assign global aod resource
+            self.aod_assignment(tile_st)
 
             layer += 1
+
+        for t in self.tiles:
+            t.flatten_rearrangment_instruction()
 
         print("The tiles are")
         for t in self.tiles:
@@ -166,8 +183,28 @@ class Compiler():
 
         return tile_instr_start_indices
 
+    def process_rev_movement(self, layer: int, indp_moves_per_tile: list[list[Movement]]):
+        # process the instructions on the tile level
+
+        tile_instr_start_indices = [0 for _ in range(len(self.active_tiles))]
+
+        for tile_id in self.active_tiles:
+            tile = self.tiles[tile_id]
+
+            if tile.qubit_mapping[2 * layer + 2] is None:
+                tile.construct_reverse_layer(tile_instr_start_indices[tile_id], tile.qubit_mapping[2 * layer], tile.qubit_mapping[2 * layer + 2]) # None
+            else:
+                tile_moves = indp_moves_per_tile[tile_id]
+                qubits = {move.qubit_index for move in tile_moves}
+                id = tile.process_movement_layer(
+                    qubits, tile.qubit_mapping[2 * layer + 1], tile.qubit_mapping[2 * layer + 2])
+                tile_instr_start_indices[tile_id] = id
+
+        return tile_instr_start_indices
+
+
     def aod_assignment(self, instr_start_indices: list[int]):
-        global_end_time = 0
+        global_end_time = 0.0
 
         for id in self.active_tiles:
             tile = self.tiles[id]
@@ -182,7 +219,7 @@ class Compiler():
             tile.process_gate_layer(layer, tile.qubit_mapping[2 * layer + 1])
     
 
-    def process_reverse_movement(self, layer: int, tile_start_indices: list[int]):
+    def process_reverse_movement(self, layer: int, tile_start_indices: list[int], indp_moves_per_tile: list[list[Movement]]):
         for tile_id in self.active_tiles:
             tile = self.tiles[tile_id]
             tile.construct_reverse_layer(tile_start_indices[tile_id], tile.qubit_mapping[2 * layer + 1], tile.qubit_mapping[2 * layer + 2])
