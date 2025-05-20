@@ -8,6 +8,8 @@ from dataclasses import dataclass, field
 import networkx as nx
 
 # AoD movement for a specific qubit
+
+
 class Movement(typing.NamedTuple):
     qubit_index: int
     start_x: int
@@ -15,49 +17,55 @@ class Movement(typing.NamedTuple):
     start_y: int
     end_y: int
 
+
 class Router_mixin:
     PARKING_DIST = 1
 
-    # TODO merge forward and reverse 
+    # TODO merge forward and reverse
     def nx_reverse_interference_graph(self, layer: int):
         if layer + 2 >= len(self.qubit_mapping):
             return None, None
-        
-        gate_mapping = self.qubit_mapping[2 * layer + 1] # odd indices inside entanglement zone
+
+        # odd indices inside entanglement zone
+        gate_mapping = self.qubit_mapping[2 * layer + 1]
         final_mapping = self.qubit_mapping[2 * layer + 2]
 
-        qubits_in_layer = [] # consist of qubits to be moved
+        qubits_in_layer = []  # consist of qubits to be moved
         for gate in self.gate_scheduling[layer]:
             for q in gate:
                 # exclude 1q gates or no moves
                 if final_mapping[q] != gate_mapping[q]:
                     qubits_in_layer.append(q)
-                    
+
          # graph constructions
-        vectors = self.graph_construction(qubits_in_layer, final_mapping, gate_mapping)
+        vectors = self.graph_construction(
+            qubits_in_layer, final_mapping, gate_mapping)
         graph = self.nx_graph(vectors)
 
         return graph, vectors
 
-
     def nx_interference_graph(self, layer: int):
-        initial_mapping = self.qubit_mapping[2 * layer] # even indices in storage
-        gate_mapping = self.qubit_mapping[2 * layer + 1] # odd indices inside entanglement zone
+        # even indices in storage
+        initial_mapping = self.qubit_mapping[2 * layer]
+        # odd indices inside entanglement zone
+        gate_mapping = self.qubit_mapping[2 * layer + 1]
 
-        qubits_in_layer = [] # consist of qubits to be moved
+        qubits_in_layer = []  # consist of qubits to be moved
         for gate in self.gate_scheduling[layer]:
             for q in gate:
                 # exclude 1q gates or no moves
                 if initial_mapping[q] != gate_mapping[q]:
-                    assert(initial_mapping[q][0] == 0 or gate_mapping[q][0] == 0)
+                    assert (initial_mapping[q][0] ==
+                            0 or gate_mapping[q][0] == 0)
                     qubits_in_layer.append(q)
-                    
+
          # graph constructions
-        vectors = self.graph_construction(qubits_in_layer, initial_mapping, gate_mapping)
+        vectors = self.graph_construction(
+            qubits_in_layer, initial_mapping, gate_mapping)
         graph = self.nx_graph(vectors)
 
         return graph, vectors
-    
+
     def graph_construction(self, remain_graph: list, initial_mapping: list, final_mapping: list):
         vectors = []
         if self.use_window:
@@ -68,21 +76,24 @@ class Router_mixin:
         vectors = [Movement(0, 0, 0, 0, 0) for _ in range(vector_length)]
 
         for i, q in enumerate(remain_graph):
-            (q_x, q_y) = self.architecture.exact_SLM_location_tuple(initial_mapping[q])
-            (site_x, site_y) = self.architecture.exact_SLM_location_tuple(final_mapping[q])
+            (q_x, q_y) = self.architecture.exact_SLM_location_tuple(
+                initial_mapping[q])
+            (site_x, site_y) = self.architecture.exact_SLM_location_tuple(
+                final_mapping[q])
             vectors[i] = Movement(q, q_x, site_x, q_y, site_y)
         return vectors
-    
+
     def nx_graph(self, vectors: list) -> nx.Graph:
         G = nx.Graph()
-        G.add_nodes_from(range(len(vectors))) # each node represents an index into `vectors`
-        
+        # each node represents an index into `vectors`
+        G.add_nodes_from(range(len(vectors)))
+
         for i in range(len(vectors)):
             for j in range(i+1, len(vectors)):
                 if not self.compatible_2D(vectors[i], vectors[j]):
                     G.add_edge(i, j)
         return G
-        
+
     def collect_violation(self, vectors: list) -> list[(int, int)]:
         violations = []
         for i in range(len(vectors)):
@@ -95,10 +106,10 @@ class Router_mixin:
         """
         check if move a and b can be performed simultaneously
         """
-        
+
         a_x1, a_y1, a_x2, a_y2 = a.start_x, a.start_y, a.end_x, a.end_y
         b_x1, b_y1, b_x2, b_y2 = b.start_x, b.start_y, b.end_x, b.end_y
-        
+
         # x-axis
         if a_x1 == b_x1 and a_y1 != b_y1:
             return False
@@ -128,14 +139,15 @@ class Router_mixin:
         """
         # seperate qubits in list_aod_qubit into multiple lists where qubits in one list can pick up simultaneously
         # we use row-based pick up
-        pickup_dict = dict() # key: array and row, value: a list of qubit in the same row
+        pickup_dict = dict()  # key: array and row, value: a list of qubit in the same row
         for q in set_aod_qubit:
-            x, y = self.architecture.exact_SLM_location_tuple(initial_mapping[q])
+            x, y = self.architecture.exact_SLM_location_tuple(
+                initial_mapping[q])
             if y in pickup_dict:
                 pickup_dict[y].append(q)
             else:
                 pickup_dict[y] = [q]
-        list_aod_qubits = [] # row-by-row grouped qubits
+        list_aod_qubits = []  # row-by-row grouped qubits
         list_end_location = []
         list_begin_location = []
         dependency = {
@@ -155,29 +167,33 @@ class Router_mixin:
             row_end_location = []
             for q in pickup_dict[dict_key]:
                 # collect qubit begin location
-                row_begin_location.append([q, initial_mapping[q][0], initial_mapping[q][1], initial_mapping[q][2]])
+                row_begin_location.append(
+                    [q, initial_mapping[q][0], initial_mapping[q][1], initial_mapping[q][2]])
                 # row_begin_location.append({
-                #     "id": q, 
-                #     "a": initial_mapping[q][0], 
-                #     "c": initial_mapping[q][2], 
+                #     "id": q,
+                #     "a": initial_mapping[q][0],
+                #     "c": initial_mapping[q][2],
                 #     "r": initial_mapping[q][1]
                 # })
 
                 # collect qubit end location
-                row_end_location.append([q, final_mapping[q][0], final_mapping[q][1], final_mapping[q][2]])
+                row_end_location.append(
+                    [q, final_mapping[q][0], final_mapping[q][1], final_mapping[q][2]])
                 # row_end_location.append({
-                #     "id": q, 
-                #     "a": final_mapping[q][0], 
-                #     "c": final_mapping[q][2], 
+                #     "id": q,
+                #     "a": final_mapping[q][0],
+                #     "c": final_mapping[q][2],
                 #     "r": final_mapping[q][1]
                 # })
                 # process site dependency
-                site_key = (final_mapping[q][0], final_mapping[q][1], final_mapping[q][2])
+                site_key = (
+                    final_mapping[q][0], final_mapping[q][1], final_mapping[q][2])
                 if site_key in self.site_dependency:
                     set_site_dependency.add(self.site_dependency[site_key])
-                site_key = (initial_mapping[q][0], initial_mapping[q][1], initial_mapping[q][2])
+                site_key = (
+                    initial_mapping[q][0], initial_mapping[q][1], initial_mapping[q][2])
                 self.site_dependency[site_key] = inst_idx
-                
+
                 # collect qubit dependency
                 set_qubit_dependency.add(self.qubit_dependency[q])
                 self.qubit_dependency[q] = inst_idx
@@ -185,12 +201,13 @@ class Router_mixin:
             list_end_location.append(row_end_location)
         dependency["qubit"] = list(set_qubit_dependency)
         dependency["site"] = list(set_site_dependency)
-        self.write_rearrangement_instruction(inst_idx, list_aod_qubits, list_begin_location, list_end_location, dependency)
+        self.write_rearrangement_instruction(
+            inst_idx, list_aod_qubits, list_begin_location, list_end_location, dependency)
 
         return inst_idx
 
-  
-    # calculate the total time required for the instructions in a rearrangeJob. 
+    # calculate the total time required for the instructions in a rearrangeJob.
+
     def get_duration(self, inst: dict):
         list_detail_inst = inst["insts"]
         duration = 0
@@ -200,7 +217,7 @@ class Router_mixin:
         # unit_move = math.sqrt(d/a)
         # t = unit_move + 2 * self.architecture.time_atom_transfer
         # return t
-    
+
         for detail_inst in list_detail_inst:
             inst_type = detail_inst["type"].split(":")[0]
             detail_inst["begin_time"] = duration
@@ -212,47 +229,48 @@ class Router_mixin:
                 move_duration = 0
                 for row_begin, row_end in zip(detail_inst["row_y_begin"], detail_inst["row_y_end"]):
                     for col_begin, col_end in zip(detail_inst["col_x_begin"], detail_inst["col_x_end"]):
-                        tmp = self.architecture.movement_duration(col_begin, row_begin, col_end, row_end)
+                        tmp = self.architecture.movement_duration(
+                            col_begin, row_begin, col_end, row_end)
                         # tmp = min(self.architecture.movement_duration(col_begin, row_begin, col_end, row_end), unit_move) # !
                         if move_duration < tmp:
                             move_duration = tmp
-                            
+
                 # NB: set time
                 detail_inst["end_time"] = move_duration + duration
                 duration += move_duration
             else:
                 raise ValueError
-        
-       
+
         return duration
-    
-    
-    def write_rearrangement_instruction(self, inst_idx: int, aod_qubits: list, begin_location: list, end_location: list, dependency: dict):    
+
+    def write_rearrangement_instruction(self, inst_idx: int, aod_qubits: list, begin_location: list, end_location: list, dependency: dict):
         inst = {
-                "type": "rearrangeJob",
-                "id": inst_idx,
-                "aod_id": 0,
-                "aod_qubits": aod_qubits,
-                "begin_locs": begin_location,
-                "end_locs": end_location,
-                "dependency": dependency
-            }
+            "type": "rearrangeJob",
+            "id": inst_idx,
+            "aod_id": 0,
+            "aod_qubits": aod_qubits,
+            "begin_locs": begin_location,
+            "end_locs": end_location,
+            "dependency": dependency
+        }
         inst["insts"] = self.expand_arrangement(inst)
         self.result_json['instructions'].append(inst)
-    
-    def flatten_rearrangment_instruction(self):    
+
+    def flatten_rearrangment_instruction(self):
         for inst in self.result_json['instructions']:
             if inst["type"] == "rearrangeJob":
-                inst["aod_qubits"] = list(chain.from_iterable(inst["aod_qubits"]))
-                inst["begin_locs"] = list(chain.from_iterable(inst["begin_locs"]))
+                inst["aod_qubits"] = list(
+                    chain.from_iterable(inst["aod_qubits"]))
+                inst["begin_locs"] = list(
+                    chain.from_iterable(inst["begin_locs"]))
                 inst["end_locs"] = list(chain.from_iterable(inst["end_locs"]))
- 
+
     def expand_arrangement(self, inst: dict):
         details = []  # all detailed instructions
 
         # ---------------------- find out number of cols ----------------------
-        all_col_x = [] # all the x coord of qubits
-        coords = [] # coords of qubits, shape is same as "begin_locs"
+        all_col_x = []  # all the x coord of qubits
+        coords = []  # coords of qubits, shape is same as "begin_locs"
         # these coords are going to be updated as we construct the detail insts
 
         for locs in inst["begin_locs"]:
@@ -260,7 +278,7 @@ class Router_mixin:
             for loc in locs:
                 # coords_row.append({
                 #     "id": loc["id"],
-                #     "x": 
+                #     "x":
                 #         self.architecture.exact_SLM_location(
                 #             loc["a"],
                 #             loc["r"],
@@ -279,7 +297,8 @@ class Router_mixin:
                 #     loc["r"],
                 #     loc["c"],
                 # )[0])
-                exact_location = self.architecture.exact_SLM_location(loc[1], loc[2], loc[3])
+                exact_location = self.architecture.exact_SLM_location(
+                    loc[1], loc[2], loc[3])
                 coords_row.append({
                     "id": loc[0],
                     "x": exact_location[0],
@@ -289,7 +308,7 @@ class Router_mixin:
                 all_col_x.append(exact_location[0])
 
             coords.append(coords_row)
-        
+
         init_coords = deepcopy(coords)
 
         all_col_x = sorted(all_col_x)
@@ -297,10 +316,10 @@ class Router_mixin:
         # assign AOD column ids based on all x coords needed
         col_x_to_id = {all_col_x[i]: i for i in range(len(all_col_x))}
         # ---------------------------------------------------------------------
-        
+
         # -------------------- activation and parking -------------------------
-        all_col_idx_sofar = [] # which col has been activated
-        for row_id, locs in enumerate(inst["begin_locs"]): # each row
+        all_col_idx_sofar = []  # which col has been activated
+        for row_id, locs in enumerate(inst["begin_locs"]):  # each row
 
             # row_y = self.architecture.exact_SLM_location(
             #     locs[0]["a"],
@@ -374,7 +393,7 @@ class Router_mixin:
                     shift_back["col_loc_end"].append(col_loc)
                     # since there's a shift, update the coords of the qubit
                     coords[row_id][j]["x"] = col_x
-            
+
             shift_back["end_coord"] = deepcopy(coords)
 
             if len(shift_back["col_id"]) != 0:
@@ -382,11 +401,11 @@ class Router_mixin:
             details.append(activate)
 
             if row_id < len(inst["begin_locs"]) - 1:
-            # parking movement after the activation
-            # parking is required if we have activated some col, and there is
-            # some qubit we don't want to pick up at the intersection of this
-            # col and some future row to activate. We just always park here.
-            # the last parking is not needed since there's a big move after it.
+                # parking movement after the activation
+                # parking is required if we have activated some col, and there is
+                # some qubit we don't want to pick up at the intersection of this
+                # col and some future row to activate. We just always park here.
+                # the last parking is not needed since there's a big move after it.
                 parking = {
                     "type": "move",
                     "move_type": "after",
@@ -448,7 +467,7 @@ class Router_mixin:
 
         for row_id, (begin_locs, end_locs) in enumerate(zip(
             inst["begin_locs"], inst["end_locs"],
-            )):
+        )):
 
             big_move["row_id"].append(row_id)
             big_move["row_y_begin"].append(
@@ -456,7 +475,8 @@ class Router_mixin:
             )
             if init_coords[row_id][0]["y"] == coords[row_id][0]["y"]:
                 # AOD row is align with SLM row
-                big_move["row_loc_begin"].append([begin_locs[0][1], begin_locs[0][2]])
+                big_move["row_loc_begin"].append(
+                    [begin_locs[0][1], begin_locs[0][2]])
             else:
                 big_move["row_loc_begin"].append([-1, -1])
 
@@ -483,10 +503,10 @@ class Router_mixin:
                 #             begin_loc["c"],
                 #         )[0]
                 col_x = self.architecture.exact_SLM_location(
-                            begin_loc[1],
-                            begin_loc[2],
-                            begin_loc[3],
-                        )[0]
+                    begin_loc[1],
+                    begin_loc[2],
+                    begin_loc[3],
+                )[0]
                 col_id = col_x_to_id[col_x]
 
                 if col_id not in big_move["col_id"]:
@@ -495,7 +515,8 @@ class Router_mixin:
                     big_move["col_x_begin"].append(coords[row_id][j]["x"])
                     if init_coords[row_id][j]["x"] == coords[row_id][j]["x"]:
                         # AOD col is align with SLM col
-                        big_move["col_loc_begin"].append([begin_loc[1], begin_loc[3]])
+                        big_move["col_loc_begin"].append(
+                            [begin_loc[1], begin_loc[3]])
                     else:
                         big_move["col_loc_begin"].append([-1, -1])
                     # big_move["col_x_end"].append(
@@ -522,10 +543,10 @@ class Router_mixin:
                 #                             end_loc["c"],
                 #                         )[0]
                 coords[row_id][j]["x"] = self.architecture.exact_SLM_location(
-                                            end_loc[1],
-                                            end_loc[2],
-                                            end_loc[3],
-                                        )[0]
+                    end_loc[1],
+                    end_loc[2],
+                    end_loc[3],
+                )[0]
                 # coords[row_id][j]["y"] = self.architecture.exact_SLM_location(
                 #     end_locs[0]["a"],
                 #     end_locs[0]["r"],
@@ -536,24 +557,24 @@ class Router_mixin:
                     end_locs[0][2],
                     end_locs[0][3],
                 )[1]
-        
+
         big_move["end_coord"] = deepcopy(coords)
         details.append(big_move)
         # ---------------------------------------------------------------------
 
         # --------------------------- deactivation ----------------------------
         details.append({
-                "type": "deactivate",
-                "row_id": [i for i in range(len(inst["begin_locs"]))],
-                "col_id": [i for i in range(len(all_col_x))],
-            })
+            "type": "deactivate",
+            "row_id": [i for i in range(len(inst["begin_locs"]))],
+            "col_id": [i for i in range(len(all_col_x))],
+        })
         # ---------------------------------------------------------------------
-        
+
         for inst_counter, detail_inst in enumerate(details):
             detail_inst["id"] = inst_counter
 
-        return details 
-    
+        return details
+
     def aod_assignment(self, id_layer_start: int, aod_begin_time: float):
         """
         processs the aod assignment between two Rydberg stages
@@ -564,7 +585,6 @@ class Router_mixin:
         list_gate_layer_idx = []
 
         aod_end_time = 0.0
-        
 
         for idx in range(id_layer_start, id_layer_end):
             if self.result_json['instructions'][idx]["type"] != "rearrangeJob":
@@ -573,8 +593,10 @@ class Router_mixin:
                 continue
             duration = self.get_duration(self.result_json['instructions'][idx])
             list_instruction_duration[duration_idx].append((duration, idx))
-        list_instruction_duration[0] = sorted(list_instruction_duration[0], reverse=True)
-        list_instruction_duration[1] = sorted(list_instruction_duration[1], reverse=True)
+        list_instruction_duration[0] = sorted(
+            list_instruction_duration[0], reverse=True)
+        list_instruction_duration[1] = sorted(
+            list_instruction_duration[1], reverse=True)
         # assign instruction according to the duration in descending order
         # print("list_instruction_duration")
         # print(list_instruction_duration)
@@ -583,7 +605,8 @@ class Router_mixin:
             for item in list_instruction_duration[i]:
                 duration = item[0]
                 inst = self.result_json['instructions'][item[1]]
-                begin_time = max(aod_begin_time, self.get_begin_time(item[1], inst["dependency"]))
+                begin_time = max(aod_begin_time, self.get_begin_time(
+                    item[1], inst["dependency"]))
                 end_time = begin_time + duration
                 inst["dependency"]["aod"] = -1
                 # self.aod_dependency[aod_id] = item[1]
@@ -592,7 +615,7 @@ class Router_mixin:
                 inst["aod_id"] = 0
                 aod_end_time = end_time
 
-                for detail_inst in inst["insts"]: 
+                for detail_inst in inst["insts"]:
                     detail_inst["begin_time"] += begin_time
                     detail_inst["end_time"] += begin_time
                 if self.result_json["runtime"] < end_time:
@@ -603,25 +626,33 @@ class Router_mixin:
             if i == 0:
                 # print("list_gate_layer_idx")
                 # print(list_gate_layer_idx)
-                for gate_layer_idx in list_gate_layer_idx:    
+                for gate_layer_idx in list_gate_layer_idx:
                     # ! laser scheduling
                     inst = self.result_json['instructions'][gate_layer_idx]
                     # print(inst)
                     # print(gate_layer_idx)
                     # print(inst["dependency"])
-                    begin_time = self.get_begin_time(gate_layer_idx, inst["dependency"])
+                    begin_time = self.get_begin_time(
+                        gate_layer_idx, inst["dependency"])
                     if inst["type"] == "rydberg":
                         end_time = begin_time + self.architecture.time_rydberg
                     else:
-                        end_time = begin_time + (self.architecture.time_1qGate * len(inst["gates"])) + self.common_1q # for sequential gate execution
+                        # for sequential gate execution
+                        end_time = begin_time + \
+                            (self.architecture.time_1qGate *
+                             len(inst["gates"])) + self.common_1q
                     if self.result_json["runtime"] < end_time:
                         self.result_json["runtime"] = end_time
                     inst["begin_time"] = begin_time
                     inst["end_time"] = end_time
                     # input()
         return aod_end_time
-    
+
     def get_begin_time(self, cur_inst_idx: int, dependency: dict):
+        """ 
+            Iterate through the dependencies and find out the earliest time
+            from which this operation can conceivably start. 
+        """
         begin_time = 0
         for dependency_type in dependency:
             if isinstance(dependency[dependency_type], int):
@@ -633,18 +664,20 @@ class Router_mixin:
                     for inst_idx in dependency[dependency_type]:
                         if self.result_json['instructions'][inst_idx]["type"] == "rearrangeJob":
                             # find the time that the instruction finish atom transfer
-                            # ! 
+                            # !
                             atom_transfer_finish_time = 0
                             for detail_inst in self.result_json['instructions'][inst_idx]["insts"]:
                                 inst_type = detail_inst["type"].split(":")[0]
                                 if inst_type == "activate":
-                                    atom_transfer_finish_time = max(detail_inst["end_time"], atom_transfer_finish_time)
+                                    atom_transfer_finish_time = max(
+                                        detail_inst["end_time"], atom_transfer_finish_time)
                             # find the time until dropping of the qubits
                             atom_transfer_begin_time = 0
                             for detail_inst in self.result_json['instructions'][cur_inst_idx]["insts"]:
                                 inst_type = detail_inst["type"].split(":")[0]
                                 if inst_type == "deactivate":
-                                    atom_transfer_begin_time = max(detail_inst["begin_time"], atom_transfer_begin_time)
+                                    atom_transfer_begin_time = max(
+                                        detail_inst["begin_time"], atom_transfer_begin_time)
                                     break
                             tmp_begin_time = atom_transfer_finish_time - atom_transfer_begin_time
                             if begin_time < tmp_begin_time:
@@ -663,17 +696,17 @@ class Router_mixin:
                             if begin_time < self.result_json['instructions'][inst_idx]["end_time"]:
                                 begin_time = self.result_json['instructions'][inst_idx]["end_time"]
                         except:
-                            print("instruction has no end_time", self.result_json['instructions'][inst_idx])
+                            print("instruction has no end_time",
+                                  self.result_json['instructions'][inst_idx])
                             raise
-                        
-                        
+
         return begin_time
-    
+
     def process_gate_layer(self, layer: int, gate_mapping: list):
         """
         generate a layer for gate execution
         """
-        
+
         print("process gate layer")
         list_gate_idx = self.gate_scheduling_idx[layer]
         print("list_gate_idx:", list_gate_idx)
@@ -691,7 +724,8 @@ class Router_mixin:
             else:
                 dict_gate_zone[zone_idx].append(i)
         for rydberg_idx in dict_gate_zone:
-            result_gate = [{"id": list_gate_idx[i], "q0": list_gate[i][0], "q1": list_gate[i][1]} for i in dict_gate_zone[rydberg_idx]]
+            result_gate = [{"id": list_gate_idx[i], "q0": list_gate[i][0],
+                            "q1": list_gate[i][1]} for i in dict_gate_zone[rydberg_idx]]
             set_qubit_dependency = set()
             inst_idx = len(self.result_json['instructions'])
             for gate_idx in dict_gate_zone[rydberg_idx]:
@@ -701,11 +735,13 @@ class Router_mixin:
                 self.qubit_dependency[gate[0]] = inst_idx
                 set_qubit_dependency.add(self.qubit_dependency[gate[1]])
                 self.qubit_dependency[gate[1]] = inst_idx
-            dependency = { "qubit": [], "rydberg": self.rydberg_dependency[rydberg_idx]}
+            dependency = {"qubit": [],
+                          "rydberg": self.rydberg_dependency[rydberg_idx]}
             self.rydberg_dependency[rydberg_idx] = inst_idx
             dependency["qubit"] = list(set_qubit_dependency)
-            self.write_gate_instruction(inst_idx, rydberg_idx, result_gate, dependency)
-        
+            self.write_gate_instruction(
+                inst_idx, rydberg_idx, result_gate, dependency)
+
         # process single-qubit gates
         inst_idx = len(self.result_json['instructions'])
         result_gate = []
@@ -718,10 +754,11 @@ class Router_mixin:
                 "name": gate_info[0],
                 "q": gate_info[1]
             })
-        dependency = { "qubit": []}
+        dependency = {"qubit": []}
         dependency["qubit"] = list(set_qubit_dependency)
         if len(result_gate) > 0:
-            self.write_1q_gate_instruction(inst_idx, result_gate, dependency, gate_mapping)
+            self.write_1q_gate_instruction(
+                inst_idx, result_gate, dependency, gate_mapping)
 
     def write_gate_instruction(self, inst_idx: int, rydberg_idx: int, result_gate: list, dependency: dict):
         self.result_json['instructions'].append(
@@ -763,7 +800,8 @@ class Router_mixin:
             else:
                 # process a rearrangement layer
 
-                inst_idx = len(self.result_json['instructions']) # the new instruction ID
+                # the new instruction ID
+                inst_idx = len(self.result_json['instructions'])
                 # dependencies for this operation
                 dependency = {
                     "qubit": [],
@@ -782,15 +820,20 @@ class Router_mixin:
                     row_end_location = []
                     for q in sub_list_qubits:
                         # current position is result of forward mapping
-                        row_begin_location.append([q, initial_mapping[q][0], initial_mapping[q][1], initial_mapping[q][2]])
+                        row_begin_location.append(
+                            [q, initial_mapping[q][0], initial_mapping[q][1], initial_mapping[q][2]])
                         # end position is the new final mapping
-                        row_end_location.append([q, final_mapping[q][0], final_mapping[q][1], final_mapping[q][2]])
+                        row_end_location.append(
+                            [q, final_mapping[q][0], final_mapping[q][1], final_mapping[q][2]])
                         # process site dependency
                         # transitively add dependencies
-                        site_key = (final_mapping[q][0], final_mapping[q][1], final_mapping[q][2])
+                        site_key = (
+                            final_mapping[q][0], final_mapping[q][1], final_mapping[q][2])
                         if site_key in self.site_dependency:
-                            set_site_dependency.add(self.site_dependency[site_key])
-                        site_key = (initial_mapping[q][0], initial_mapping[q][1], initial_mapping[q][2])
+                            set_site_dependency.add(
+                                self.site_dependency[site_key])
+                        site_key = (
+                            initial_mapping[q][0], initial_mapping[q][1], initial_mapping[q][2])
                         self.site_dependency[site_key] = inst_idx
                         # collect qubit dependency
                         set_qubit_dependency.add(self.qubit_dependency[q])
@@ -800,10 +843,8 @@ class Router_mixin:
                     list_end_location.append(row_end_location)
                 dependency["qubit"] = list(set_qubit_dependency)
                 dependency["site"] = list(set_site_dependency)
-                self.write_rearrangement_instruction(inst_idx, 
+                self.write_rearrangement_instruction(inst_idx,
                                                      list_aod_qubits,
                                                      list_begin_location,
-                                                     list_end_location, 
+                                                     list_end_location,
                                                      dependency)
-                
-

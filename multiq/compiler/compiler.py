@@ -19,6 +19,7 @@ from .tile import ZacTile
 
 logger = logging.getLogger("multiq")
 
+
 class Compiler:
     """class to solve QLS problem."""
 
@@ -31,7 +32,7 @@ class Compiler:
         # all operations on all tiles are measured according to this global time
         self.global_time = 0.0
         self.aod_end_time = 0.0  # finish time of currently executing instruction on AoD
-        self.active_tiles: list[int] = [] # indices of the active tiles
+        self.active_tiles: list[int] = []  # indices of the active tiles
 
     def route_global_batch(self):
 
@@ -57,7 +58,8 @@ class Compiler:
 
                 if layer >= len(tile.gate_scheduling):
                     self.active_tiles.remove(tile_id)
-                    print("Removing tile_id", tile_id, "from active tiles. It is now", self.active_tiles)
+                    print("Removing tile_id", tile_id,
+                          "from active tiles. It is now", self.active_tiles)
                     continue
 
                 graph, moves = tile.nx_interference_graph(layer)
@@ -67,20 +69,22 @@ class Compiler:
                 break
 
             graph, global_moves = self.combine_nx_graphs(graphs)
-            tile_instr_start_indices = [0 for _ in range(len(self.active_tiles))]
+            tile_instr_start_indices = [
+                0 for _ in range(len(self.active_tiles))]
 
             tile_st = [len(t.result_json['instructions']) for t in self.tiles]
 
             while graph.number_of_nodes() > 0:
                 indp_nodes = nx.maximal_independent_set(graph)
-                indp_moves_per_tile = [[] for _ in range(len(self.active_tiles))]
+                indp_moves_per_tile = [[] for _ in range(len(self.tiles))]
 
                 # partition the independent set by tile
                 for i_node in indp_nodes:
                     (tile_id, movement) = global_moves[i_node]
                     indp_moves_per_tile[tile_id].append(movement)
 
-                tile_instr_start_indices = self.process_movement(layer, indp_moves_per_tile)
+                tile_instr_start_indices = self.process_movement(
+                    layer, indp_moves_per_tile)
                 graph.remove_nodes_from(indp_nodes)
 
             # add gate layers
@@ -96,14 +100,13 @@ class Compiler:
             graph, global_moves = self.combine_nx_graphs(graphs)
             while graph.number_of_nodes() > 0:
                 indp_nodes = nx.maximal_independent_set(graph)
-                indp_moves_per_tile = [[] for _ in range(len(self.active_tiles))]
+                indp_moves_per_tile = [[] for _ in range(len(self.tiles))]
                 for i_node in indp_nodes:
                     (tile_id, movement) = global_moves[i_node]
                     indp_moves_per_tile[tile_id].append(movement)
 
                 self.process_rev_movement(layer, indp_moves_per_tile)
                 graph.remove_nodes_from(indp_nodes)
-                
 
             print("finished layer. Now assign aod...")
             # assign global aod resource
@@ -128,7 +131,8 @@ class Compiler:
             n_nodes = len(nodes)  # number of movements in one tile
             combined_nodes.extend([(id, *n) for n in nodes])
             # An edge is a pair of indices. Need to adjust new indices for each subgraph
-            combined_edges.extend([(i + tile_offset, j + tile_offset) for i, j in edges])
+            combined_edges.extend(
+                [(i + tile_offset, j + tile_offset) for i, j in edges])
             tile_offset += n_nodes
 
         return combined_nodes, combined_edges
@@ -159,8 +163,10 @@ class Compiler:
         a_x1, a_y1, a_x2, a_y2 = a.start_x, a.start_y, a.end_x, a.end_y
         b_x1, b_y1, b_x2, b_y2 = b.start_x, b.start_y, b.end_x, b.end_y
 
+        # must be same start row
         if a_x1 != b_x1:
             return False
+        # must be same finish row
         if a_x2 != b_x2:
             return False
 
@@ -174,7 +180,7 @@ class Compiler:
 
         for tile_id in self.active_tiles:
             tile = self.tiles[tile_id]
-            
+
             tile_moves = indp_moves_per_tile[tile_id]
             qubits = {move.qubit_index for move in tile_moves}
             id = tile.process_movement_layer(
@@ -192,7 +198,9 @@ class Compiler:
             tile = self.tiles[tile_id]
 
             if tile.qubit_mapping[2 * layer + 2] is None:
-                tile.construct_reverse_layer(tile_instr_start_indices[tile_id], tile.qubit_mapping[2 * layer], tile.qubit_mapping[2 * layer + 2]) # None
+                tile.construct_reverse_layer(
+                    # None
+                    tile_instr_start_indices[tile_id], tile.qubit_mapping[2 * layer], tile.qubit_mapping[2 * layer + 2])
             else:
                 tile_moves = indp_moves_per_tile[tile_id]
                 qubits = {move.qubit_index for move in tile_moves}
@@ -202,28 +210,26 @@ class Compiler:
 
         return tile_instr_start_indices
 
-
     def aod_assignment(self, instr_start_indices: list[int]):
         global_end_time = 0.0
 
         for id in self.active_tiles:
             tile = self.tiles[id]
-            global_end_time = max(global_end_time, tile.aod_assignment(instr_start_indices[id], self.aod_end_time))
+            global_end_time = max(global_end_time, tile.aod_assignment(
+                instr_start_indices[id], self.aod_end_time))
 
         self.aod_end_time = global_end_time
-
 
     def process_gates(self, layer: int):
         for tile_id in self.active_tiles:
             tile = self.tiles[tile_id]
             tile.process_gate_layer(layer, tile.qubit_mapping[2 * layer + 1])
-    
 
     def process_reverse_movement(self, layer: int, tile_start_indices: list[int], indp_moves_per_tile: list[list[Movement]]):
         for tile_id in self.active_tiles:
             tile = self.tiles[tile_id]
-            tile.construct_reverse_layer(tile_start_indices[tile_id], tile.qubit_mapping[2 * layer + 1], tile.qubit_mapping[2 * layer + 2])
-
+            tile.construct_reverse_layer(
+                tile_start_indices[tile_id], tile.qubit_mapping[2 * layer + 1], tile.qubit_mapping[2 * layer + 2])
 
     # def parse_setting(self, setting: dict):
     #     self.config = MultiQConfig.from_config(setting)
@@ -283,7 +289,7 @@ class InstructionBuilder:
                 "id": 0,
                 "begin_time": 0,
                 "end_time": 0,
-                # (aod_idx=0, row, col) for each qubit
+                # (qubit, aod_idx=0, row, col)
                 "init_locs": [[i, tile.qubit_mapping[0][i][0], tile.qubit_mapping[0][i][1], tile.qubit_mapping[0][i][2]]
                               for i in range(tile.n_q)]
             }
