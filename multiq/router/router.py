@@ -1,210 +1,12 @@
 import time
-import heapq
-from copy import deepcopy
-from itertools import chain
-import typing
-from dataclasses import dataclass, field
 
-import networkx as nx
-
-# AoD movement for a specific qubit
+from .graph import GraphOperations_mixin
+from .instruction import Instructions_mixin
 
 
-class Movement(typing.NamedTuple):
-    qubit_index: int
-    start_x: int
-    end_x: int
-    start_y: int
-    end_y: int
+from multiq.types.movement import Movement
 
-
-class Router_mixin:
-    PARKING_DIST = 1
-
-    # TODO merge forward and reverse
-    def nx_reverse_interference_graph(self, layer: int):
-        if layer + 2 >= len(self.qubit_mapping):
-            return None, None
-
-        # odd indices inside entanglement zone
-        gate_mapping = self.qubit_mapping[2 * layer + 1]
-        final_mapping = self.qubit_mapping[2 * layer + 2]
-
-        qubits_in_layer = []  # consist of qubits to be moved
-        for gate in self.gate_scheduling[layer]:
-            for q in gate:
-                # exclude 1q gates or no moves
-                if final_mapping[q] != gate_mapping[q]:
-                    qubits_in_layer.append(q)
-
-         # graph constructions
-        vectors = self.graph_construction(
-            qubits_in_layer, final_mapping, gate_mapping)
-        graph = self.nx_graph(vectors)
-
-        return graph, vectors
-
-    def nx_interference_graph(self, layer: int):
-        # even indices in storage
-        initial_mapping = self.qubit_mapping[2 * layer]
-        # odd indices inside entanglement zone
-        gate_mapping = self.qubit_mapping[2 * layer + 1]
-
-        qubits_in_layer = []  # consist of qubits to be moved
-        for gate in self.gate_scheduling[layer]:
-            for q in gate:
-                # exclude 1q gates or no moves
-                if initial_mapping[q] != gate_mapping[q]:
-                    assert (initial_mapping[q][0] ==
-                            0 or gate_mapping[q][0] == 0)
-                    qubits_in_layer.append(q)
-
-         # graph constructions
-        vectors = self.graph_construction(
-            qubits_in_layer, initial_mapping, gate_mapping)
-        graph = self.nx_graph(vectors)
-
-        return graph, vectors
-
-    def graph_construction(self, remain_graph: list, initial_mapping: list, final_mapping: list):
-        vectors = []
-        if self.use_window:
-            vector_length = min(self.window_size, len(remain_graph))
-        else:
-            vector_length = len(remain_graph)
-
-        vectors = [Movement(0, 0, 0, 0, 0) for _ in range(vector_length)]
-
-        for i, q in enumerate(remain_graph):
-            (q_x, q_y) = self.architecture.exact_SLM_location_tuple(
-                initial_mapping[q])
-            (site_x, site_y) = self.architecture.exact_SLM_location_tuple(
-                final_mapping[q])
-            vectors[i] = Movement(q, q_x, site_x, q_y, site_y)
-        return vectors
-
-    def nx_graph(self, vectors: list) -> nx.Graph:
-        G = nx.Graph()
-        # each node represents an index into `vectors`
-        G.add_nodes_from(range(len(vectors)))
-
-        for i in range(len(vectors)):
-            for j in range(i+1, len(vectors)):
-                if not self.compatible_2D(vectors[i], vectors[j]):
-                    G.add_edge(i, j)
-        return G
-
-    def collect_violation(self, vectors: list) -> list[(int, int)]:
-        violations = []
-        for i in range(len(vectors)):
-            for j in range(i+1, len(vectors)):
-                if not self.compatible_2D(vectors[i], vectors[j]):
-                    violations.append((i, j))
-        return violations
-
-    def compatible_2D(self, a: Movement, b: Movement) -> bool:
-        """
-        check if move a and b can be performed simultaneously
-        """
-
-        a_x1, a_y1, a_x2, a_y2 = a.start_x, a.start_y, a.end_x, a.end_y
-        b_x1, b_y1, b_x2, b_y2 = b.start_x, b.start_y, b.end_x, b.end_y
-
-        # x-axis
-        if a_x1 == b_x1 and a_y1 != b_y1:
-            return False
-        if a_y1 == b_y1 and a_x1 != b_x1:
-            return False
-        if a_x1 < b_x1 and a_y1 >= b_y1:
-            return False
-        if a_x1 > b_x1 and a_y1 <= b_y1:
-            return False
-
-        # y-axis
-        if a_x2 == b_x2 and a_y2 != b_y2:
-            return False
-        if a_y2 == b_y2 and a_x2 != b_x2:
-            return False
-        if a_x2 < b_x2 and a_y2 >= b_y2:
-            return False
-        if a_x2 > b_x2 and a_y2 <= b_y2:
-            return False
-        return True
-
-    def process_movement_layer(self, set_aod_qubit: set, initial_mapping: list, final_mapping: list):
-        print("process movement layer. initial mapping:", initial_mapping)
-        print("process movement layer. set_aod_dict:", set_aod_qubit)
-        """
-        generate layers for row-by-row based atom transfer
-        """
-        # seperate qubits in list_aod_qubit into multiple lists where qubits in one list can pick up simultaneously
-        # we use row-based pick up
-        pickup_dict = dict()  # key: array and row, value: a list of qubit in the same row
-        for q in set_aod_qubit:
-            x, y = self.architecture.exact_SLM_location_tuple(
-                initial_mapping[q])
-            if y in pickup_dict:
-                pickup_dict[y].append(q)
-            else:
-                pickup_dict[y] = [q]
-        list_aod_qubits = []  # row-by-row grouped qubits
-        list_end_location = []
-        list_begin_location = []
-        dependency = {
-            "qubit": [],
-            "site": [],
-        }
-
-        # process aod dependency
-        inst_idx = len(self.result_json['instructions'])
-
-        set_qubit_dependency = set()
-        set_site_dependency = set()
-        for dict_key in pickup_dict:
-            # collect set of aod qubits to pick up
-            list_aod_qubits.append(pickup_dict[dict_key])
-            row_begin_location = []
-            row_end_location = []
-            for q in pickup_dict[dict_key]:
-                # collect qubit begin location
-                row_begin_location.append(
-                    [q, initial_mapping[q][0], initial_mapping[q][1], initial_mapping[q][2]])
-                # row_begin_location.append({
-                #     "id": q,
-                #     "a": initial_mapping[q][0],
-                #     "c": initial_mapping[q][2],
-                #     "r": initial_mapping[q][1]
-                # })
-
-                # collect qubit end location
-                row_end_location.append(
-                    [q, final_mapping[q][0], final_mapping[q][1], final_mapping[q][2]])
-                # row_end_location.append({
-                #     "id": q,
-                #     "a": final_mapping[q][0],
-                #     "c": final_mapping[q][2],
-                #     "r": final_mapping[q][1]
-                # })
-                # process site dependency
-                site_key = (
-                    final_mapping[q][0], final_mapping[q][1], final_mapping[q][2])
-                if site_key in self.site_dependency:
-                    set_site_dependency.add(self.site_dependency[site_key])
-                site_key = (
-                    initial_mapping[q][0], initial_mapping[q][1], initial_mapping[q][2])
-                self.site_dependency[site_key] = inst_idx
-
-                # collect qubit dependency
-                set_qubit_dependency.add(self.qubit_dependency[q])
-                self.qubit_dependency[q] = inst_idx
-            list_begin_location.append(row_begin_location)
-            list_end_location.append(row_end_location)
-        dependency["qubit"] = list(set_qubit_dependency)
-        dependency["site"] = list(set_site_dependency)
-        self.write_rearrangement_instruction(
-            inst_idx, list_aod_qubits, list_begin_location, list_end_location, dependency)
-
-        return inst_idx
+class Router_mixin(GraphOperations_mixin, Instructions_mixin):
 
     # calculate the total time required for the instructions in a rearrangeJob.
 
@@ -243,337 +45,6 @@ class Router_mixin:
 
         return duration
 
-    def write_rearrangement_instruction(self, inst_idx: int, aod_qubits: list, begin_location: list, end_location: list, dependency: dict):
-        inst = {
-            "type": "rearrangeJob",
-            "id": inst_idx,
-            "aod_id": 0,
-            "aod_qubits": aod_qubits,
-            "begin_locs": begin_location,
-            "end_locs": end_location,
-            "dependency": dependency
-        }
-        inst["insts"] = self.expand_arrangement(inst)
-        self.result_json['instructions'].append(inst)
-
-    def flatten_rearrangment_instruction(self):
-        for inst in self.result_json['instructions']:
-            if inst["type"] == "rearrangeJob":
-                inst["aod_qubits"] = list(
-                    chain.from_iterable(inst["aod_qubits"]))
-                inst["begin_locs"] = list(
-                    chain.from_iterable(inst["begin_locs"]))
-                inst["end_locs"] = list(chain.from_iterable(inst["end_locs"]))
-
-    def expand_arrangement(self, inst: dict):
-        details = []  # all detailed instructions
-
-        # ---------------------- find out number of cols ----------------------
-        all_col_x = []  # all the x coord of qubits
-        coords = []  # coords of qubits, shape is same as "begin_locs"
-        # these coords are going to be updated as we construct the detail insts
-
-        for locs in inst["begin_locs"]:
-            coords_row = []
-            for loc in locs:
-                # coords_row.append({
-                #     "id": loc["id"],
-                #     "x":
-                #         self.architecture.exact_SLM_location(
-                #             loc["a"],
-                #             loc["r"],
-                #             loc["c"],
-                #         )[0],
-                #     "y":
-                #         self.architecture.exact_SLM_location(
-                #             loc["a"],
-                #             loc["r"],
-                #             loc["c"],
-                #         )[1],
-                # })
-
-                # all_col_x.append(self.architecture.exact_SLM_location(
-                #     loc["a"],
-                #     loc["r"],
-                #     loc["c"],
-                # )[0])
-                exact_location = self.architecture.exact_SLM_location(
-                    loc[1], loc[2], loc[3])
-                coords_row.append({
-                    "id": loc[0],
-                    "x": exact_location[0],
-                    "y": exact_location[1],
-                })
-
-                all_col_x.append(exact_location[0])
-
-            coords.append(coords_row)
-
-        init_coords = deepcopy(coords)
-
-        all_col_x = sorted(all_col_x)
-
-        # assign AOD column ids based on all x coords needed
-        col_x_to_id = {all_col_x[i]: i for i in range(len(all_col_x))}
-        # ---------------------------------------------------------------------
-
-        # -------------------- activation and parking -------------------------
-        all_col_idx_sofar = []  # which col has been activated
-        for row_id, locs in enumerate(inst["begin_locs"]):  # each row
-
-            # row_y = self.architecture.exact_SLM_location(
-            #     locs[0]["a"],
-            #     locs[0]["r"],
-            #     locs[0]["c"],
-            # )[1]
-            row_y = self.architecture.exact_SLM_location(
-                locs[0][1],
-                locs[0][2],
-                locs[0][3],
-            )[1]
-            row_loc = [locs[0][1], locs[0][2]]
-
-            # before activation, adjust column position. This is necessary
-            # whenever cols are parked (the `parking` movement below).
-            shift_back = {
-                "type": "move",
-                "move_type": "before",
-                "row_id": [],
-                "row_y_begin": [],
-                "row_y_end": [],
-                "row_loc_begin": [],
-                "row_loc_end": [],
-                "col_id": [],
-                "col_x_begin": [],
-                "col_x_end": [],
-                "col_loc_begin": [],
-                "col_loc_end": [],
-                "begin_coord": deepcopy(coords),
-                "end_coord": [],
-            }
-
-            # activate one row and some columns
-            activate = {
-                "type": "activate",
-                "row_id": [row_id, ],
-                "row_y": [row_y, ],
-                "row_loc": [row_loc, ],
-                "col_id": [],
-                "col_x": [],
-                "col_loc": [],
-            }
-
-            for j, loc in enumerate(locs):
-                # col_x = self.architecture.exact_SLM_location(
-                #     loc["a"],
-                #     loc["r"],
-                #     loc["c"],
-                # )[0]
-                col_x = self.architecture.exact_SLM_location(
-                    loc[1],
-                    loc[2],
-                    loc[3],
-                )[0]
-                col_loc = [loc[1], loc[3]]
-                col_id = col_x_to_id[col_x]
-                if col_id not in all_col_idx_sofar:
-                    # the col hasn't been activated, so there's no shift back
-                    # and we need to activate it at `col_x`.`
-                    all_col_idx_sofar.append(col_id)
-                    activate["col_id"].append(col_id)
-                    activate["col_x"].append(col_x)
-                    activate["col_loc"].append(col_loc)
-                else:
-                    # the col has been activated, thus parked previously and we
-                    # need the shift back, but we do not activate again.
-                    shift_back["col_id"].append(col_id)
-                    shift_back["col_x_begin"].append(col_x + self.PARKING_DIST)
-                    shift_back["col_x_end"].append(col_x)
-                    shift_back["col_loc_begin"].append([-1, -1])
-                    shift_back["col_loc_end"].append(col_loc)
-                    # since there's a shift, update the coords of the qubit
-                    coords[row_id][j]["x"] = col_x
-
-            shift_back["end_coord"] = deepcopy(coords)
-
-            if len(shift_back["col_id"]) != 0:
-                details.append(shift_back)
-            details.append(activate)
-
-            if row_id < len(inst["begin_locs"]) - 1:
-                # parking movement after the activation
-                # parking is required if we have activated some col, and there is
-                # some qubit we don't want to pick up at the intersection of this
-                # col and some future row to activate. We just always park here.
-                # the last parking is not needed since there's a big move after it.
-                parking = {
-                    "type": "move",
-                    "move_type": "after",
-                    "row_id": [row_id, ],
-                    "row_y_begin": [row_y, ],
-                    "row_y_end": [row_y + self.PARKING_DIST],
-                    "row_loc_begin": [row_loc],
-                    "row_loc_end": [[-1, -1]],
-                    "col_id": [],
-                    "col_x_begin": [],
-                    "col_x_end": [],
-                    "col_loc_begin": [],
-                    "col_loc_end": [],
-                    "begin_coord": deepcopy(coords),
-                    "end_coord": [],
-                }
-                for j, loc in enumerate(locs):
-                    # col_x = self.architecture.exact_SLM_location(
-                    #     loc["a"],
-                    #     loc["r"],
-                    #     loc["c"],
-                    # )[0]
-                    col_x = self.architecture.exact_SLM_location(
-                        loc[1],
-                        loc[2],
-                        loc[3],
-                    )[0]
-                    col_loc = [loc[1], loc[3]]
-                    col_id = col_x_to_id[col_x]
-                    # all columns used in this row are parked after the activation
-                    parking["col_id"].append(col_id)
-                    parking["col_x_begin"].append(col_x)
-                    parking["col_x_end"].append(col_x + self.PARKING_DIST)
-                    parking["col_loc_begin"].append(col_loc)
-                    parking["col_loc_end"].append([-1, -1])
-                    coords[row_id][j]["x"] = parking["col_x_end"][-1]
-                    coords[row_id][j]["y"] = parking["row_y_end"][0]
-                parking["end_coord"] = deepcopy(coords)
-                details.append(parking)
-        # ---------------------------------------------------------------------
-
-        # ------------------------- big move ----------------------------------
-        big_move = {
-            "type": "move:big",
-            "move_type": "big",
-            "row_id": [],
-            "row_y_begin": [],
-            "row_y_end": [],
-            "row_loc_begin": [],
-            "row_loc_end": [],
-            "col_id": [],
-            "col_x_begin": [],
-            "col_x_end": [],
-            "col_loc_begin": [],
-            "col_loc_end": [],
-            "begin_coord": deepcopy(coords),
-            "end_coord": [],
-        }
-
-        for row_id, (begin_locs, end_locs) in enumerate(zip(
-            inst["begin_locs"], inst["end_locs"],
-        )):
-
-            big_move["row_id"].append(row_id)
-            big_move["row_y_begin"].append(
-                coords[row_id][0]["y"]
-            )
-            if init_coords[row_id][0]["y"] == coords[row_id][0]["y"]:
-                # AOD row is align with SLM row
-                big_move["row_loc_begin"].append(
-                    [begin_locs[0][1], begin_locs[0][2]])
-            else:
-                big_move["row_loc_begin"].append([-1, -1])
-
-            # big_move["row_y_end"].append(
-            #     self.architecture.exact_SLM_location(
-            #         end_locs[0]["a"],
-            #         end_locs[0]["r"],
-            #         end_locs[0]["c"],
-            #     )[1]
-            # )
-            big_move["row_y_end"].append(
-                self.architecture.exact_SLM_location(
-                    end_locs[0][1],
-                    end_locs[0][2],
-                    end_locs[0][3],
-                )[1]
-            )
-            big_move["row_loc_end"].append([end_locs[0][1], end_locs[0][2]])
-
-            for j, (begin_loc, end_loc) in enumerate(zip(begin_locs, end_locs)):
-                # col_x = self.architecture.exact_SLM_location(
-                #             begin_loc["a"],
-                #             begin_loc["r"],
-                #             begin_loc["c"],
-                #         )[0]
-                col_x = self.architecture.exact_SLM_location(
-                    begin_loc[1],
-                    begin_loc[2],
-                    begin_loc[3],
-                )[0]
-                col_id = col_x_to_id[col_x]
-
-                if col_id not in big_move["col_id"]:
-                    # the movement of this rol has not been recorded before
-                    big_move["col_id"].append(col_id)
-                    big_move["col_x_begin"].append(coords[row_id][j]["x"])
-                    if init_coords[row_id][j]["x"] == coords[row_id][j]["x"]:
-                        # AOD col is align with SLM col
-                        big_move["col_loc_begin"].append(
-                            [begin_loc[1], begin_loc[3]])
-                    else:
-                        big_move["col_loc_begin"].append([-1, -1])
-                    # big_move["col_x_end"].append(
-                    #     self.architecture.exact_SLM_location(
-                    #         end_loc["a"],
-                    #         end_loc["r"],
-                    #         end_loc["c"],
-                    #     )[0]
-                    # )
-                    big_move["col_x_end"].append(
-                        self.architecture.exact_SLM_location(
-                            end_loc[1],
-                            end_loc[2],
-                            end_loc[3],
-                        )[0]
-                    )
-                    big_move["col_loc_end"].append([end_loc[1], end_loc[3]])
-
-                # whether or not the movement of this col has been considered
-                # before, we need to update the coords of the qubit.
-                # coords[row_id][j]["x"] = self.architecture.exact_SLM_location(
-                #                             end_loc["a"],
-                #                             end_loc["r"],
-                #                             end_loc["c"],
-                #                         )[0]
-                coords[row_id][j]["x"] = self.architecture.exact_SLM_location(
-                    end_loc[1],
-                    end_loc[2],
-                    end_loc[3],
-                )[0]
-                # coords[row_id][j]["y"] = self.architecture.exact_SLM_location(
-                #     end_locs[0]["a"],
-                #     end_locs[0]["r"],
-                #     end_locs[0]["c"],
-                # )[1]
-                coords[row_id][j]["y"] = self.architecture.exact_SLM_location(
-                    end_locs[0][1],
-                    end_locs[0][2],
-                    end_locs[0][3],
-                )[1]
-
-        big_move["end_coord"] = deepcopy(coords)
-        details.append(big_move)
-        # ---------------------------------------------------------------------
-
-        # --------------------------- deactivation ----------------------------
-        details.append({
-            "type": "deactivate",
-            "row_id": [i for i in range(len(inst["begin_locs"]))],
-            "col_id": [i for i in range(len(all_col_x))],
-        })
-        # ---------------------------------------------------------------------
-
-        for inst_counter, detail_inst in enumerate(details):
-            detail_inst["id"] = inst_counter
-
-        return details
 
     def aod_assignment(self, id_layer_start: int, aod_begin_time: float):
         """
@@ -759,34 +230,85 @@ class Router_mixin:
         if len(result_gate) > 0:
             self.write_1q_gate_instruction(
                 inst_idx, result_gate, dependency, gate_mapping)
+            
+            
+    def process_movement_layer(self, set_aod_qubit: set, initial_mapping: list, final_mapping: list):
+        print("process movement layer. initial mapping:", initial_mapping)
+        print("process movement layer. set_aod_dict:", set_aod_qubit)
+        """
+        generate layers for row-by-row based atom transfer
+        """
+        # seperate qubits in list_aod_qubit into multiple lists where qubits in one list can pick up simultaneously
+        # we use row-based pick up
+        pickup_dict = dict()  # key: array and row, value: a list of qubit in the same row
+        for q in set_aod_qubit:
+            x, y = self.architecture.exact_SLM_location_tuple(
+                initial_mapping[q])
+            if y in pickup_dict:
+                pickup_dict[y].append(q)
+            else:
+                pickup_dict[y] = [q]
+        list_aod_qubits = []  # row-by-row grouped qubits
+        list_end_location = []
+        list_begin_location = []
+        dependency = {
+            "qubit": [],
+            "site": [],
+        }
 
-    def write_gate_instruction(self, inst_idx: int, rydberg_idx: int, result_gate: list, dependency: dict):
-        self.result_json['instructions'].append(
-            {
-                "type": "rydberg",
-                "id": inst_idx,
-                "zone_id": rydberg_idx,
-                "gates": result_gate,
-                "dependency": dependency
-            }
-        )
+        # process aod dependency
+        inst_idx = len(self.result_json['instructions'])
 
-    def write_1q_gate_instruction(self, inst_idx: int, result_gate: list, dependency: dict, gate_mapping: list):
-        locs = []
-        for gate in result_gate:
-            locs.append((gate["q"], gate_mapping[gate["q"]][0],
-                        gate_mapping[gate["q"]][1], gate_mapping[gate["q"]][2]))
+        set_qubit_dependency = set()
+        set_site_dependency = set()
+        for dict_key in pickup_dict:
+            # collect set of aod qubits to pick up
+            list_aod_qubits.append(pickup_dict[dict_key])
+            row_begin_location = []
+            row_end_location = []
+            for q in pickup_dict[dict_key]:
+                # collect qubit begin location
+                row_begin_location.append(
+                    [q, initial_mapping[q][0], initial_mapping[q][1], initial_mapping[q][2]])
+                # row_begin_location.append({
+                #     "id": q,
+                #     "a": initial_mapping[q][0],
+                #     "c": initial_mapping[q][2],
+                #     "r": initial_mapping[q][1]
+                # })
 
-        self.result_json['instructions'].append(
-            {
-                "type": "1qGate",
-                "unitary": "u3",
-                "id": inst_idx,
-                "locs": locs,
-                "gates": result_gate,
-                "dependency": dependency
-            }
-        )
+                # collect qubit end location
+                row_end_location.append(
+                    [q, final_mapping[q][0], final_mapping[q][1], final_mapping[q][2]])
+                # row_end_location.append({
+                #     "id": q,
+                #     "a": final_mapping[q][0],
+                #     "c": final_mapping[q][2],
+                #     "r": final_mapping[q][1]
+                # })
+                # process site dependency
+                site_key = (
+                    final_mapping[q][0], final_mapping[q][1], final_mapping[q][2])
+                if site_key in self.site_dependency:
+                    set_site_dependency.add(self.site_dependency[site_key])
+                site_key = (
+                    initial_mapping[q][0], initial_mapping[q][1], initial_mapping[q][2])
+                self.site_dependency[site_key] = inst_idx
+
+                # collect qubit dependency
+                set_qubit_dependency.add(self.qubit_dependency[q])
+                self.qubit_dependency[q] = inst_idx
+            list_begin_location.append(row_begin_location)
+            list_end_location.append(row_end_location)
+        dependency["qubit"] = list(set_qubit_dependency)
+        dependency["site"] = list(set_site_dependency)
+        self.write_rearrangement_instruction(
+            inst_idx, list_aod_qubits, list_begin_location, list_end_location, dependency)
+
+        return inst_idx
+
+
+
 
     def construct_reverse_layer(self, id_layer_start: int, initial_mapping: list, final_mapping: list):
         """

@@ -3,7 +3,7 @@ import json
 
 import zac.zac as zac
 
-from multiq.compiler.compiler import Compiler
+from multiq.compiler.orchestrator import Orchestrator
 from multiq.animator.animator import Animator
 
 
@@ -41,7 +41,7 @@ class MultiQ:
 
     def set_inputs(self, input_files: list[str]):
         codes = []
-        compiler = Compiler(self.arch)
+        compiler = Orchestrator(self.arch)
         compiler.set_programs(input_files)
         compiler.compile()
         for tile in compiler.tiles:
