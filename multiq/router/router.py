@@ -48,7 +48,8 @@ class Router_mixin(GraphOperations_mixin, Instructions_mixin):
 
     def aod_assignment(self, id_layer_start: int, aod_begin_time: float):
         """
-        processs the aod assignment between two Rydberg stages
+            Assign begin and end times to the operations given that aod_begin_time is the earliest time
+            the AoD laser can be used.
         """
         list_instruction_duration = [[], []]
         id_layer_end = len(self.result_json['instructions'])
@@ -68,9 +69,6 @@ class Router_mixin(GraphOperations_mixin, Instructions_mixin):
             list_instruction_duration[0], reverse=True)
         list_instruction_duration[1] = sorted(
             list_instruction_duration[1], reverse=True)
-        # assign instruction according to the duration in descending order
-        # print("list_instruction_duration")
-        # print(list_instruction_duration)
 
         for i in range(2):
             for item in list_instruction_duration[i]:
@@ -83,7 +81,7 @@ class Router_mixin(GraphOperations_mixin, Instructions_mixin):
                 # self.aod_dependency[aod_id] = item[1]
                 inst["begin_time"] = begin_time
                 inst["end_time"] = end_time
-                inst["aod_id"] = 0
+                inst["aod_id"] = 0 # Fixed to 0. Using only one AoD for now
                 aod_end_time = end_time
 
                 for detail_inst in inst["insts"]:
@@ -91,18 +89,10 @@ class Router_mixin(GraphOperations_mixin, Instructions_mixin):
                     detail_inst["end_time"] += begin_time
                 if self.result_json["runtime"] < end_time:
                     self.result_json["runtime"] = end_time
-                # print("process instruction:")
-                # print(inst)
-                # input()
             if i == 0:
-                # print("list_gate_layer_idx")
-                # print(list_gate_layer_idx)
                 for gate_layer_idx in list_gate_layer_idx:
-                    # ! laser scheduling
+                    # laser scheduling
                     inst = self.result_json['instructions'][gate_layer_idx]
-                    # print(inst)
-                    # print(gate_layer_idx)
-                    # print(inst["dependency"])
                     begin_time = self.get_begin_time(
                         gate_layer_idx, inst["dependency"])
                     if inst["type"] == "rydberg":
@@ -116,7 +106,6 @@ class Router_mixin(GraphOperations_mixin, Instructions_mixin):
                         self.result_json["runtime"] = end_time
                     inst["begin_time"] = begin_time
                     inst["end_time"] = end_time
-                    # input()
         return aod_end_time
 
     def get_begin_time(self, cur_inst_idx: int, dependency: dict):
@@ -184,6 +173,8 @@ class Router_mixin(GraphOperations_mixin, Instructions_mixin):
         print("gate_mapping:", gate_mapping)
         print("gate scheduling", self.gate_scheduling)
 
+        initial_instr_idx = len(self.result_json['instructions'])
+
         list_gate = self.gate_scheduling[layer]
         list_1q_gate = self.gate_1q_scheduling[layer]
         dict_gate_zone = dict()
@@ -227,9 +218,13 @@ class Router_mixin(GraphOperations_mixin, Instructions_mixin):
             })
         dependency = {"qubit": []}
         dependency["qubit"] = list(set_qubit_dependency)
+
         if len(result_gate) > 0:
             self.write_1q_gate_instruction(
                 inst_idx, result_gate, dependency, gate_mapping)
+        
+        return initial_instr_idx
+
             
             
     def process_movement_layer(self, set_aod_qubit: set, initial_mapping: list, final_mapping: list):
@@ -306,8 +301,6 @@ class Router_mixin(GraphOperations_mixin, Instructions_mixin):
             inst_idx, list_aod_qubits, list_begin_location, list_end_location, dependency)
 
         return inst_idx
-
-
 
 
     def construct_reverse_layer(self, id_layer_start: int, initial_mapping: list, final_mapping: list):

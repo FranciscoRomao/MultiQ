@@ -20,7 +20,6 @@ from .builder import InstructionBuilder
 
 logger = logging.getLogger("multiq")
 
-
 class Orchestrator:
     def __init__(self, arch: Architecture):
         self.architecture = arch
@@ -31,9 +30,12 @@ class Orchestrator:
         # all operations on all tiles are measured according to this global time
         self.global_time = 0.0
         self.aod_end_time = 0.0  # finish time of currently executing instruction on AoD
+        self.rydberg_end_time = 0.0 # finish time of the current/last rydberg operation
+
         self.active_tiles: list[int] = [] # indices of the active tiles
 
-    def route_global_batch(self):
+    def route(self):
+        """ Routes all movements, gate ops, rydberg ops across all of the tiles. """
 
         # Append all tiles which have instructions to the active list
         for tile_id, tile in enumerate(self.tiles):
@@ -41,7 +43,7 @@ class Orchestrator:
                 self.active_tiles.append(tile_id)
                 tile.prepare_routing()
 
-        print("There are", len(self.active_tiles), "active tiles")
+        logger.info(f"There are {len(self.active_tiles)} active tiles")
 
         # write_initial_instruction() returns end_time. Global schedule waits till last tile is finished
         self.global_time = max(
@@ -57,7 +59,7 @@ class Orchestrator:
 
                 if layer >= len(tile.gate_scheduling):
                     self.active_tiles.remove(tile_id)
-                    print("Removing tile_id", tile_id, "from active tiles. It is now", self.active_tiles)
+                    logger.info("Removing tile_id", tile_id, "from active tiles. It is now", self.active_tiles)
                     continue
 
                 graph, moves = tile.nx_interference_graph(layer)
@@ -80,11 +82,11 @@ class Orchestrator:
                     (tile_id, movement) = global_moves[i_node]
                     indp_moves_per_tile[tile_id].append(movement)
 
-                tile_instr_start_indices = self.process_movement(layer, indp_moves_per_tile)
+                self.process_movement(layer, indp_moves_per_tile)
                 graph.remove_nodes_from(indp_nodes)
 
             # add gate layers
-            self.process_gates(layer)
+            rydberg_instrs = self.process_gates(layer)
 
             graphs.clear()
             for tile_id in self.active_tiles:
@@ -108,6 +110,7 @@ class Orchestrator:
             print("finished layer. Now assign aod...")
             # assign global aod resource
             self.aod_assignment(tile_st)
+            self.rydberg_assignment(rydberg_instrs)
 
             layer += 1
 
@@ -120,7 +123,6 @@ class Orchestrator:
             print("===")
 
         
-
     def combine_graphs(self, graphs: list[(int, list, list)]):
         combined_nodes = []
         combined_edges = []
@@ -208,6 +210,9 @@ class Orchestrator:
 
 
     def aod_assignment(self, instr_start_indices: list[int]):
+        """ 
+            This is the central scheduler for each batch of operations across the multiple tiles.
+        """
         global_end_time = 0.0
 
         for id in self.active_tiles:
@@ -216,11 +221,24 @@ class Orchestrator:
 
         self.aod_end_time = global_end_time
 
+    def rydberg_assignment(self, ryd_instr_start_indices: dict[int, int]):
+        global_earliest_start = 0.0
+
+        for id in self.active_tiles:
+            tile = self.tiles[id]
+
 
     def process_gates(self, layer: int):
+
+        gate_instrs = {}
+
         for tile_id in self.active_tiles:
             tile = self.tiles[tile_id]
-            tile.process_gate_layer(layer, tile.qubit_mapping[2 * layer + 1])
+            initial_indx = tile.process_gate_layer(layer, tile.qubit_mapping[2 * layer + 1])
+            if initial_indx is not None:
+                gate_instrs[tile_id] = initial_indx
+
+        return gate_instrs
     
 
     def process_reverse_movement(self, layer: int, tile_start_indices: list[int], indp_moves_per_tile: list[list[Movement]]):
@@ -231,9 +249,6 @@ class Orchestrator:
 
     # def parse_setting(self, setting: dict):
     #     self.config = MultiQConfig.from_config(setting)
-
-    def set_architecture_spec_path(self, path: str):
-        self.result_json['architecture_spec_path'] = path
 
     def compile(self):
         # gate shceduling and placement are done per-tile with no cross-tile considerations
@@ -250,7 +265,7 @@ class Orchestrator:
             tile.place_qubit_intermedeiate()
 
         # Routing must be done globally
-        self.route_global_batch()
+        self.route()
 
     def set_programs(self, source_files: list[str]):
         for source_file in source_files:

@@ -21,7 +21,6 @@ class MultiQ:
     def print_configuration(self):
         logger.info("MultiQ config settings goes here...")
 
-
     def init_zac(self):
         zac_settings = {
             "routing_strategy": "maximalis",

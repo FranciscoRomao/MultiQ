@@ -3,12 +3,10 @@ from zac.ds.architecture import Architecture
 
 from .tile import ZacTile
 
-# build (global) instructions and append them to responsible tile
-class InstructionBuilder:
-    def __init__(self):
-        self.instructions = []
-        self.current_id = 0
+# build (global) instructions for the orchestrator
 
+
+class InstructionBuilder:
     def write_initial_instruction(self, tile: ZacTile):
         end_time = 0.0
         tile.result_json["instructions"].clear()
@@ -44,8 +42,8 @@ class InstructionBuilder:
 
         if len(result_gate) > 0:
             end_time = tile.architecture.time_1qGate * len(result_gate)
-            self.write_1q_gate_instruction(tile,
-                                           inst_idx, result_gate, dependency, tile.qubit_mapping[0])
+            tile.write_1q_gate_instruction(
+                inst_idx, result_gate, dependency, tile.qubit_mapping[0])
             tile.result_json['instructions'][-1]["begin_time"] = 0
             tile.result_json['instructions'][-1]["end_time"] = (
                 # due to sequential execution
@@ -53,20 +51,3 @@ class InstructionBuilder:
             )
 
         return end_time
-
-    def write_1q_gate_instruction(self, tile: ZacTile, inst_idx: int, result_gate: list, dependency: dict, gate_mapping: list):
-        locs = []
-        for gate in result_gate:
-            locs.append((gate["q"], gate_mapping[gate["q"]][0],
-                        gate_mapping[gate["q"]][1], gate_mapping[gate["q"]][2]))
-
-        tile.result_json['instructions'].append(
-            {
-                "type": "1qGate",
-                "unitary": "u3",
-                "id": inst_idx,
-                "locs": locs,
-                "gates": result_gate,
-                "dependency": dependency
-            }
-        )
