@@ -13,7 +13,7 @@ class MultiQ:
     def __init__(self):
         self.print_configuration()
         self.tiles = []
-        with open("/home/dan/dev/quantum/multiq/zac_config/toy_architecture.json", "r") as f:
+        with open("/home/dan/dev/tum/quantum/multiq/zac_config/toy_architecture.json", "r") as f:
             arch = zac.Architecture(json.load(f))
             arch.preprocessing()
             self.arch = arch

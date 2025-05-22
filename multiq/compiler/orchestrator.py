@@ -223,9 +223,28 @@ class Orchestrator:
 
     def rydberg_assignment(self, ryd_instr_start_indices: dict[int, int]):
         global_earliest_start = 0.0
-
-        for id in self.active_tiles:
+        global_end_time = 0.0
+        
+        # find out the earliest time the global pulse can start
+        for id, start_idx in ryd_instr_start_indices.items():
             tile = self.tiles[id]
+            dep = tile.result_json["instructions"][start_idx]["dependency"]
+            print("Rydberg instr is:", tile.result_json["instructions"][start_idx])
+            rydb_begin_time = tile.get_begin_time(start_idx, dep)
+            global_earliest_start = max(global_earliest_start, rydb_begin_time)
+
+        global_end_time = global_earliest_start + self.architecture.time_rydberg
+
+        # assign times to rydberg operations
+        for id, start_idx in ryd_instr_start_indices.items():
+            tile = self.tiles[id]
+            instr = tile.result_json["instructions"][start_idx]
+            instr["begin_time"] = global_earliest_start
+            instr["end_time"] = global_end_time
+            
+        self.rydberg_end_time = global_end_time 
+
+
 
 
     def process_gates(self, layer: int):

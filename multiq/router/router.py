@@ -9,7 +9,6 @@ from multiq.types.movement import Movement
 class Router_mixin(GraphOperations_mixin, Instructions_mixin):
 
     # calculate the total time required for the instructions in a rearrangeJob.
-
     def get_duration(self, inst: dict):
         list_detail_inst = inst["insts"]
         duration = 0
