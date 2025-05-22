@@ -20,6 +20,7 @@ from .builder import InstructionBuilder
 
 logger = logging.getLogger("multiq")
 
+
 class Orchestrator:
     def __init__(self, arch: Architecture):
         self.architecture = arch
@@ -30,9 +31,9 @@ class Orchestrator:
         # all operations on all tiles are measured according to this global time
         self.global_time = 0.0
         self.aod_end_time = 0.0  # finish time of currently executing instruction on AoD
-        self.rydberg_end_time = 0.0 # finish time of the current/last rydberg operation
+        self.rydberg_end_time = 0.0  # finish time of the current/last rydberg operation
 
-        self.active_tiles: list[int] = [] # indices of the active tiles
+        self.active_tiles: list[int] = []  # indices of the active tiles
 
     def route(self):
         """ Routes all movements, gate ops, rydberg ops across all of the tiles. """
@@ -52,66 +53,7 @@ class Orchestrator:
         layer: int = 0
         # interference graph for each individual tile at a specific layer
         while len(self.active_tiles) > 0:
-
-            graphs: list[(int, list, list)] = []
-            for tile_id in self.active_tiles:
-                tile = self.tiles[tile_id]
-
-                if layer >= len(tile.gate_scheduling):
-                    self.active_tiles.remove(tile_id)
-                    logger.info("Removing tile_id", tile_id, "from active tiles. It is now", self.active_tiles)
-                    continue
-
-                graph, moves = tile.nx_interference_graph(layer)
-                graphs.append((tile_id, graph, moves))
-
-            if len(graphs) == 0:
-                break
-
-            graph, global_moves = self.combine_nx_graphs(graphs)
-            tile_instr_start_indices = [0 for _ in range(len(self.active_tiles))]
-
-            tile_st = [len(t.result_json['instructions']) for t in self.tiles]
-
-            while graph.number_of_nodes() > 0:
-                indp_nodes = nx.maximal_independent_set(graph)
-                indp_moves_per_tile = [[] for _ in range(len(self.tiles))]
-
-                # partition the independent set by tile
-                for i_node in indp_nodes:
-                    (tile_id, movement) = global_moves[i_node]
-                    indp_moves_per_tile[tile_id].append(movement)
-
-                self.process_movement(layer, indp_moves_per_tile)
-                graph.remove_nodes_from(indp_nodes)
-
-            # add gate layers
-            rydberg_instrs = self.process_gates(layer)
-
-            graphs.clear()
-            for tile_id in self.active_tiles:
-                tile = self.tiles[tile_id]
-                graph, moves = tile.nx_reverse_interference_graph(layer)
-                if graph is not None:
-                    graphs.append((tile_id, graph, moves))
-
-            graph, global_moves = self.combine_nx_graphs(graphs)
-            while graph.number_of_nodes() > 0:
-                indp_nodes = nx.maximal_independent_set(graph)
-                indp_moves_per_tile = [[] for _ in range(len(self.tiles))]
-                for i_node in indp_nodes:
-                    (tile_id, movement) = global_moves[i_node]
-                    indp_moves_per_tile[tile_id].append(movement)
-
-                self.process_rev_movement(layer, indp_moves_per_tile)
-                graph.remove_nodes_from(indp_nodes)
-                
-
-            print("finished layer. Now assign aod...")
-            # assign global aod resource
-            self.aod_assignment(tile_st)
-            self.rydberg_assignment(rydberg_instrs)
-
+            self.route_layer(layer)
             layer += 1
 
         for t in self.tiles:
@@ -122,7 +64,55 @@ class Orchestrator:
             print(t.result_json["instructions"])
             print("===")
 
-        
+    def route_layer(self, layer: int):
+        graphs: list[(int, list, list)] = []
+        for tile_id in self.active_tiles:
+            tile = self.tiles[tile_id]
+            if layer >= len(tile.gate_scheduling):
+                self.active_tiles.remove(tile_id)
+                logger.info("Removing tile_id", tile_id,
+                            "from active tiles. It is now", self.active_tiles)
+                return
+            graph, moves = tile.nx_interference_graph(layer)
+            graphs.append((tile_id, graph, moves))
+            
+        if len(graphs) == 0:
+            return
+
+        graph, global_moves = self.combine_nx_graphs(graphs)
+        tile_instr_start_indices = [0 for _ in range(len(self.active_tiles))]
+        tile_st = [len(t.result_json['instructions']) for t in self.tiles]
+        while graph.number_of_nodes() > 0:
+            indp_nodes = nx.maximal_independent_set(graph)
+            indp_moves_per_tile = [[] for _ in range(len(self.tiles))]
+            # partition the independent set by tile
+            for i_node in indp_nodes:
+                (tile_id, movement) = global_moves[i_node]
+                indp_moves_per_tile[tile_id].append(movement)
+            self.process_movement(layer, indp_moves_per_tile)
+            graph.remove_nodes_from(indp_nodes)
+        # add gate layers
+        rydberg_instrs = self.process_gates(layer)
+        graphs.clear()
+        for tile_id in self.active_tiles:
+            tile = self.tiles[tile_id]
+            graph, moves = tile.nx_reverse_interference_graph(layer)
+            if graph is not None:
+                graphs.append((tile_id, graph, moves))
+        graph, global_moves = self.combine_nx_graphs(graphs)
+        while graph.number_of_nodes() > 0:
+            indp_nodes = nx.maximal_independent_set(graph)
+            indp_moves_per_tile = [[] for _ in range(len(self.tiles))]
+            for i_node in indp_nodes:
+                (tile_id, movement) = global_moves[i_node]
+                indp_moves_per_tile[tile_id].append(movement)
+            self.process_rev_movement(layer, indp_moves_per_tile)
+            graph.remove_nodes_from(indp_nodes)
+        print("finished layer. Now assign aod...")
+        # assign global aod resource
+        self.aod_assignment(tile_st)
+        self.rydberg_assignment(rydberg_instrs)
+
     def combine_graphs(self, graphs: list[(int, list, list)]):
         combined_nodes = []
         combined_edges = []
@@ -132,7 +122,8 @@ class Orchestrator:
             n_nodes = len(nodes)  # number of movements in one tile
             combined_nodes.extend([(id, *n) for n in nodes])
             # An edge is a pair of indices. Need to adjust new indices for each subgraph
-            combined_edges.extend([(i + tile_offset, j + tile_offset) for i, j in edges])
+            combined_edges.extend(
+                [(i + tile_offset, j + tile_offset) for i, j in edges])
             tile_offset += n_nodes
 
         return combined_nodes, combined_edges
@@ -180,7 +171,7 @@ class Orchestrator:
 
         for tile_id in self.active_tiles:
             tile = self.tiles[tile_id]
-            
+
             tile_moves = indp_moves_per_tile[tile_id]
             qubits = {move.qubit_index for move in tile_moves}
             id = tile.process_movement_layer(
@@ -198,7 +189,9 @@ class Orchestrator:
             tile = self.tiles[tile_id]
 
             if tile.qubit_mapping[2 * layer + 2] is None:
-                tile.construct_reverse_layer(tile_instr_start_indices[tile_id], tile.qubit_mapping[2 * layer], tile.qubit_mapping[2 * layer + 2]) # None
+                tile.construct_reverse_layer(
+                    # None
+                    tile_instr_start_indices[tile_id], tile.qubit_mapping[2 * layer], tile.qubit_mapping[2 * layer + 2])
             else:
                 tile_moves = indp_moves_per_tile[tile_id]
                 qubits = {move.qubit_index for move in tile_moves}
@@ -208,7 +201,6 @@ class Orchestrator:
 
         return tile_instr_start_indices
 
-
     def aod_assignment(self, instr_start_indices: list[int]):
         """ 
             This is the central scheduler for each batch of operations across the multiple tiles.
@@ -217,19 +209,21 @@ class Orchestrator:
 
         for id in self.active_tiles:
             tile = self.tiles[id]
-            global_end_time = max(global_end_time, tile.aod_assignment(instr_start_indices[id], self.aod_end_time))
+            global_end_time = max(global_end_time, tile.aod_assignment(
+                instr_start_indices[id], self.aod_end_time))
 
         self.aod_end_time = global_end_time
 
     def rydberg_assignment(self, ryd_instr_start_indices: dict[int, int]):
         global_earliest_start = 0.0
         global_end_time = 0.0
-        
+
         # find out the earliest time the global pulse can start
         for id, start_idx in ryd_instr_start_indices.items():
             tile = self.tiles[id]
             dep = tile.result_json["instructions"][start_idx]["dependency"]
-            print("Rydberg instr is:", tile.result_json["instructions"][start_idx])
+            print("Rydberg instr is:",
+                  tile.result_json["instructions"][start_idx])
             rydb_begin_time = tile.get_begin_time(start_idx, dep)
             global_earliest_start = max(global_earliest_start, rydb_begin_time)
 
@@ -241,11 +235,8 @@ class Orchestrator:
             instr = tile.result_json["instructions"][start_idx]
             instr["begin_time"] = global_earliest_start
             instr["end_time"] = global_end_time
-            
-        self.rydberg_end_time = global_end_time 
 
-
-
+        self.rydberg_end_time = global_end_time
 
     def process_gates(self, layer: int):
 
@@ -253,18 +244,18 @@ class Orchestrator:
 
         for tile_id in self.active_tiles:
             tile = self.tiles[tile_id]
-            initial_indx = tile.process_gate_layer(layer, tile.qubit_mapping[2 * layer + 1])
+            initial_indx = tile.process_gate_layer(
+                layer, tile.qubit_mapping[2 * layer + 1])
             if initial_indx is not None:
                 gate_instrs[tile_id] = initial_indx
 
         return gate_instrs
-    
 
     def process_reverse_movement(self, layer: int, tile_start_indices: list[int], indp_moves_per_tile: list[list[Movement]]):
         for tile_id in self.active_tiles:
             tile = self.tiles[tile_id]
-            tile.construct_reverse_layer(tile_start_indices[tile_id], tile.qubit_mapping[2 * layer + 1], tile.qubit_mapping[2 * layer + 2])
-
+            tile.construct_reverse_layer(
+                tile_start_indices[tile_id], tile.qubit_mapping[2 * layer + 1], tile.qubit_mapping[2 * layer + 2])
 
     # def parse_setting(self, setting: dict):
     #     self.config = MultiQConfig.from_config(setting)
@@ -302,4 +293,3 @@ class Orchestrator:
             tile.set_architecture(self.architecture)
             tile.load_program(source_file)
             self.tiles.append(tile)
-
