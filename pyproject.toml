@@ -22,5 +22,5 @@ python = "^3.12"
 qiskit = "^2.0.0"
 matplotlib = "^3.0"
 pylatexenc = "^2.0"
-zac = {path = "/home/dan/dev/quantum/ZAC"}
+zac = {path = "/home/dan/dev/tum/quantum/ZAC"}
 networkx = "^3.4.2"
