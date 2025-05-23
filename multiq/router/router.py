@@ -6,10 +6,20 @@ from .instruction import Instructions_mixin
 
 from multiq.types.movement import Movement
 
+
 class Router_mixin(GraphOperations_mixin, Instructions_mixin):
 
     # calculate the total time required for the instructions in a rearrangeJob.
     def get_duration(self, inst: dict):
+        """
+            Calculate the total time required for the instructions in a rearrangeJob.
+        Args:
+            inst (dict): instructions list
+        Raises:
+            ValueError: _description_
+        Returns:
+            _type_: duration of the instruction
+        """
         list_detail_inst = inst["insts"]
         duration = 0
         # # # !
@@ -32,7 +42,6 @@ class Router_mixin(GraphOperations_mixin, Instructions_mixin):
                     for col_begin, col_end in zip(detail_inst["col_x_begin"], detail_inst["col_x_end"]):
                         tmp = self.architecture.movement_duration(
                             col_begin, row_begin, col_end, row_end)
-                        # tmp = min(self.architecture.movement_duration(col_begin, row_begin, col_end, row_end), unit_move) # !
                         if move_duration < tmp:
                             move_duration = tmp
 
@@ -44,12 +53,28 @@ class Router_mixin(GraphOperations_mixin, Instructions_mixin):
 
         return duration
 
+    def aod_fwd_assignment(self, layer_start: int, layer_end: int):
+        aod_end_time = 0.0
+        durations = []
+        for idx in range(layer_start, layer_end):
+            if self.result_json['instructions'][idx]["type"] != "rearrangeJob":
+                print("Error: not a rearrange job!")
+                continue
+            # get duration
+            duration = self.get_duration(self.result_json['instructions'][idx])
+            durations.append((duration, idx))
+
+        durations = sorted(durations[0], reverse=True)
+        for item in durations:
+            duration, idx = item
 
     def aod_assignment(self, id_layer_start: int, aod_begin_time: float):
         """
             Assign begin and end times to the operations given that aod_begin_time is the earliest time
             the AoD laser can be used.
         """
+
+        # [rearrangeJobs, otherJobs]
         list_instruction_duration = [[], []]
         id_layer_end = len(self.result_json['instructions'])
         duration_idx = 0
@@ -59,17 +84,23 @@ class Router_mixin(GraphOperations_mixin, Instructions_mixin):
 
         for idx in range(id_layer_start, id_layer_end):
             if self.result_json['instructions'][idx]["type"] != "rearrangeJob":
+                # subsequent ops go into list_instr_durcation[1]
                 duration_idx = 1
                 list_gate_layer_idx.append(idx)
                 continue
+
+            # get duration of rearrangeJob
             duration = self.get_duration(self.result_json['instructions'][idx])
             list_instruction_duration[duration_idx].append((duration, idx))
+
+        # sort rearrangeJobs from shortest to longest
         list_instruction_duration[0] = sorted(
             list_instruction_duration[0], reverse=True)
         list_instruction_duration[1] = sorted(
             list_instruction_duration[1], reverse=True)
 
         for i in range(2):
+            # for rearrange instructions
             for item in list_instruction_duration[i]:
                 duration = item[0]
                 inst = self.result_json['instructions'][item[1]]
@@ -80,7 +111,7 @@ class Router_mixin(GraphOperations_mixin, Instructions_mixin):
                 # self.aod_dependency[aod_id] = item[1]
                 inst["begin_time"] = begin_time
                 inst["end_time"] = end_time
-                inst["aod_id"] = 0 # Fixed to 0. Using only one AoD for now
+                inst["aod_id"] = 0  # Fixed to 0. Using only one AoD for now
                 aod_end_time = end_time
 
                 for detail_inst in inst["insts"]:
@@ -88,6 +119,8 @@ class Router_mixin(GraphOperations_mixin, Instructions_mixin):
                     detail_inst["end_time"] += begin_time
                 if self.result_json["runtime"] < end_time:
                     self.result_json["runtime"] = end_time
+
+            # for gate/rydberg instructions
             if i == 0:
                 for gate_layer_idx in list_gate_layer_idx:
                     # laser scheduling
@@ -101,6 +134,7 @@ class Router_mixin(GraphOperations_mixin, Instructions_mixin):
                         end_time = begin_time + \
                             (self.architecture.time_1qGate *
                              len(inst["gates"])) + self.common_1q
+
                     if self.result_json["runtime"] < end_time:
                         self.result_json["runtime"] = end_time
                     inst["begin_time"] = begin_time
@@ -135,25 +169,25 @@ class Router_mixin(GraphOperations_mixin, Instructions_mixin):
                             for detail_inst in self.result_json['instructions'][cur_inst_idx]["insts"]:
                                 inst_type = detail_inst["type"].split(":")[0]
                                 if inst_type == "deactivate":
-                                    atom_transfer_begin_time = max(
-                                        detail_inst["begin_time"], atom_transfer_begin_time)
+                                    try:
+                                        atom_transfer_begin_time = max(
+                                            detail_inst["begin_time"], atom_transfer_begin_time)
+                                    except:
+                                        print("Exception on", detail_inst)
                                     break
                             tmp_begin_time = atom_transfer_finish_time - atom_transfer_begin_time
                             if begin_time < tmp_begin_time:
                                 begin_time = tmp_begin_time
-                            # print("cur_inst_idx: ", cur_inst_idx)
-                            # print("atom_transfer_finish_time: ", atom_transfer_finish_time)
-                            # print("atom_transfer_begin_time: ", atom_transfer_begin_time)
-                            # print("begin time for site depend: ", tmp_begin_time)
                         else:
-                            if begin_time < self.result_json['instructions'][inst_idx]["end_time"]:
-                                begin_time = self.result_json['instructions'][inst_idx]["end_time"]
+                            # if begin_time < self.result_json['instructions'][inst_idx]["end_time"]:
+                            #     begin_time = self.result_json['instructions'][inst_idx]["end_time"]
+                            begin_time = max(begin_time, self.result_json['instructions'][inst_idx]["end_time"])
                 else:
                     for inst_idx in dependency[dependency_type]:
-                        # key error
                         try:
-                            if begin_time < self.result_json['instructions'][inst_idx]["end_time"]:
-                                begin_time = self.result_json['instructions'][inst_idx]["end_time"]
+                            begin_time = max(begin_time, self.result_json['instructions'][inst_idx]["end_time"])
+                            # if begin_time < self.result_json['instructions'][inst_idx]["end_time"]:
+                            #     begin_time = self.result_json['instructions'][inst_idx]["end_time"]
                         except:
                             print("instruction has no end_time",
                                   self.result_json['instructions'][inst_idx])
@@ -221,11 +255,9 @@ class Router_mixin(GraphOperations_mixin, Instructions_mixin):
         if len(result_gate) > 0:
             self.write_1q_gate_instruction(
                 inst_idx, result_gate, dependency, gate_mapping)
-        
+
         return initial_instr_idx
 
-            
-            
     def process_movement_layer(self, set_aod_qubit: set, initial_mapping: list, final_mapping: list):
         print("process movement layer. initial mapping:", initial_mapping)
         print("process movement layer. set_aod_dict:", set_aod_qubit)
@@ -234,7 +266,7 @@ class Router_mixin(GraphOperations_mixin, Instructions_mixin):
         """
         # seperate qubits in list_aod_qubit into multiple lists where qubits in one list can pick up simultaneously
         # we use row-based pick up
-        pickup_dict = dict()  # key: array and row, value: a list of qubit in the same row
+        pickup_dict = {}  # key: array and row, value: a list of qubit in the same row
         for q in set_aod_qubit:
             x, y = self.architecture.exact_SLM_location_tuple(
                 initial_mapping[q])
@@ -264,22 +296,10 @@ class Router_mixin(GraphOperations_mixin, Instructions_mixin):
                 # collect qubit begin location
                 row_begin_location.append(
                     [q, initial_mapping[q][0], initial_mapping[q][1], initial_mapping[q][2]])
-                # row_begin_location.append({
-                #     "id": q,
-                #     "a": initial_mapping[q][0],
-                #     "c": initial_mapping[q][2],
-                #     "r": initial_mapping[q][1]
-                # })
-
                 # collect qubit end location
                 row_end_location.append(
                     [q, final_mapping[q][0], final_mapping[q][1], final_mapping[q][2]])
-                # row_end_location.append({
-                #     "id": q,
-                #     "a": final_mapping[q][0],
-                #     "c": final_mapping[q][2],
-                #     "r": final_mapping[q][1]
-                # })
+
                 # process site dependency
                 site_key = (
                     final_mapping[q][0], final_mapping[q][1], final_mapping[q][2])
@@ -300,7 +320,6 @@ class Router_mixin(GraphOperations_mixin, Instructions_mixin):
             inst_idx, list_aod_qubits, list_begin_location, list_end_location, dependency)
 
         return inst_idx
-
 
     def construct_reverse_layer(self, id_layer_start: int, initial_mapping: list, final_mapping: list):
         """
