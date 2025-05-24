@@ -214,10 +214,10 @@ class Orchestrator:
             This is the central scheduler for each batch of operations across the multiple tiles.
         """
 
-        # AoD forward phase
+        # AoD assignment phase
         # 1. query each tile for begin time time_s_i of instruction id_layer_start (get_begin_time)
         # 2. start_time = max({time_s_i | tiles}, aod_end_time)
-        # 3. aod_assignment for each tile with start_time
+        # 3. aod_assignment for each tile with unified start_time
         # 4. end_time = max({time_e_i | tiles})
 
         start_times = []
@@ -241,14 +241,9 @@ class Orchestrator:
                     break
                 durations.append((tile.get_duration(instr), idx))
 
-            print("The durations are", durations)
-            # sort move ops from shortest to longest
-
             for duration, idx in durations:
                 instr = tile.result_json["instructions"][idx]
 
-                # begin_time = max(global_start_time, tile.get_begin_time(
-                #     idx, instr["dependency"]))
                 begin_time = global_start_time
                 end_time = global_start_time + duration
 
@@ -269,26 +264,6 @@ class Orchestrator:
                 self.aod_end_time = max(self.aod_end_time, end_time)
 
 
-    # def aod_assignment(self, instr_start_indices: list[int]):
-    #     """
-    #         This is the central scheduler for each batch of operations across the multiple tiles.
-    #     """
-
-    #     # AoD forward phase
-    #     # 1. query each tile for begin time time_s_i of instruction id_layer_start (get_begin_time)
-    #     # 2. start_time = max({time_s_i | tiles}, aod_end_time)
-    #     # 3. aod_assignment for each tile with start_time
-    #     # 4. end_time = max({time_e_i | tiles})
-
-    #     global_end_time = 0.0
-
-    #     for id in self.active_tiles:
-    #         tile = self.tiles[id]
-    #         global_end_time = max(global_end_time, tile.aod_assignment(
-    #             instr_start_indices[id], self.aod_end_time))
-
-    #     self.aod_end_time = global_end_time
-
     def rydberg_assignment(self, ryd_instr_start_indices: dict[int, int]):
         global_earliest_start = 0.0
         global_end_time = 0.0
@@ -297,16 +272,17 @@ class Orchestrator:
         for id, start_idx in ryd_instr_start_indices.items():
             tile = self.tiles[id]
             dep = tile.result_json["instructions"][start_idx]["dependency"]
-            print("Rydberg instr is:",
-                  tile.result_json["instructions"][start_idx])
             rydb_begin_time = tile.get_begin_time(start_idx, dep)
             global_earliest_start = max(global_earliest_start, rydb_begin_time)
 
         global_end_time = global_earliest_start + self.architecture.time_rydberg
+        # update global rydberg busy time
+        self.rydberg_end_time = global_end_time
 
-        # assign times
+        # assign times to instructions
         for id, start_idx in ryd_instr_start_indices.items():
             tile = self.tiles[id]
+            # use this counter for sequential 1q gate applications in the gate layer
             local_start_time = global_end_time
 
             for idx in range(start_idx, len(tile.result_json["instructions"])):
@@ -318,24 +294,19 @@ class Orchestrator:
                     # there should only be one of these in the layer
                     instr["begin_time"] = global_earliest_start
                     instr["end_time"] = global_end_time
+                    # update runtime stat
                     tile.result_json["runtime"] = max(
                         tile.result_json["runtime"], global_end_time)
-                    self.rydberg_end_time = global_end_time
-                    print(
-                        f"Debug: rydberg scheduled in layer for tile {id}: {instr}")
                 else:
                     # fill in 1q gates if there are any. These operations don't need to be synchronised.
                     instr["begin_time"] = local_start_time
                     local_end_time = local_start_time + \
                         len(instr["gates"]) * tile.architecture.time_1qGate
-                    # duration = len(instr["gates"]) * tile.architecture.time_1qGate + self.common_1q
                     instr["end_time"] = local_end_time
                     tile.result_json["runtime"] = max(
                         tile.result_json["runtime"], local_end_time)
                     # update local start time
                     local_start_time = local_end_time
-                    print(
-                        f"Adding schedule for 1q in layer for tile {id}: {instr}")
 
     def process_gates(self, layer: int):
 
