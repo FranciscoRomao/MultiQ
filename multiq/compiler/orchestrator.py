@@ -53,16 +53,10 @@ class Orchestrator:
         layer: int = 0
         while len(self.active_tiles) > 0:
             self.route_layer(layer)
-            break
             layer += 1
 
         for t in self.tiles:
             t.flatten_rearrangment_instruction()
-
-        print("The tiles are")
-        for t in self.tiles:
-            print(t.result_json["instructions"])
-            print("===")
 
     def route_layer(self, layer: int):
         graphs: list[(int, list, list)] = []
@@ -70,8 +64,7 @@ class Orchestrator:
             tile = self.tiles[tile_id]
             if layer >= len(tile.gate_scheduling):
                 self.active_tiles.remove(tile_id)
-                logger.info("Removing tile_id", tile_id,
-                            "from active tiles. It is now", self.active_tiles)
+                logger.info(f"Removing tile_id {tile_id} as it has finished")
                 continue
             graph, moves = tile.nx_interference_graph(layer)
             graphs.append((tile_id, graph, moves))
@@ -89,7 +82,6 @@ class Orchestrator:
                 (tile_id, movement) = global_moves[i_node]
                 indp_moves_per_tile[tile_id].append(movement)
 
-            print(f"The MIS has {len(indp_nodes)} indp nodes.")
             tile_start_idices = {
                 id: len(self.tiles[id].result_json["instructions"]) for id in self.active_tiles}
             self.process_movement(layer, indp_moves_per_tile)
@@ -209,7 +201,7 @@ class Orchestrator:
 
         return tile_instr_start_indices
 
-    def aod_assignment(self, instr_start_indices: dict[int, int], forward=True):
+    def aod_assignment(self, instr_start_indices: dict[int, int]):
         """ 
             This is the central scheduler for each batch of operations across the multiple tiles.
         """
@@ -346,6 +338,10 @@ class Orchestrator:
 
         # Routing must be done globally
         self.route()
+
+        logger.info("Total runtimes:")
+        for tile in self.tiles:
+            logger.info(f"{tile.result_json["runtime"]} ms")
 
     def set_programs(self, source_files: list[str]):
         for source_file in source_files:

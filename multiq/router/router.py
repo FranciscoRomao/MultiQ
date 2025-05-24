@@ -53,21 +53,6 @@ class Router_mixin(GraphOperations_mixin, Instructions_mixin):
 
         return duration
 
-    def aod_fwd_assignment(self, layer_start: int, layer_end: int):
-        aod_end_time = 0.0
-        durations = []
-        for idx in range(layer_start, layer_end):
-            if self.result_json['instructions'][idx]["type"] != "rearrangeJob":
-                print("Error: not a rearrange job!")
-                continue
-            # get duration
-            duration = self.get_duration(self.result_json['instructions'][idx])
-            durations.append((duration, idx))
-
-        durations = sorted(durations[0], reverse=True)
-        for item in durations:
-            duration, idx = item
-
     def aod_assignment(self, id_layer_start: int, aod_begin_time: float):
         """
             Assign begin and end times to the operations given that aod_begin_time is the earliest time
@@ -200,11 +185,11 @@ class Router_mixin(GraphOperations_mixin, Instructions_mixin):
         generate a layer for gate execution
         """
 
-        print("process gate layer")
+        # print("process gate layer")
         list_gate_idx = self.gate_scheduling_idx[layer]
-        print("list_gate_idx:", list_gate_idx)
-        print("gate_mapping:", gate_mapping)
-        print("gate scheduling", self.gate_scheduling)
+        # print("list_gate_idx:", list_gate_idx)
+        # print("gate_mapping:", gate_mapping)
+        # print("gate scheduling", self.gate_scheduling)
 
         initial_instr_idx = len(self.result_json['instructions'])
 
