@@ -164,15 +164,11 @@ class Router_mixin(GraphOperations_mixin, Instructions_mixin):
                             if begin_time < tmp_begin_time:
                                 begin_time = tmp_begin_time
                         else:
-                            # if begin_time < self.result_json['instructions'][inst_idx]["end_time"]:
-                            #     begin_time = self.result_json['instructions'][inst_idx]["end_time"]
                             begin_time = max(begin_time, self.result_json['instructions'][inst_idx]["end_time"])
                 else:
                     for inst_idx in dependency[dependency_type]:
                         try:
                             begin_time = max(begin_time, self.result_json['instructions'][inst_idx]["end_time"])
-                            # if begin_time < self.result_json['instructions'][inst_idx]["end_time"]:
-                            #     begin_time = self.result_json['instructions'][inst_idx]["end_time"]
                         except:
                             print("instruction has no end_time",
                                   self.result_json['instructions'][inst_idx])
