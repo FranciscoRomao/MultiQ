@@ -259,8 +259,8 @@ class Router_mixin(GraphOperations_mixin, Instructions_mixin):
         return initial_instr_idx
 
     def process_movement_layer(self, set_aod_qubit: set, initial_mapping: list, final_mapping: list):
-        print("process movement layer. initial mapping:", initial_mapping)
-        print("process movement layer. set_aod_dict:", set_aod_qubit)
+        # print("process movement layer. initial mapping:", initial_mapping)
+        # print("process movement layer. set_aod_dict:", set_aod_qubit)
         """
         generate layers for row-by-row based atom transfer
         """
