@@ -119,7 +119,7 @@ class Orchestrator:
                 
             tile_reverse_idices = {id: len(self.tiles[id].result_json["instructions"]) for id in self.active_tiles}
             self.process_rev_movement(layer, indp_moves_per_tile)
-            self.rev_aod_assignment(tile_reverse_idices)
+            self.aod_assignment(tile_reverse_idices)
             graph.remove_nodes_from(indp_nodes)
 
     def combine_graphs(self, graphs: list[(int, list, list)]):
@@ -268,55 +268,6 @@ class Orchestrator:
 
                 self.aod_end_time = max(self.aod_end_time, end_time)
 
-
-    def rev_aod_assignment(self, instr_start_indices: dict[int, int], forward=True):
-        start_times = []
-        for id, idx in instr_start_indices.items():
-            instr = self.tiles[id].result_json["instructions"][idx]
-            time_st_i = self.tiles[id].get_begin_time(idx, instr["dependency"])
-            start_times.append(time_st_i)
-
-        global_start_time = max(max(start_times), self.aod_end_time)
-
-        for id in self.active_tiles:
-            tile = self.tiles[id]
-            instr_id_start = instr_start_indices[id]
-            durations = []
-
-            # get durations of move operations
-            for idx in range(instr_id_start, len(tile.result_json["instructions"])):
-                instr = tile.result_json["instructions"][idx]
-                if instr["type"] != "rearrangeJob":
-                    # we have reached the gate operations
-                    break
-                durations.append((tile.get_duration(instr), idx))
-
-            print("The durations are", durations)
-            # sort move ops from shortest to longest
-
-            for duration, idx in durations:
-                instr = tile.result_json["instructions"][idx]
-
-                # begin_time = max(global_start_time, tile.get_begin_time(
-                #     idx, instr["dependency"]))
-                begin_time = global_start_time
-                end_time = global_start_time + duration
-
-                instr["dependency"]["aod"] = -1
-                instr["begin_time"] = begin_time
-                instr["end_time"] = end_time
-                instr["aod_id"] = 0
-
-                # add begin_time offset to the sub-intructions
-                for detail_inst in instr["insts"]:
-                    detail_inst["begin_time"] += begin_time
-                    detail_inst["end_time"] += begin_time
-
-                # update global tile runtime statistic
-                tile.result_json["runtime"] = max(
-                    tile.result_json["runtime"], end_time)
-
-                self.aod_end_time = max(self.aod_end_time, end_time)
 
     # def aod_assignment(self, instr_start_indices: list[int]):
     #     """
