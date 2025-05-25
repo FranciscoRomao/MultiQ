@@ -9,10 +9,10 @@ from multiq.types.movement import Movement
 
 class Router_mixin(GraphOperations_mixin, Instructions_mixin):
 
-    # calculate the total time required for the instructions in a rearrangeJob.
     def get_duration(self, inst: dict):
         """
-            Calculate the total time required for the instructions in a rearrangeJob.
+            Calculate the total time required for the instructions in a rearrangeJob. Populates 
+            the detail instructions inside a job with begin and end times.
         Args:
             inst (dict): instructions list
         Raises:
@@ -53,78 +53,78 @@ class Router_mixin(GraphOperations_mixin, Instructions_mixin):
 
         return duration
 
-    def aod_assignment(self, id_layer_start: int, aod_begin_time: float):
-        """
-            Assign begin and end times to the operations given that aod_begin_time is the earliest time
-            the AoD laser can be used.
-        """
+    # def aod_assignment(self, id_layer_start: int, aod_begin_time: float):
+    #     """
+    #         Assign begin and end times to the operations given that aod_begin_time is the earliest time
+    #         the AoD laser can be used.
+    #     """
 
-        # [rearrangeJobs, otherJobs]
-        list_instruction_duration = [[], []]
-        id_layer_end = len(self.result_json['instructions'])
-        duration_idx = 0
-        list_gate_layer_idx = []
+    #     # [rearrangeJobs, otherJobs]
+    #     list_instruction_duration = [[], []]
+    #     id_layer_end = len(self.result_json['instructions'])
+    #     duration_idx = 0
+    #     list_gate_layer_idx = []
 
-        aod_end_time = 0.0
+    #     aod_end_time = 0.0
 
-        for idx in range(id_layer_start, id_layer_end):
-            if self.result_json['instructions'][idx]["type"] != "rearrangeJob":
-                # subsequent ops go into list_instr_durcation[1]
-                duration_idx = 1
-                list_gate_layer_idx.append(idx)
-                continue
+    #     for idx in range(id_layer_start, id_layer_end):
+    #         if self.result_json['instructions'][idx]["type"] != "rearrangeJob":
+    #             # subsequent ops go into list_instr_durcation[1]
+    #             duration_idx = 1
+    #             list_gate_layer_idx.append(idx)
+    #             continue
 
-            # get duration of rearrangeJob
-            duration = self.get_duration(self.result_json['instructions'][idx])
-            list_instruction_duration[duration_idx].append((duration, idx))
+    #         # get duration of rearrangeJob
+    #         duration = self.get_duration(self.result_json['instructions'][idx])
+    #         list_instruction_duration[duration_idx].append((duration, idx))
 
-        # sort rearrangeJobs from shortest to longest
-        list_instruction_duration[0] = sorted(
-            list_instruction_duration[0], reverse=True)
-        list_instruction_duration[1] = sorted(
-            list_instruction_duration[1], reverse=True)
+    #     # sort rearrangeJobs from shortest to longest
+    #     list_instruction_duration[0] = sorted(
+    #         list_instruction_duration[0], reverse=True)
+    #     list_instruction_duration[1] = sorted(
+    #         list_instruction_duration[1], reverse=True)
 
-        for i in range(2):
-            # for rearrange instructions
-            for item in list_instruction_duration[i]:
-                duration = item[0]
-                inst = self.result_json['instructions'][item[1]]
-                begin_time = max(aod_begin_time, self.get_begin_time(
-                    item[1], inst["dependency"]))
-                end_time = begin_time + duration
-                inst["dependency"]["aod"] = -1
-                # self.aod_dependency[aod_id] = item[1]
-                inst["begin_time"] = begin_time
-                inst["end_time"] = end_time
-                inst["aod_id"] = 0  # Fixed to 0. Using only one AoD for now
-                aod_end_time = end_time
+    #     for i in range(2):
+    #         # for rearrange instructions
+    #         for item in list_instruction_duration[i]:
+    #             duration = item[0]
+    #             inst = self.result_json['instructions'][item[1]]
+    #             begin_time = max(aod_begin_time, self.get_begin_time(
+    #                 item[1], inst["dependency"]))
+    #             end_time = begin_time + duration
+    #             inst["dependency"]["aod"] = -1
+    #             # self.aod_dependency[aod_id] = item[1]
+    #             inst["begin_time"] = begin_time
+    #             inst["end_time"] = end_time
+    #             inst["aod_id"] = 0  # Fixed to 0. Using only one AoD for now
+    #             aod_end_time = end_time
 
-                for detail_inst in inst["insts"]:
-                    detail_inst["begin_time"] += begin_time
-                    detail_inst["end_time"] += begin_time
-                if self.result_json["runtime"] < end_time:
-                    self.result_json["runtime"] = end_time
+    #             for detail_inst in inst["insts"]:
+    #                 detail_inst["begin_time"] += begin_time
+    #                 detail_inst["end_time"] += begin_time
+    #             if self.result_json["runtime"] < end_time:
+    #                 self.result_json["runtime"] = end_time
 
-            # for gate/rydberg instructions
-            if i == 0:
-                for gate_layer_idx in list_gate_layer_idx:
-                    # laser scheduling
-                    inst = self.result_json['instructions'][gate_layer_idx]
-                    begin_time = self.get_begin_time(
-                        gate_layer_idx, inst["dependency"])
-                    if inst["type"] == "rydberg":
-                        end_time = begin_time + self.architecture.time_rydberg
-                    else:
-                        # for sequential gate execution
-                        end_time = begin_time + \
-                            (self.architecture.time_1qGate *
-                             len(inst["gates"])) + self.common_1q
+    #         # for gate/rydberg instructions
+    #         if i == 0:
+    #             for gate_layer_idx in list_gate_layer_idx:
+    #                 # laser scheduling
+    #                 inst = self.result_json['instructions'][gate_layer_idx]
+    #                 begin_time = self.get_begin_time(
+    #                     gate_layer_idx, inst["dependency"])
+    #                 if inst["type"] == "rydberg":
+    #                     end_time = begin_time + self.architecture.time_rydberg
+    #                 else:
+    #                     # for sequential gate execution
+    #                     end_time = begin_time + \
+    #                         (self.architecture.time_1qGate *
+    #                          len(inst["gates"])) + self.common_1q
 
-                    if self.result_json["runtime"] < end_time:
-                        self.result_json["runtime"] = end_time
-                    inst["begin_time"] = begin_time
-                    inst["end_time"] = end_time
-        return aod_end_time
+    #                 if self.result_json["runtime"] < end_time:
+    #                     self.result_json["runtime"] = end_time
+    #                 inst["begin_time"] = begin_time
+    #                 inst["end_time"] = end_time
+    #     return aod_end_time
 
     def get_begin_time(self, cur_inst_idx: int, dependency: dict):
         """ 
@@ -143,33 +143,32 @@ class Router_mixin(GraphOperations_mixin, Instructions_mixin):
                         if self.result_json['instructions'][inst_idx]["type"] == "rearrangeJob":
                             # find the time that the instruction finish atom transfer
                             # !
-                            atom_transfer_finish_time = 0
+                            atom_transfer_finish_time = 0.0
+
                             for detail_inst in self.result_json['instructions'][inst_idx]["insts"]:
                                 inst_type = detail_inst["type"].split(":")[0]
                                 if inst_type == "activate":
                                     atom_transfer_finish_time = max(
                                         detail_inst["end_time"], atom_transfer_finish_time)
+
                             # find the time until dropping of the qubits
                             atom_transfer_begin_time = 0
                             for detail_inst in self.result_json['instructions'][cur_inst_idx]["insts"]:
                                 inst_type = detail_inst["type"].split(":")[0]
                                 if inst_type == "deactivate":
-                                    try:
-                                        atom_transfer_begin_time = max(
-                                            detail_inst["begin_time"], atom_transfer_begin_time)
-                                    except:
-                                        # TODO fix this for reverse layer!
-                                        #print("Exception on", detail_inst)
-                                        break
+                                    atom_transfer_begin_time = max(
+                                        detail_inst["begin_time"], atom_transfer_begin_time)
                             tmp_begin_time = atom_transfer_finish_time - atom_transfer_begin_time
                             if begin_time < tmp_begin_time:
                                 begin_time = tmp_begin_time
                         else:
-                            begin_time = max(begin_time, self.result_json['instructions'][inst_idx]["end_time"])
+                            begin_time = max(
+                                begin_time, self.result_json['instructions'][inst_idx]["end_time"])
                 else:
                     for inst_idx in dependency[dependency_type]:
                         try:
-                            begin_time = max(begin_time, self.result_json['instructions'][inst_idx]["end_time"])
+                            begin_time = max(
+                                begin_time, self.result_json['instructions'][inst_idx]["end_time"])
                         except:
                             print("instruction has no end_time",
                                   self.result_json['instructions'][inst_idx])

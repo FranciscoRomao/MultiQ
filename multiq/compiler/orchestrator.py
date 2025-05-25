@@ -94,8 +94,6 @@ class Orchestrator:
                 (tile_id, movement) = global_moves[i_node]
                 indp_moves_per_tile[tile_id].append(movement)
 
-            print(f"Independent moves for this iteration of layer {layer} are {indp_moves_per_tile}")
-
             tile_start_idices = {
                 id: len(self.tiles[id].result_json["instructions"]) for id in self.active_tiles}
             self.process_movement(layer, indp_moves_per_tile)
@@ -210,6 +208,22 @@ class Orchestrator:
         # 3. aod_assignment for each tile with unified start_time
         # 4. end_time = max({time_e_i | tiles})
 
+        # Annoyingly, we need to calculate the durations first. This is because
+        # get_duration updates the relative begin and end times of the subinstructions
+        # as a side effect.
+        durations = [ [] for _ in range(len(self.active_tiles))]
+        for id in self.active_tiles:
+            tile = self.tiles[id]
+            instr_id_start = instr_start_indices[id]
+            # get durations of move operations
+            for idx in range(instr_id_start, len(tile.result_json["instructions"])):
+                instr = tile.result_json["instructions"][idx]
+                if instr["type"] != "rearrangeJob":
+                    # we have reached the gate operations
+                    break
+                durations[id].append((tile.get_duration(instr), idx))
+
+
         start_times = []
         for id, idx in instr_start_indices.items():
             instr = self.tiles[id].result_json["instructions"][idx]
@@ -220,18 +234,8 @@ class Orchestrator:
 
         for id in self.active_tiles:
             tile = self.tiles[id]
-            instr_id_start = instr_start_indices[id]
-            durations = []
 
-            # get durations of move operations
-            for idx in range(instr_id_start, len(tile.result_json["instructions"])):
-                instr = tile.result_json["instructions"][idx]
-                if instr["type"] != "rearrangeJob":
-                    # we have reached the gate operations
-                    break
-                durations.append((tile.get_duration(instr), idx))
-
-            for duration, idx in durations:
+            for duration, idx in durations[id]:
                 instr = tile.result_json["instructions"][idx]
 
                 begin_time = global_start_time
@@ -327,10 +331,10 @@ class Orchestrator:
             tile.scheduling()
             # NOTE: turn back on when schedling works!
             # if tile.reuse:
-            #    tile.collect_reuse_qubit()
+            tile.collect_reuse_qubit()
             # else:
-            tile.reuse_qubit = [set()
-                                for _ in range(len(tile.gate_scheduling))]
+            #tile.reuse_qubit = [set()
+            #                    for _ in range(len(tile.gate_scheduling))]
             tile.place_qubit_initial()
             tile.place_qubit_intermedeiate()
 
@@ -338,8 +342,8 @@ class Orchestrator:
         self.route()
 
         logger.info("Total runtimes:")
-        for tile in self.tiles:
-            logger.info(f"{tile.result_json["runtime"]} ms")
+        for id, tile in enumerate(self.tiles):
+            logger.info(f"Tile {id}: {tile.result_json["runtime"]} ms")
 
     def set_programs(self, source_files: list[str]):
         for source_file in source_files:
