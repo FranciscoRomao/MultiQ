@@ -35,27 +35,6 @@ class Instructions_mixin:
         for locs in inst["begin_locs"]:
             coords_row = []
             for loc in locs:
-                # coords_row.append({
-                #     "id": loc["id"],
-                #     "x":
-                #         self.architecture.exact_SLM_location(
-                #             loc["a"],
-                #             loc["r"],
-                #             loc["c"],
-                #         )[0],
-                #     "y":
-                #         self.architecture.exact_SLM_location(
-                #             loc["a"],
-                #             loc["r"],
-                #             loc["c"],
-                #         )[1],
-                # })
-
-                # all_col_x.append(self.architecture.exact_SLM_location(
-                #     loc["a"],
-                #     loc["r"],
-                #     loc["c"],
-                # )[0])
                 exact_location = self.architecture.exact_SLM_location(
                     loc[1], loc[2], loc[3])
                 coords_row.append({
@@ -80,11 +59,6 @@ class Instructions_mixin:
         all_col_idx_sofar = []  # which col has been activated
         for row_id, locs in enumerate(inst["begin_locs"]):  # each row
 
-            # row_y = self.architecture.exact_SLM_location(
-            #     locs[0]["a"],
-            #     locs[0]["r"],
-            #     locs[0]["c"],
-            # )[1]
             row_y = self.architecture.exact_SLM_location(
                 locs[0][1],
                 locs[0][2],
@@ -123,11 +97,6 @@ class Instructions_mixin:
             }
 
             for j, loc in enumerate(locs):
-                # col_x = self.architecture.exact_SLM_location(
-                #     loc["a"],
-                #     loc["r"],
-                #     loc["c"],
-                # )[0]
                 col_x = self.architecture.exact_SLM_location(
                     loc[1],
                     loc[2],
@@ -182,16 +151,10 @@ class Instructions_mixin:
                     "end_coord": [],
                 }
                 for j, loc in enumerate(locs):
-                    # col_x = self.architecture.exact_SLM_location(
-                    #     loc["a"],
-                    #     loc["r"],
-                    #     loc["c"],
-                    # )[0]
                     col_x = self.architecture.exact_SLM_location(
-                        loc[1],
-                        loc[2],
-                        loc[3],
-                    )[0]
+                         loc[1],
+                         loc[2],
+                         loc[3])[0]
                     col_loc = [loc[1], loc[3]]
                     col_id = col_x_to_id[col_x]
                     # all columns used in this row are parked after the activation
@@ -239,13 +202,6 @@ class Instructions_mixin:
             else:
                 big_move["row_loc_begin"].append([-1, -1])
 
-            # big_move["row_y_end"].append(
-            #     self.architecture.exact_SLM_location(
-            #         end_locs[0]["a"],
-            #         end_locs[0]["r"],
-            #         end_locs[0]["c"],
-            #     )[1]
-            # )
             big_move["row_y_end"].append(
                 self.architecture.exact_SLM_location(
                     end_locs[0][1],
@@ -256,11 +212,6 @@ class Instructions_mixin:
             big_move["row_loc_end"].append([end_locs[0][1], end_locs[0][2]])
 
             for j, (begin_loc, end_loc) in enumerate(zip(begin_locs, end_locs)):
-                # col_x = self.architecture.exact_SLM_location(
-                #             begin_loc["a"],
-                #             begin_loc["r"],
-                #             begin_loc["c"],
-                #         )[0]
                 col_x = self.architecture.exact_SLM_location(
                     begin_loc[1],
                     begin_loc[2],
@@ -278,13 +229,6 @@ class Instructions_mixin:
                             [begin_loc[1], begin_loc[3]])
                     else:
                         big_move["col_loc_begin"].append([-1, -1])
-                    # big_move["col_x_end"].append(
-                    #     self.architecture.exact_SLM_location(
-                    #         end_loc["a"],
-                    #         end_loc["r"],
-                    #         end_loc["c"],
-                    #     )[0]
-                    # )
                     big_move["col_x_end"].append(
                         self.architecture.exact_SLM_location(
                             end_loc[1],
@@ -296,21 +240,11 @@ class Instructions_mixin:
 
                 # whether or not the movement of this col has been considered
                 # before, we need to update the coords of the qubit.
-                # coords[row_id][j]["x"] = self.architecture.exact_SLM_location(
-                #                             end_loc["a"],
-                #                             end_loc["r"],
-                #                             end_loc["c"],
-                #                         )[0]
                 coords[row_id][j]["x"] = self.architecture.exact_SLM_location(
                     end_loc[1],
                     end_loc[2],
                     end_loc[3],
                 )[0]
-                # coords[row_id][j]["y"] = self.architecture.exact_SLM_location(
-                #     end_locs[0]["a"],
-                #     end_locs[0]["r"],
-                #     end_locs[0]["c"],
-                # )[1]
                 coords[row_id][j]["y"] = self.architecture.exact_SLM_location(
                     end_locs[0][1],
                     end_locs[0][2],
