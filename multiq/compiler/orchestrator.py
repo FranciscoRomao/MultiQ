@@ -6,6 +6,7 @@ from zac.ds.architecture import Architecture
 from scipy.sparse import csr_matrix
 from scipy.sparse.csgraph import maximum_bipartite_matching
 
+import matplotlib.pyplot as plt
 import qiskit.qasm2 as qasm2
 import networkx as nx
 
@@ -67,32 +68,38 @@ class Orchestrator:
                 logger.info(f"Removing tile_id {tile_id} as it has finished")
                 continue
             graph, moves = tile.nx_interference_graph(layer)
-            print(f"Appending graph {graph} with moves {moves} for tile_id {tile_id}")
             graphs.append((tile_id, graph, moves))
 
         if len(graphs) == 0:
             return
 
         graph, global_moves = self.combine_nx_graphs(graphs)
-        print(f"Layer {layer}: Graph is {graph} with moves/edges {global_moves}")
+
+        #fig = plt.figure()
+        #nx.draw(graph, ax=fig.add_subplot(), with_labels=True)
+        #fig.savefig(f"graph_layer_{layer}_before_removals.png")
+
 
         while graph.number_of_nodes() > 0:
             comp_graph = nx.complement(graph)
             indp_nodes = max(nx.find_cliques(comp_graph), key=len, default=[])
-            indp_moves_per_tile = [[] for _ in range(len(self.tiles))]
+            graph.remove_nodes_from(indp_nodes)
 
-            print(f"Independent moves: {indp_nodes}")
+            print(f"Indp nodes for this iteration of layer {layer} are {indp_nodes}")
+
+            indp_moves_per_tile = [[] for _ in range(len(self.tiles))]
 
             # partition the independent set by tile
             for i_node in indp_nodes:
                 (tile_id, movement) = global_moves[i_node]
                 indp_moves_per_tile[tile_id].append(movement)
 
+            print(f"Independent moves for this iteration of layer {layer} are {indp_moves_per_tile}")
+
             tile_start_idices = {
                 id: len(self.tiles[id].result_json["instructions"]) for id in self.active_tiles}
             self.process_movement(layer, indp_moves_per_tile)
             self.aod_assignment(tile_start_idices)
-            graph.remove_nodes_from(indp_nodes)
 
         # add gate layers
         rydberg_instrs = self.process_gates(layer)
@@ -122,7 +129,7 @@ class Orchestrator:
             self.aod_assignment(tile_reverse_idices)
             graph.remove_nodes_from(indp_nodes)
 
-    def combine_nx_graphs(self, graphs: list[(int, nx.Graph, list[Movement])]) -> tuple[nx.Graph, list[(int, Movement)]]:
+    def combine_nx_graphs(self, graphs: list[tuple[int, nx.Graph, list[Movement]]]) -> tuple[nx.Graph, list[tuple[int, Movement]]]:
         """ Take a list of (tile_id, conflict graph, movement list) and combine it into a single graph """
         graph_data = [g for _, g, _ in graphs]
         # nodes become [0,...,len(g_1),...,len(g_2),...]
@@ -135,10 +142,10 @@ class Orchestrator:
                 global_move_data.append((tile_id, move))
 
         for i, (tile_id, mov) in enumerate(global_move_data):
-            for j, (tile_id2, mov2) in enumerate(global_move_data):
-                if tile_id != tile_id2:
-                    if not self.tilewise_compatible(mov, mov2):
-                        combined_graph.add_edge(i, j)
+          for j, (tile_id2, mov2) in enumerate(global_move_data):
+              if tile_id != tile_id2:
+                  if not self.tilewise_compatible(mov, mov2):
+                      combined_graph.add_edge(i, j)
 
         return combined_graph, global_move_data
 

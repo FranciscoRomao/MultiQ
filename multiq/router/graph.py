@@ -81,39 +81,27 @@ class GraphOperations_mixin:
                     G.add_edge(i, j)
         return G
 
-    def collect_violation(self, vectors: list) -> list[(int, int)]:
-        violations = []
-        for i in range(len(vectors)):
-            for j in range(i+1, len(vectors)):
-                if not self.compatible_2D(vectors[i], vectors[j]):
-                    violations.append((i, j))
-        return violations
-
     def compatible_2D(self, a: Movement, b: Movement) -> bool:
         """
         check if move a and b can be performed simultaneously
         """
-
-        a_x1, a_y1, a_x2, a_y2 = a.start_x, a.start_y, a.end_x, a.end_y
-        b_x1, b_y1, b_x2, b_y2 = b.start_x, b.start_y, b.end_x, b.end_y
-
-        # x-axis
-        if a_x1 == b_x1 and a_y1 != b_y1:
+        if a.start_x == b.start_x and a.end_x != b.end_x:
             return False
-        if a_y1 == b_y1 and a_x1 != b_x1:
+        if a.end_x == b.end_x and a.start_x != b.start_x:
             return False
-        if a_x1 < b_x1 and a_y1 >= b_y1:
+        if a.start_x < b.start_x and a.end_x >= b.end_x:
             return False
-        if a_x1 > b_x1 and a_y1 <= b_y1:
+        if a.start_x > b.start_x and a.end_x <= b.end_x:
             return False
 
-        # y-axis
-        if a_x2 == b_x2 and a_y2 != b_y2:
+        if a.start_y == b.start_y and a.end_y != b.end_y:
             return False
-        if a_y2 == b_y2 and a_x2 != b_x2:
+        if a.end_y == b.end_y and a.start_y != b.start_y:
             return False
-        if a_x2 < b_x2 and a_y2 >= b_y2:
+        if a.start_y < b.start_y and a.end_y >= b.end_y:
             return False
-        if a_x2 > b_x2 and a_y2 <= b_y2:
+        if a.start_y > b.start_y and a.end_y <= b.end_y:
             return False
+
+
         return True

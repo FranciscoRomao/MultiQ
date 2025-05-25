@@ -158,8 +158,9 @@ class Router_mixin(GraphOperations_mixin, Instructions_mixin):
                                         atom_transfer_begin_time = max(
                                             detail_inst["begin_time"], atom_transfer_begin_time)
                                     except:
-                                        print("Exception on", detail_inst)
-                                    break
+                                        # TODO fix this for reverse layer!
+                                        #print("Exception on", detail_inst)
+                                        break
                             tmp_begin_time = atom_transfer_finish_time - atom_transfer_begin_time
                             if begin_time < tmp_begin_time:
                                 begin_time = tmp_begin_time
