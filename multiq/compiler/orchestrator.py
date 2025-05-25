@@ -75,7 +75,8 @@ class Orchestrator:
         graph, global_moves = self.combine_nx_graphs(graphs)
 
         while graph.number_of_nodes() > 0:
-            indp_nodes = nx.maximal_independent_set(graph)
+            comp_graph = nx.complement(graph)
+            indp_nodes = max(nx.find_cliques(comp_graph), key=len, default=[])
             indp_moves_per_tile = [[] for _ in range(len(self.tiles))]
             # partition the independent set by tile
             for i_node in indp_nodes:
@@ -103,7 +104,9 @@ class Orchestrator:
         graph, global_moves = self.combine_nx_graphs(graphs)
 
         while graph.number_of_nodes() > 0:
-            indp_nodes = nx.maximal_independent_set(graph)
+            comp_graph = nx.complement(graph)
+            indp_nodes = max(nx.find_cliques(comp_graph), key=len, default=[])
+
             indp_moves_per_tile = [[] for _ in range(len(self.tiles))]
             for i_node in indp_nodes:
                 (tile_id, movement) = global_moves[i_node]
