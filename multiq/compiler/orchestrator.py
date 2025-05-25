@@ -23,9 +23,12 @@ logger = logging.getLogger("multiq")
 
 
 class Orchestrator:
-    def __init__(self, arch: Architecture):
+    def __init__(self, arch: Architecture, grid_rows: int, grid_cols: int):
         self.architecture = arch
-        self.tiles: list[ZacTile] = []
+        self.grid_rows = grid_rows
+        self.grid_cols = grid_cols
+        # start with placeholders for the tiles. They are created in set_program()
+        self.tiles: list[list[ZacTile | None]] = [[None for _ in range(grid_cols)] for _ in range(grid_rows)]
         self.config: MultiQConfig = None
         self.instr_builder = InstructionBuilder()
 
@@ -34,30 +37,34 @@ class Orchestrator:
         self.aod_end_time = 0.0  # finish time of currently executing instruction on AoD
         self.rydberg_end_time = 0.0  # finish time of the current/last rydberg operation
 
-        self.active_tiles: list[int] = []  # indices of the active tiles
+        self.active_tiles: list[tuple[int,int]] = []  # (r,c) indices of the active tiles
 
     def route(self):
         """ Routes all movements, gate ops, rydberg ops across all of the tiles. """
 
-        # Append all tiles which have instructions to the active list
-        for tile_id, tile in enumerate(self.tiles):
-            if len(tile.gate_scheduling) > 0:
-                self.active_tiles.append(tile_id)
-                tile.prepare_routing()
+        active_tile_objs = []
+        for r_idx, row in enumerate(self.tiles):
+            for c_idx, tile in enumerate(row):
+                if tile and len(tile.gate_scheduling) > 0:
+                    self.active_tiles.append((r_idx, c_idx))
+                    tile.prepare_routing()
+                    active_tile_objs.append(tile)
 
         logger.info(f"There are {len(self.active_tiles)} active tiles")
 
         # write_initial_instruction() returns end_time. Global schedule waits till last tile is finished
         self.global_time = max(
-            [self.instr_builder.write_initial_instruction(t) for t in self.tiles])
+            [self.instr_builder.write_initial_instruction(t) for t in active_tile_objs])
 
         layer: int = 0
         while len(self.active_tiles) > 0:
             self.route_layer(layer)
             layer += 1
 
-        for t in self.tiles:
-            t.flatten_rearrangment_instruction()
+        for t_row in self.tiles:
+            for t_col in t_row:
+                if t_col:
+                    t_col.flatten_rearrangment_instruction()
 
     def route_layer(self, layer: int):
         graphs: list[(int, list, list)] = []
@@ -303,9 +310,7 @@ class Orchestrator:
                     local_start_time = local_end_time
 
     def process_gates(self, layer: int):
-
         gate_instrs = {}
-
         for tile_id in self.active_tiles:
             tile = self.tiles[tile_id]
             initial_indx = tile.process_gate_layer(
@@ -314,12 +319,6 @@ class Orchestrator:
                 gate_instrs[tile_id] = initial_indx
 
         return gate_instrs
-
-    def process_reverse_movement(self, layer: int, tile_start_indices: list[int], indp_moves_per_tile: list[list[Movement]]):
-        for tile_id in self.active_tiles:
-            tile = self.tiles[tile_id]
-            tile.construct_reverse_layer(
-                tile_start_indices[tile_id], tile.qubit_mapping[2 * layer + 1], tile.qubit_mapping[2 * layer + 2])
 
     # def parse_setting(self, setting: dict):
     #     self.config = MultiQConfig.from_config(setting)
