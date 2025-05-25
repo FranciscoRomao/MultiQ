@@ -8,6 +8,24 @@ from multiq.types.movement import Movement
 class GraphOperations_mixin:
     PARKING_DIST = 1
 
+    
+    def _interference_graph(self, layer, from_mapping, to_mapping):
+        qubits_in_layer = []  # consist of qubits to be moved
+        for gate in self.gate_scheduling[layer]:
+            for q in gate:
+                # exclude 1q gates or no moves
+                if from_mapping[q] != to_mapping[q]:
+                    #assert (initial_mapping[q][0] ==
+                    #        0 or gate_mapping[q][0] == 0)
+                    qubits_in_layer.append(q)
+
+        # graph construction
+        vectors = self.graph_construction(
+            qubits_in_layer, from_mapping, to_mapping)
+        graph = self.nx_graph(vectors)
+        return graph, vectors
+       
+
     # TODO merge forward and reverse
     def nx_reverse_interference_graph(self, layer: int):
         if layer + 2 >= len(self.qubit_mapping):
@@ -17,19 +35,7 @@ class GraphOperations_mixin:
         gate_mapping = self.qubit_mapping[2 * layer + 1]
         final_mapping = self.qubit_mapping[2 * layer + 2]
 
-        qubits_in_layer = []  # consist of qubits to be moved
-        for gate in self.gate_scheduling[layer]:
-            for q in gate:
-                # exclude 1q gates or no moves
-                if final_mapping[q] != gate_mapping[q]:
-                    qubits_in_layer.append(q)
-
-         # graph constructions
-        vectors = self.graph_construction(
-            qubits_in_layer, final_mapping, gate_mapping)
-        graph = self.nx_graph(vectors)
-
-        return graph, vectors
+        return self._interference_graph(layer, final_mapping, gate_mapping)
 
     def nx_interference_graph(self, layer: int):
         # even indices in storage
@@ -37,21 +43,7 @@ class GraphOperations_mixin:
         # odd indices inside entanglement zone
         gate_mapping = self.qubit_mapping[2 * layer + 1]
 
-        qubits_in_layer = []  # consist of qubits to be moved
-        for gate in self.gate_scheduling[layer]:
-            for q in gate:
-                # exclude 1q gates or no moves
-                if initial_mapping[q] != gate_mapping[q]:
-                    assert (initial_mapping[q][0] ==
-                            0 or gate_mapping[q][0] == 0)
-                    qubits_in_layer.append(q)
-
-         # graph constructions
-        vectors = self.graph_construction(
-            qubits_in_layer, initial_mapping, gate_mapping)
-        graph = self.nx_graph(vectors)
-
-        return graph, vectors
+        return self._interference_graph(layer, initial_mapping, gate_mapping)
 
     def graph_construction(self, remain_graph: list, initial_mapping: list, final_mapping: list):
         vectors = []
