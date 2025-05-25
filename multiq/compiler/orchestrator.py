@@ -67,17 +67,22 @@ class Orchestrator:
                 logger.info(f"Removing tile_id {tile_id} as it has finished")
                 continue
             graph, moves = tile.nx_interference_graph(layer)
+            print(f"Appending graph {graph} with moves {moves} for tile_id {tile_id}")
             graphs.append((tile_id, graph, moves))
 
         if len(graphs) == 0:
             return
 
         graph, global_moves = self.combine_nx_graphs(graphs)
+        print(f"Layer {layer}: Graph is {graph} with moves/edges {global_moves}")
 
         while graph.number_of_nodes() > 0:
             comp_graph = nx.complement(graph)
             indp_nodes = max(nx.find_cliques(comp_graph), key=len, default=[])
             indp_moves_per_tile = [[] for _ in range(len(self.tiles))]
+
+            print(f"Independent moves: {indp_nodes}")
+
             # partition the independent set by tile
             for i_node in indp_nodes:
                 (tile_id, movement) = global_moves[i_node]
@@ -117,21 +122,6 @@ class Orchestrator:
             self.aod_assignment(tile_reverse_idices)
             graph.remove_nodes_from(indp_nodes)
 
-    def combine_graphs(self, graphs: list[(int, list, list)]):
-        combined_nodes = []
-        combined_edges = []
-
-        tile_offset = 0
-        for id, nodes, edges in graphs:
-            n_nodes = len(nodes)  # number of movements in one tile
-            combined_nodes.extend([(id, *n) for n in nodes])
-            # An edge is a pair of indices. Need to adjust new indices for each subgraph
-            combined_edges.extend(
-                [(i + tile_offset, j + tile_offset) for i, j in edges])
-            tile_offset += n_nodes
-
-        return combined_nodes, combined_edges
-
     def combine_nx_graphs(self, graphs: list[(int, nx.Graph, list[Movement])]) -> tuple[nx.Graph, list[(int, Movement)]]:
         """ Take a list of (tile_id, conflict graph, movement list) and combine it into a single graph """
         graph_data = [g for _, g, _ in graphs]
@@ -155,14 +145,12 @@ class Orchestrator:
     # Across multiple tiles, only moves that share row coords can be done in parallel
     def tilewise_compatible(self, a: Movement, b: Movement) -> bool:
         # a,b must be from different tiles
-        a_x1, a_y1, a_x2, a_y2 = a.start_x, a.start_y, a.end_x, a.end_y
-        b_x1, b_y1, b_x2, b_y2 = b.start_x, b.start_y, b.end_x, b.end_y
 
         # must be same start row
-        if a_x1 != b_x1:
+        if a.start_y != b.start_y:
             return False
         # must be same finish row
-        if a_x2 != b_x2:
+        if a.end_y != b.end_y:
             return False
 
         return True
