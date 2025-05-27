@@ -1,17 +1,6 @@
-from zac.scheduler.scheduler import Scheduler_mixin
-from zac.placer.placer import Placer_mixin
-from zac.animator.animator import Animator
-from zac.verifier.verifier import Verifier_mixin
 from zac.ds.architecture import Architecture
-from scipy.sparse import csr_matrix
-from scipy.sparse.csgraph import maximum_bipartite_matching
 
-import matplotlib.pyplot as plt
-import qiskit.qasm2 as qasm2
 import networkx as nx
-
-from collections import defaultdict
-import time
 import logging
 
 from multiq.configuration import MultiQConfig
@@ -377,7 +366,7 @@ class Orchestrator:
     def set_programs(self, source_files: list[str]):
         if len(source_files) > self.grid_rows * self.grid_cols:
             logger.warning(
-                f"{len(source_files)} provided but grid only has {self.grid_rows * self.grid_cols} spaces.")
+                f"{len(source_files)} source files provided but grid only has {self.grid_rows * self.grid_cols} spaces.")
 
         itertr = iter(source_files)
         for r_idx in range(self.grid_rows):

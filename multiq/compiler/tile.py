@@ -4,14 +4,12 @@ from zac.verifier.verifier import Verifier_mixin
 from zac.ds.architecture import Architecture
 from scipy.sparse import csr_matrix
 from scipy.sparse.csgraph import maximum_bipartite_matching
-import time
 
 import qiskit.qasm2 as qasm2
 from qiskit import transpile
-import networkx as nx
 
 from multiq.configuration import MultiQConfig
-from multiq.router.router import Router_mixin, Movement
+from multiq.router.router import Router_mixin
 
 
 class ZacTile(Scheduler_mixin, Placer_mixin, Verifier_mixin, Router_mixin):
@@ -49,17 +47,15 @@ class ZacTile(Scheduler_mixin, Placer_mixin, Verifier_mixin, Router_mixin):
     def prepare_routing(self):
 
         # last instruction ID which accessed a particular qubit
-        self.qubit_dependency = [0 for i in range(self.n_q)]
+        self.qubit_dependency = [0 for _ in range(self.n_q)]
         self.site_dependency = dict()
-
         # instr_id of instruction which last used rydberg
-        # TODO: change rydberg to a global dependency
-        self.rydberg_dependency = [0 for i in range(
+        self.rydberg_dependency = [0 for _ in range(
             len(self.architecture.entanglement_zone))]
 
     def load_program(self, source_file: str):
         self.g_q = []
-        self.dict_g_1q_parent = {-1: []}
+        self.dict_g_1q_parent = {-1: []} # -1 means no dependency and can be applied at initialisation
         n_single_qubit_gate = 0
 
         cz_circuit = qasm2.load(source_file)
@@ -122,10 +118,6 @@ class ZacTile(Scheduler_mixin, Placer_mixin, Verifier_mixin, Router_mixin):
 
         extra_reuse_qubit = 0
         for i in range(1, len(self.gate_scheduling)):
-            # print("previous gate")
-            # print(self.gate_scheduling[i - 1])
-            # print("current gate")
-            # print(self.gate_scheduling[i])
             # m_j_k = gate j can use qubit of gate k
             self.reuse_qubit.append(set())
             matrix = [[0 for k in range(len(self.gate_scheduling[i - 1]))]
@@ -134,7 +126,6 @@ class ZacTile(Scheduler_mixin, Placer_mixin, Verifier_mixin, Router_mixin):
                 if qubit_is_used[i - 1][gate[0]] != -1 and qubit_is_used[i - 1][gate[0]] == qubit_is_used[i - 1][gate[1]]:
                     self.reuse_qubit[-1].add(gate[0])
                     self.reuse_qubit[-1].add(gate[1])
-                    # print("YYYYYY")
                 else:
                     for q in gate:
                         if qubit_is_used[i - 1][q] > -1:
@@ -142,7 +133,6 @@ class ZacTile(Scheduler_mixin, Placer_mixin, Verifier_mixin, Router_mixin):
                             extra_reuse_qubit += 1
                 for q in gate:
                     qubit_is_used[i][q] = gate_idx
-            # print(matrix)
             sparse_matrix = csr_matrix(matrix)
             matching = maximum_bipartite_matching(
                 sparse_matrix, perm_type='column')
@@ -154,13 +144,8 @@ class ZacTile(Scheduler_mixin, Placer_mixin, Verifier_mixin, Router_mixin):
                 for q in gate:
                     if qubit_is_used[i - 1][q] == reuse_gate:
                         self.reuse_qubit[-1].add(q)
-        #     print("cur_reuse_qubit:", extra_reuse_qubit)
-        # print("extra_reuse_qubit: ", extra_reuse_qubit)
         assert (extra_reuse_qubit >= 0)
         self.extra_reuse_qubit = extra_reuse_qubit
-        # print("reuse qubit")
-        # print(self.reuse_qubit[-1])
-        # input()
         self.reuse_qubit.append(set())
 
     def parse_setting(self, setting: dict):

@@ -3,8 +3,6 @@ import networkx as nx
 
 from multiq.types.movement import Movement
 
-
-
 class GraphOperations_mixin:
     PARKING_DIST = 1
 
