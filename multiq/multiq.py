@@ -43,11 +43,9 @@ class MultiQ:
         compiler = Orchestrator(self.arch, 2, 2)
         compiler.set_programs(input_files)
         compiler.compile()
-        for tile in compiler.tiles[0]:
-            codes.append(tile.result_json)
         
-        anim = Animator(self.arch)
-        anim.multi_animate(codes, "test.mp4")
+        anim = Animator(self.arch, 2, 2)
+        anim.multi_animate(compiler.tiles, "test.mp4")
 
         
         
