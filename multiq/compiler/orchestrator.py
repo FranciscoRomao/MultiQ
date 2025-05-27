@@ -185,6 +185,13 @@ class Orchestrator:
         return True
 
     def column_compatible(self, a: Movement, b: Movement) -> bool:
+        # a,b must be from different tiles
+
+        if a.start_x != b.start_x:
+            return False
+        if a.end_x != b.end_x:
+            return False
+        
         return True
 
     def process_movement(self, layer: int, indp_moves_per_tile: dict[tuple[int, int], list[Movement]]):
@@ -195,13 +202,11 @@ class Orchestrator:
 
             tile_moves = indp_moves_per_tile[(r_idx, c_idx)]
             qubits = {move.qubit_index for move in tile_moves}
-            _ = tile.process_movement_layer(
+            tile.process_movement_layer(
                 qubits, tile.qubit_mapping[2 * layer], tile.qubit_mapping[2 * layer + 1])
 
     def process_rev_movement(self, layer: int, indp_moves_per_tile: dict[tuple[int, int], list[Movement]]):
         # process the instructions on the tile level
-
-        tile_instr_start_indices = [0 for _ in range(len(self.active_tiles))]
 
         for (r_idx, c_idx) in self.active_tiles:
             tile = self.tiles[r_idx][c_idx]
@@ -214,7 +219,7 @@ class Orchestrator:
             else:
                 tile_moves = indp_moves_per_tile[(r_idx, c_idx)]
                 qubits = {move.qubit_index for move in tile_moves}
-                _ = tile.process_movement_layer(
+                tile.process_movement_layer(
                     qubits, tile.qubit_mapping[2 * layer + 1], tile.qubit_mapping[2 * layer + 2])
 
     def aod_assignment(self, instr_start_indices: dict[tuple[int, int], int]):
