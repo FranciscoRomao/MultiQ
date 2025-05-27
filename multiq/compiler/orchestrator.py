@@ -10,11 +10,12 @@ import matplotlib.pyplot as plt
 import qiskit.qasm2 as qasm2
 import networkx as nx
 
+from collections import defaultdict
 import time
 import logging
 
 from multiq.configuration import MultiQConfig
-from multiq.router import Movement, Router_mixin
+from multiq.router import Movement
 
 from .tile import ZacTile
 from .builder import InstructionBuilder
@@ -28,7 +29,8 @@ class Orchestrator:
         self.grid_rows = grid_rows
         self.grid_cols = grid_cols
         # start with placeholders for the tiles. They are created in set_program()
-        self.tiles: list[list[ZacTile | None]] = [[None for _ in range(grid_cols)] for _ in range(grid_rows)]
+        self.tiles: list[list[ZacTile | None]] = [
+            [None for _ in range(grid_cols)] for _ in range(grid_rows)]
         self.config: MultiQConfig = None
         self.instr_builder = InstructionBuilder()
 
@@ -37,7 +39,9 @@ class Orchestrator:
         self.aod_end_time = 0.0  # finish time of currently executing instruction on AoD
         self.rydberg_end_time = 0.0  # finish time of the current/last rydberg operation
 
-        self.active_tiles: list[tuple[int,int]] = []  # (r,c) indices of the active tiles
+        # currently active tiles. Should never refer to "None" tiles
+        # (r,c) indices of the active tiles
+        self.active_tiles: list[tuple[int, int]] = []
 
     def route(self):
         """ Routes all movements, gate ops, rydberg ops across all of the tiles. """
@@ -67,95 +71,108 @@ class Orchestrator:
                     t_col.flatten_rearrangment_instruction()
 
     def route_layer(self, layer: int):
-        graphs: list[(int, list, list)] = []
-        for tile_id in self.active_tiles:
-            tile = self.tiles[tile_id]
+        graphs: list[tuple[int, int, nx.Graph, list]] = []
+
+        for (r_idx, c_idx) in self.active_tiles:
+            tile = self.tiles[r_idx][c_idx]
+            assert (tile is not None)
+
             if layer >= len(tile.gate_scheduling):
-                self.active_tiles.remove(tile_id)
-                logger.info(f"Removing tile_id {tile_id} as it has finished")
+                self.active_tiles.remove((r_idx, c_idx))
+                logger.info(
+                    f"Removing tile_id ({r_idx}, {c_idx}) as it has finished")
                 continue
             graph, moves = tile.nx_interference_graph(layer)
-            graphs.append((tile_id, graph, moves))
+            graphs.append((r_idx, c_idx, graph, moves))
 
         if len(graphs) == 0:
             return
 
         graph, global_moves = self.combine_nx_graphs(graphs)
 
-        #fig = plt.figure()
-        #nx.draw(graph, ax=fig.add_subplot(), with_labels=True)
-        #fig.savefig(f"graph_layer_{layer}_before_removals.png")
-
+        # fig = plt.figure()
+        # nx.draw(graph, ax=fig.add_subplot(), with_labels=True)
+        # fig.savefig(f"graph_layer_{layer}_before_removals.png")
 
         while graph.number_of_nodes() > 0:
             comp_graph = nx.complement(graph)
             indp_nodes = max(nx.find_cliques(comp_graph), key=len, default=[])
             graph.remove_nodes_from(indp_nodes)
 
-            print(f"Indp nodes for this iteration of layer {layer} are {indp_nodes}")
+            print(
+                f"Indp nodes for this iteration of layer {layer} are {indp_nodes}")
 
-            indp_moves_per_tile = [[] for _ in range(len(self.tiles))]
+            # indp_moves_per_tile = [[] for _ in range(len(self.tiles))]
+            indp_moves_per_tile = {(r_idx, c_idx): []
+                                   for (r_idx, c_idx) in self.active_tiles}
 
             # partition the independent set by tile
             for i_node in indp_nodes:
-                (tile_id, movement) = global_moves[i_node]
-                indp_moves_per_tile[tile_id].append(movement)
+                (row_idx, col_idx, movement) = global_moves[i_node]
+                indp_moves_per_tile[(row_idx, col_idx)].append(movement)
 
-            tile_start_idices = {
-                id: len(self.tiles[id].result_json["instructions"]) for id in self.active_tiles}
+            tile_reverse_indices = {
+                (row_idx, col_idx): len(self.tiles[row_idx][col_idx].result_json["instructions"]) for (row_idx, col_idx) in self.active_tiles}
             self.process_movement(layer, indp_moves_per_tile)
-            self.aod_assignment(tile_start_idices)
+            self.aod_assignment(tile_reverse_indices)
 
         # add gate layers
         rydberg_instrs = self.process_gates(layer)
         self.rydberg_assignment(rydberg_instrs)
         graphs.clear()
 
-
         # gather reverse movements
-        for tile_id in self.active_tiles:
-            tile = self.tiles[tile_id]
+        for (r_idx, c_idx) in self.active_tiles:
+            tile = self.tiles[r_idx][c_idx]
+
             graph, moves = tile.nx_reverse_interference_graph(layer)
             if graph is not None:
-                graphs.append((tile_id, graph, moves))
+                graphs.append((r_idx, c_idx, graph, moves))
         graph, global_moves = self.combine_nx_graphs(graphs)
 
         while graph.number_of_nodes() > 0:
             comp_graph = nx.complement(graph)
             indp_nodes = max(nx.find_cliques(comp_graph), key=len, default=[])
 
-            indp_moves_per_tile = [[] for _ in range(len(self.tiles))]
+            indp_moves_per_tile = {(r_idx, c_idx): []
+                                   for (r_idx, c_idx) in self.active_tiles}
+
             for i_node in indp_nodes:
-                (tile_id, movement) = global_moves[i_node]
-                indp_moves_per_tile[tile_id].append(movement)
-                
-            tile_reverse_idices = {id: len(self.tiles[id].result_json["instructions"]) for id in self.active_tiles}
+                (row_idx, col_idx, movement) = global_moves[i_node]
+                indp_moves_per_tile[(row_idx, col_idx)].append(movement)
+
+            tile_reverse_indices = {
+                (row_idx, col_idx): len(self.tiles[row_idx][col_idx].result_json["instructions"]) for (row_idx, col_idx) in self.active_tiles}
+
             self.process_rev_movement(layer, indp_moves_per_tile)
-            self.aod_assignment(tile_reverse_idices)
+            self.aod_assignment(tile_reverse_indices)
             graph.remove_nodes_from(indp_nodes)
 
-    def combine_nx_graphs(self, graphs: list[tuple[int, nx.Graph, list[Movement]]]) -> tuple[nx.Graph, list[tuple[int, Movement]]]:
+    def combine_nx_graphs(self, graphs: list[tuple[int, int, nx.Graph, list[Movement]]]) -> tuple[nx.Graph, list[tuple[int, int, Movement]]]:
         """ Take a list of (tile_id, conflict graph, movement list) and combine it into a single graph """
-        graph_data = [g for _, g, _ in graphs]
+        graph_data = [g for _, _, g, _ in graphs]
         # nodes become [0,...,len(g_1),...,len(g_2),...]
         combined_graph = nx.disjoint_union_all(graph_data)
         # combined_graph's nodes index into this list
         global_move_data = []
 
-        for tile_id, _, moves_for_tile in graphs:
+        for r_idx, c_idx, _, moves_for_tile in graphs:
             for move in moves_for_tile:
-                global_move_data.append((tile_id, move))
+                global_move_data.append((r_idx, c_idx, move))
 
-        for i, (tile_id, mov) in enumerate(global_move_data):
-          for j, (tile_id2, mov2) in enumerate(global_move_data):
-              if tile_id != tile_id2:
-                  if not self.tilewise_compatible(mov, mov2):
-                      combined_graph.add_edge(i, j)
+        for i, (r_idx_1, c_idx_1, mov) in enumerate(global_move_data):
+            for j, (r_idx_2, c_idx_2, mov2) in enumerate(global_move_data):
+                if r_idx_1 == r_idx_2 and c_idx_1 != c_idx_2:
+                    if not self.row_compatible(mov, mov2):
+                        combined_graph.add_edge(i, j)
+                if c_idx_1 == c_idx_2 and r_idx_1 != r_idx_2:
+                    if not self.column_compatible(mov, mov2):
+                        combined_graph.add_edge(i, j)
 
         return combined_graph, global_move_data
 
     # Across multiple tiles, only moves that share row coords can be done in parallel
-    def tilewise_compatible(self, a: Movement, b: Movement) -> bool:
+    def row_compatible(self, a: Movement, b: Movement) -> bool:
         # a,b must be from different tiles
 
         # must be same start row
@@ -167,44 +184,40 @@ class Orchestrator:
 
         return True
 
-    def process_movement(self, layer: int, indp_moves_per_tile: list[list[Movement]]):
+    def column_compatible(self, a: Movement, b: Movement) -> bool:
+        return True
+
+    def process_movement(self, layer: int, indp_moves_per_tile: dict[tuple[int, int], list[Movement]]):
         # process the instructions on the tile level
+        for (r_idx, c_idx) in self.active_tiles:
+            tile = self.tiles[r_idx][c_idx]
+            assert (tile is not None)
 
-        tile_instr_start_indices = [0 for _ in range(len(self.active_tiles))]
-
-        for tile_id in self.active_tiles:
-            tile = self.tiles[tile_id]
-
-            tile_moves = indp_moves_per_tile[tile_id]
+            tile_moves = indp_moves_per_tile[(r_idx, c_idx)]
             qubits = {move.qubit_index for move in tile_moves}
-            id = tile.process_movement_layer(
+            _ = tile.process_movement_layer(
                 qubits, tile.qubit_mapping[2 * layer], tile.qubit_mapping[2 * layer + 1])
-            tile_instr_start_indices[tile_id] = id
 
-        return tile_instr_start_indices
-
-    def process_rev_movement(self, layer: int, indp_moves_per_tile: list[list[Movement]]):
+    def process_rev_movement(self, layer: int, indp_moves_per_tile: dict[tuple[int, int], list[Movement]]):
         # process the instructions on the tile level
 
         tile_instr_start_indices = [0 for _ in range(len(self.active_tiles))]
 
-        for tile_id in self.active_tiles:
-            tile = self.tiles[tile_id]
+        for (r_idx, c_idx) in self.active_tiles:
+            tile = self.tiles[r_idx][c_idx]
+            assert (tile is not None)
 
             if tile.qubit_mapping[2 * layer + 2] is None:
                 tile.construct_reverse_layer(
                     # None
-                    tile_instr_start_indices[tile_id], tile.qubit_mapping[2 * layer], tile.qubit_mapping[2 * layer + 2])
+                    len(tile.result_json["instructions"]), tile.qubit_mapping[2 * layer], tile.qubit_mapping[2 * layer + 2])
             else:
-                tile_moves = indp_moves_per_tile[tile_id]
+                tile_moves = indp_moves_per_tile[(r_idx, c_idx)]
                 qubits = {move.qubit_index for move in tile_moves}
-                id = tile.process_movement_layer(
+                _ = tile.process_movement_layer(
                     qubits, tile.qubit_mapping[2 * layer + 1], tile.qubit_mapping[2 * layer + 2])
-                tile_instr_start_indices[tile_id] = id
 
-        return tile_instr_start_indices
-
-    def aod_assignment(self, instr_start_indices: dict[int, int]):
+    def aod_assignment(self, instr_start_indices: dict[tuple[int, int], int]):
         """ 
             This is the central scheduler for each batch of operations across the multiple tiles.
         """
@@ -218,31 +231,38 @@ class Orchestrator:
         # Annoyingly, we need to calculate the durations first. This is because
         # get_duration updates the relative begin and end times of the subinstructions
         # as a side effect.
-        durations = [ [] for _ in range(len(self.active_tiles))]
-        for id in self.active_tiles:
-            tile = self.tiles[id]
-            instr_id_start = instr_start_indices[id]
+        #durations = [[] for _ in range(len(self.active_tiles))]
+        
+        durations = {(r,c) : [] for (r,c) in self.active_tiles}
+        
+        for (r_idx, c_idx) in self.active_tiles:
+            tile = self.tiles[r_idx][c_idx]
+            assert (tile is not None)
+
+            instr_id_start = instr_start_indices[(r_idx, c_idx)]
             # get durations of move operations
             for idx in range(instr_id_start, len(tile.result_json["instructions"])):
                 instr = tile.result_json["instructions"][idx]
                 if instr["type"] != "rearrangeJob":
                     # we have reached the gate operations
                     break
-                durations[id].append((tile.get_duration(instr), idx))
-
+                durations[(r_idx, c_idx)].append((tile.get_duration(instr), idx))
 
         start_times = []
-        for id, idx in instr_start_indices.items():
-            instr = self.tiles[id].result_json["instructions"][idx]
-            time_st_i = self.tiles[id].get_begin_time(idx, instr["dependency"])
+        for (r_idx, c_idx), idx in instr_start_indices.items():
+            tile = self.tiles[r_idx][c_idx]
+            assert(tile is not None)
+            instr = tile.result_json["instructions"][idx]
+            time_st_i = tile.get_begin_time(idx, instr["dependency"])
             start_times.append(time_st_i)
 
         global_start_time = max(max(start_times), self.aod_end_time)
 
-        for id in self.active_tiles:
-            tile = self.tiles[id]
+        for (r_idx, c_idx) in self.active_tiles:
+            tile = self.tiles[r_idx][c_idx]
+            assert (tile is not None)
 
-            for duration, idx in durations[id]:
+            for duration, idx in durations[(r_idx, c_idx)]:
                 instr = tile.result_json["instructions"][idx]
 
                 begin_time = global_start_time
@@ -264,14 +284,15 @@ class Orchestrator:
 
                 self.aod_end_time = max(self.aod_end_time, end_time)
 
-
-    def rydberg_assignment(self, ryd_instr_start_indices: dict[int, int]):
+    def rydberg_assignment(self, ryd_instr_start_indices: dict[tuple[int,int], int]):
         global_earliest_start = 0.0
         global_end_time = 0.0
 
         # find out the earliest time the global pulse can start
-        for id, start_idx in ryd_instr_start_indices.items():
-            tile = self.tiles[id]
+        for (r_idx, c_idx), start_idx in ryd_instr_start_indices.items():
+            tile = self.tiles[r_idx][c_idx]
+            assert(tile is not None)
+            
             dep = tile.result_json["instructions"][start_idx]["dependency"]
             rydb_begin_time = tile.get_begin_time(start_idx, dep)
             global_earliest_start = max(global_earliest_start, rydb_begin_time)
@@ -281,8 +302,10 @@ class Orchestrator:
         self.rydberg_end_time = global_end_time
 
         # assign times to instructions
-        for id, start_idx in ryd_instr_start_indices.items():
-            tile = self.tiles[id]
+        for (r_idx, c_idx), start_idx in ryd_instr_start_indices.items():
+            tile = self.tiles[r_idx][c_idx]
+            assert(tile is not None)
+            
             # use this counter for sequential 1q gate applications in the gate layer
             local_start_time = global_end_time
 
@@ -310,13 +333,14 @@ class Orchestrator:
                     local_start_time = local_end_time
 
     def process_gates(self, layer: int):
-        gate_instrs = {}
-        for tile_id in self.active_tiles:
-            tile = self.tiles[tile_id]
+        gate_instrs = {(r, c): 0 for (r, c) in self.active_tiles}
+        for (r_idx, c_idx) in self.active_tiles:
+            tile = self.tiles[r_idx][c_idx]
+            assert (tile is not None)
             initial_indx = tile.process_gate_layer(
                 layer, tile.qubit_mapping[2 * layer + 1])
             if initial_indx is not None:
-                gate_instrs[tile_id] = initial_indx
+                gate_instrs[(r_idx, c_idx)] = initial_indx
 
         return gate_instrs
 
@@ -325,38 +349,51 @@ class Orchestrator:
 
     def compile(self):
         # gate shceduling and placement are done per-tile with no cross-tile considerations
-        for tile in self.tiles:
-            # gate scheduling with graph colouring
-            tile.scheduling()
-            # NOTE: turn back on when schedling works!
-            # if tile.reuse:
-            tile.collect_reuse_qubit()
-            # else:
-            #tile.reuse_qubit = [set()
-            #                    for _ in range(len(tile.gate_scheduling))]
-            tile.place_qubit_initial()
-            tile.place_qubit_intermedeiate()
+        for row in self.tiles:
+            for tile in row:
+                if tile is None:
+                    continue
+                # gate scheduling with graph colouring
+                tile.scheduling()
+                # NOTE: turn back on when schedling works!
+                # if tile.reuse:
+                tile.collect_reuse_qubit()
+                # else:
+                # tile.reuse_qubit = [set()
+                #                    for _ in range(len(tile.gate_scheduling))]
+                tile.place_qubit_initial()
+                tile.place_qubit_intermedeiate()
 
         # Routing must be done globally
         self.route()
 
         logger.info("Total runtimes:")
-        for id, tile in enumerate(self.tiles):
-            logger.info(f"Tile {id}: {tile.result_json["runtime"]} ms")
+        for i, row in enumerate(self.tiles):
+            for j, tile in enumerate(row):
+                if tile is not None:
+                    logger.info(f"Tile ({i},{j}): {tile.result_json["runtime"]} ms")
 
     def set_programs(self, source_files: list[str]):
-        for source_file in source_files:
-            tile = ZacTile(self.config)
-            zac_settings = {
-                "routing_strategy": "maximalis",
-                "scheduling": "asap",
-                "trivial_placement": False,
-                "dynamic_placement": True,
-                "use_window": True,
-                "window_size": 1000,
-                "reuse": True
-            }
-            tile.parse_setting(zac_settings)
-            tile.set_architecture(self.architecture)
-            tile.load_program(source_file)
-            self.tiles.append(tile)
+        if len(source_files) > self.grid_rows * self.grid_cols:
+            logger.warning(
+                f"{len(source_files)} provided but grid only has {self.grid_rows * self.grid_cols} spaces.")
+
+        itertr = iter(source_files)
+        for r_idx in range(self.grid_rows):
+            for c_idx in range(self.grid_cols):
+                if self.tiles[r_idx][c_idx] is None:
+                    source_file = next(itertr)
+                    tile = ZacTile(self.config)
+                    zac_settings = {
+                        "routing_strategy": "maximalis",
+                        "scheduling": "asap",
+                        "trivial_placement": False,
+                        "dynamic_placement": True,
+                        "use_window": True,
+                        "window_size": 1000,
+                        "reuse": True
+                    }
+                    tile.parse_setting(zac_settings)
+                    tile.set_architecture(self.architecture)
+                    tile.load_program(source_file)
+                    self.tiles[r_idx][c_idx] = tile

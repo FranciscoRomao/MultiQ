@@ -26,7 +26,6 @@ class GraphOperations_mixin:
         return graph, vectors
        
 
-    # TODO merge forward and reverse
     def nx_reverse_interference_graph(self, layer: int):
         if layer + 2 >= len(self.qubit_mapping):
             return None, None

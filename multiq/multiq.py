@@ -40,10 +40,10 @@ class MultiQ:
 
     def set_inputs(self, input_files: list[str]):
         codes = []
-        compiler = Orchestrator(self.arch)
+        compiler = Orchestrator(self.arch, 2, 2)
         compiler.set_programs(input_files)
         compiler.compile()
-        for tile in compiler.tiles:
+        for tile in compiler.tiles[0]:
             codes.append(tile.result_json)
         
         anim = Animator(self.arch)
