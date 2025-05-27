@@ -39,15 +39,14 @@ class MultiQ:
         return zacc
 
     def set_inputs(self, input_files: list[str]):
-        codes = []
-        compiler = Orchestrator(self.arch)
+        grid_rows = 2
+        grid_cols = 2
+        compiler = Orchestrator(self.arch, grid_rows, grid_cols)
         compiler.set_programs(input_files)
         compiler.compile()
-        for tile in compiler.tiles:
-            codes.append(tile.result_json)
         
-        anim = Animator(self.arch)
-        anim.multi_animate(codes, "test.mp4")
+        anim = Animator(self.arch, grid_rows, grid_cols)
+        anim.multi_animate(compiler.tiles, "test.mp4")
 
         
         
