@@ -54,7 +54,7 @@ class Orchestrator:
                     tile.prepare_routing()
                     active_tile_objs.append(tile)
 
-        logger.info(f"There are {len(self.active_tiles)} active tiles")
+        logger.info(f"There are {len(self.active_tiles)} active tiles before routing.")
 
         # write_initial_instruction() returns end_time. Global schedule waits till last tile is finished
         self.global_time = max(
@@ -99,10 +99,6 @@ class Orchestrator:
             indp_nodes = max(nx.find_cliques(comp_graph), key=len, default=[])
             graph.remove_nodes_from(indp_nodes)
 
-            print(
-                f"Indp nodes for this iteration of layer {layer} are {indp_nodes}")
-
-            # indp_moves_per_tile = [[] for _ in range(len(self.tiles))]
             indp_moves_per_tile = {(r_idx, c_idx): []
                                    for (r_idx, c_idx) in self.active_tiles}
 
