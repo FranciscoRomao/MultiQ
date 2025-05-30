@@ -1,17 +1,13 @@
 import logging
 import random
 import math
-import copy
 
-from zac.ds.architecture import Architecture
 import networkx as nx
 
 from .tile import ZacTile
 from multiq.types import Movement, row_compatible, column_compatible
 
-
 logger = logging.getLogger("multiq")
-
 
 class PlacementOptimiser:
     def __init__(self, grid_rows: int, grid_cols: int, tiles_to_place: list[ZacTile]):
@@ -104,7 +100,7 @@ class PlacementOptimiser:
         return total_contention_score
 
     def generate_initial_placement(self) -> list[list[ZacTile | None]]:
-        """Generates an initial placement (e.g., random or sequential fill)."""
+        """Generates an initial placement (i.e. random fill)."""
         grid_slots = []
         for r in range(self.grid_rows):
             for c in range(self.grid_cols):
