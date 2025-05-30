@@ -4,10 +4,11 @@ import networkx as nx
 import logging
 
 from multiq.configuration import MultiQConfig
-from multiq.router import Movement
+from multiq.types import Movement, row_compatible, column_compatible
 
 from .tile import ZacTile
 from .builder import InstructionBuilder
+from .placement import PlacementOptimiser
 
 logger = logging.getLogger("multiq")
 
@@ -22,6 +23,7 @@ class Orchestrator:
             [None for _ in range(grid_cols)] for _ in range(grid_rows)]
         self.config: MultiQConfig = None
         self.instr_builder = InstructionBuilder()
+        self.tiles_to_place = []
 
         # all operations on all tiles are measured according to this global time
         self.global_time = 0.0
@@ -148,36 +150,14 @@ class Orchestrator:
         for i, (r_idx_1, c_idx_1, mov) in enumerate(global_move_data):
             for j, (r_idx_2, c_idx_2, mov2) in enumerate(global_move_data):
                 if r_idx_1 == r_idx_2 and c_idx_1 != c_idx_2:
-                    if not self.row_compatible(mov, mov2):
+                    if not row_compatible(mov, mov2):
                         combined_graph.add_edge(i, j)
                 if c_idx_1 == c_idx_2 and r_idx_1 != r_idx_2:
-                    if not self.column_compatible(mov, mov2):
+                    if not column_compatible(mov, mov2):
                         combined_graph.add_edge(i, j)
 
         return combined_graph, global_move_data
 
-    # Across multiple tiles, only moves that share row coords can be done in parallel
-    def row_compatible(self, a: Movement, b: Movement) -> bool:
-        # a,b must be from different tiles
-
-        # must be same start row
-        if a.start_y != b.start_y:
-            return False
-        # must be same finish row
-        if a.end_y != b.end_y:
-            return False
-
-        return True
-
-    def column_compatible(self, a: Movement, b: Movement) -> bool:
-        # a,b must be from different tiles
-
-        if a.start_x != b.start_x:
-            return False
-        if a.end_x != b.end_x:
-            return False
-        
-        return True
 
     def process_movement(self, layer: int, indp_moves_per_tile: dict[tuple[int, int], list[Movement]]):
         # process the instructions on the tile level
@@ -338,21 +318,26 @@ class Orchestrator:
     #     self.config = MultiQConfig.from_config(setting)
 
     def compile(self):
+
+
         # gate shceduling and placement are done per-tile with no cross-tile considerations
-        for row in self.tiles:
-            for tile in row:
-                if tile is None:
-                    continue
-                # gate scheduling with graph colouring
-                tile.scheduling()
-                # NOTE: turn back on when schedling works!
-                # if tile.reuse:
-                tile.collect_reuse_qubit()
-                # else:
-                # tile.reuse_qubit = [set()
-                #                    for _ in range(len(tile.gate_scheduling))]
-                tile.place_qubit_initial()
-                tile.place_qubit_intermedeiate()
+        for tile in self.tiles_to_place:
+            if tile is None:
+                continue
+            # gate scheduling with graph colouring
+            tile.scheduling()
+            # NOTE: turn back on when schedling works!
+            # if tile.reuse:
+            tile.collect_reuse_qubit()
+            # else:
+            # tile.reuse_qubit = [set()
+            #                    for _ in range(len(tile.gate_scheduling))]
+            tile.place_qubit_initial()
+            tile.place_qubit_intermedeiate()
+                
+        # Only once we have scheduling info, do we place on the tile grid
+        optim = PlacementOptimiser(self.grid_rows, self.grid_cols, self.tiles_to_place)
+        self.tiles = optim.optimise_placement()
 
         # Routing must be done globally
         self.route()
@@ -368,22 +353,21 @@ class Orchestrator:
             logger.warning(
                 f"{len(source_files)} source files provided but grid only has {self.grid_rows * self.grid_cols} spaces.")
 
-        itertr = iter(source_files)
-        for r_idx in range(self.grid_rows):
-            for c_idx in range(self.grid_cols):
-                if self.tiles[r_idx][c_idx] is None:
-                    source_file = next(itertr)
-                    tile = ZacTile(self.config)
-                    zac_settings = {
-                        "routing_strategy": "maximalis",
-                        "scheduling": "asap",
-                        "trivial_placement": False,
-                        "dynamic_placement": True,
-                        "use_window": True,
-                        "window_size": 1000,
-                        "reuse": True
-                    }
-                    tile.parse_setting(zac_settings)
-                    tile.set_architecture(self.architecture)
-                    tile.load_program(source_file)
-                    self.tiles[r_idx][c_idx] = tile
+        self.tiles_to_place.clear()
+
+        for source in source_files:
+            tile = ZacTile(self.config)
+            zac_settings = {
+                "routing_strategy": "maximalis",
+                "scheduling": "asap",
+                "trivial_placement": False,
+                "dynamic_placement": True,
+                "use_window": True,
+                "window_size": 1000,
+                "reuse": True
+            }
+            tile.parse_setting(zac_settings)
+            tile.set_architecture(self.architecture)
+            tile.load_program(source)
+            self.tiles_to_place.append(tile)
+                   

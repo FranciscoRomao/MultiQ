@@ -385,7 +385,7 @@ class Animator():
         #    tiles_codes[i], self.architecture, self.axes[i]) for i in range(self.n_tiles)]
 
         # Use longest tile anim as frame count
-        schedules = {(r,c): t.create_schedule() for (r,c), t in self.anims.items()}
+        schedules = {(r,c): t.create_schedule() if t is not None else 0 for (r,c), t in self.anims.items()}
         n_frames = max(schedules.values())
 
         anim = FuncAnimation(
