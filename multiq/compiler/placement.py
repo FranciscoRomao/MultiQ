@@ -6,11 +6,12 @@ import networkx as nx
 
 from .tile import ZacTile
 from multiq.types import Movement, row_compatible, column_compatible
+from multiq.configuration import MultiQConfig
 
 logger = logging.getLogger("multiq")
 
 class PlacementOptimiser:
-    def __init__(self, grid_rows: int, grid_cols: int, tiles_to_place: list[ZacTile]):
+    def __init__(self, config: MultiQConfig,  tiles_to_place: list[ZacTile]):
         """ Create a new tile placement optimiser.
 
         Args:
@@ -18,12 +19,13 @@ class PlacementOptimiser:
             grid_cols (int): Grid columns.
             tiles_to_place (list[ZacTile]): The tiles to place. Must not contain any None objects.
         """
-        self.grid_rows = grid_rows
-        self.grid_cols = grid_cols
+        self.config = config
+        self.grid_rows = self.config.grid_rows
+        self.grid_cols = self.config.grid_cols
 
         self.tiles_to_place = tiles_to_place
-        self.empty_slot_count = grid_rows * \
-            grid_cols - len(self.tiles_to_place)
+        self.empty_slot_count = self.grid_rows * \
+            self.grid_cols - len(self.tiles_to_place)
 
     def count_inter_tile_conflicts(
         self,

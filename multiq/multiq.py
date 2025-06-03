@@ -5,7 +5,7 @@ import zac.zac as zac
 
 from multiq.compiler.orchestrator import Orchestrator
 from multiq.animator.animator import Animator
-
+from multiq.configuration import MultiQConfig
 
 logger = logging.getLogger("multiq")
 
@@ -21,6 +21,7 @@ class MultiQ:
     def print_configuration(self):
         logger.info("MultiQ config settings goes here...")
 
+    # TODO: remove, unused
     def init_zac(self):
         zac_settings = {
             "routing_strategy": "maximalis",
@@ -39,13 +40,14 @@ class MultiQ:
         return zacc
 
     def set_inputs(self, input_files: list[str]):
-        grid_rows = 2
-        grid_cols = 2
-        compiler = Orchestrator(self.arch, grid_rows, grid_cols)
+        
+        conf = MultiQConfig()
+        
+        compiler = Orchestrator(self.arch, conf)
         compiler.set_programs(input_files)
         compiler.compile()
         
-        anim = Animator(self.arch, grid_rows, grid_cols)
+        anim = Animator(self.arch, conf.grid_rows, conf.grid_cols)
         anim.multi_animate(compiler.tiles, "test.mp4")
 
         

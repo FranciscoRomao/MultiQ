@@ -14,14 +14,13 @@ logger = logging.getLogger("multiq")
 
 
 class Orchestrator:
-    def __init__(self, arch: Architecture, grid_rows: int, grid_cols: int):
+    def __init__(self, arch: Architecture, config: MultiQConfig):
         self.architecture = arch
-        self.grid_rows = grid_rows
-        self.grid_cols = grid_cols
+        self.config: MultiQConfig = config
+        
         # start with placeholders for the tiles. They are created in set_program()
         self.tiles: list[list[ZacTile | None]] = [
-            [None for _ in range(grid_cols)] for _ in range(grid_rows)]
-        self.config: MultiQConfig = None
+            [None for _ in range(self.config.grid_cols)] for _ in range(self.config.grid_rows)]
         self.instr_builder = InstructionBuilder()
         self.tiles_to_place = []
 
@@ -31,8 +30,9 @@ class Orchestrator:
         self.rydberg_end_time = 0.0  # finish time of the current/last rydberg operation
 
         # currently active tiles. Should never refer to "None" tiles
-        # (r,c) indices of the active tiles
+        # (r,c) indices of the active tiles. It refers to the top-left corner of the tile
         self.active_tiles: list[tuple[int, int]] = []
+
 
     def route(self):
         """ Routes all movements, gate ops, rydberg ops across all of the tiles. """
@@ -157,7 +157,6 @@ class Orchestrator:
                         combined_graph.add_edge(i, j)
 
         return combined_graph, global_move_data
-
 
     def process_movement(self, layer: int, indp_moves_per_tile: dict[tuple[int, int], list[Movement]]):
         # process the instructions on the tile level
@@ -326,17 +325,12 @@ class Orchestrator:
                 continue
             # gate scheduling with graph colouring
             tile.scheduling()
-            # NOTE: turn back on when schedling works!
-            # if tile.reuse:
             tile.collect_reuse_qubit()
-            # else:
-            # tile.reuse_qubit = [set()
-            #                    for _ in range(len(tile.gate_scheduling))]
             tile.place_qubit_initial()
             tile.place_qubit_intermedeiate()
                 
         # Only once we have scheduling info, do we place on the tile grid
-        optim = PlacementOptimiser(self.grid_rows, self.grid_cols, self.tiles_to_place)
+        optim = PlacementOptimiser(self.config, self.tiles_to_place)
         self.tiles = optim.optimise_placement()
 
         # Routing must be done globally
@@ -345,13 +339,13 @@ class Orchestrator:
         logger.info("Total runtimes:")
         for i, row in enumerate(self.tiles):
             for j, tile in enumerate(row):
-                if tile is not None:
+                if tile:
                     logger.info(f"Tile ({i},{j}): {tile.result_json["runtime"]} ms")
 
     def set_programs(self, source_files: list[str]):
-        if len(source_files) > self.grid_rows * self.grid_cols:
+        if len(source_files) > self.config.grid_rows * self.config.grid_cols:
             logger.warning(
-                f"{len(source_files)} source files provided but grid only has {self.grid_rows * self.grid_cols} spaces.")
+                f"{len(source_files)} source files provided but grid only has {self.config.grid_rows * self.config.grid_cols} spaces.")
 
         self.tiles_to_place.clear()
 
@@ -367,7 +361,6 @@ class Orchestrator:
                 "reuse": True
             }
             tile.parse_setting(zac_settings)
-            tile.set_architecture(self.architecture)
             tile.load_program(source)
             self.tiles_to_place.append(tile)
                    
