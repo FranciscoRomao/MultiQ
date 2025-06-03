@@ -1,3 +1,5 @@
+import json
+
 from zac.scheduler.scheduler import Scheduler_mixin
 from zac.placer.placer import Placer_mixin
 from zac.verifier.verifier import Verifier_mixin
@@ -12,39 +14,46 @@ from multiq.configuration import MultiQConfig
 from multiq.router.router import Router_mixin
 
 
-class ZacTile(Scheduler_mixin, Placer_mixin, Verifier_mixin, Router_mixin):
+class Tile(Scheduler_mixin, Placer_mixin, Verifier_mixin, Router_mixin):
     def __init__(self, config: MultiQConfig):
         self.config = config
         self.n_q = 0
         self.n_g = 0
         self.g_q = []
 
+        self.source_name = ""
         self.dir = "./result/"
         self.architecture = None
+
+        # initialise the compiler's instructions output
         self.result_json = {
             'name': "", 'architecture_spec_path': None, 'instructions': [], "runtime": 0}
+
         self.runtime_analysis = {}
         self.to_verify = True
-        self.trivial_placement = False
-        self.routing_strategy = "maximalis_sort"
-        self.scheduling_strategy = "asap"
-        self.dynamic_placement = True
+        self.trivial_placement = config.trivial_placement
+        self.routing_strategy = config.routing_strategy
+        self.scheduling_strategy = config.scheduling_strategy
+        self.dynamic_placement = config.dynamic_placement
         self.given_initial_mapping = None
-        self.has_dependency = True
-        self.l2 = False
-        self.use_window = True
-        self.reuse = True
-        self.resyn = True
+        self.has_dependency = config.has_dependency
+        self.l2 = config.l2
+        self.use_window = config.use_window
+        self.reuse = config.reuse
+        self.resyn = config.resyn
         self.common_1q = 0
 
         self.gate_scheduling = None
         self.gate_scheduling_idx = None
         self.gate_1q_scheduling = None
         self.reuse_qubit = None
-
         self.qubit_mapping = []
 
+        self.width = 0 # in number of grid cells!
+        self.height = 1
+
     def prepare_routing(self):
+        """ Clear the dependency tracking datastructures for routing. """
 
         # last instruction ID which accessed a particular qubit
         self.qubit_dependency = [0 for _ in range(self.n_q)]
@@ -54,8 +63,12 @@ class ZacTile(Scheduler_mixin, Placer_mixin, Verifier_mixin, Router_mixin):
             len(self.architecture.entanglement_zone))]
 
     def load_program(self, source_file: str):
+        """ Load QASM source from source_file and apply Qiskit optimisations. """
+        self.source_name = source_file
+
         self.g_q = []
-        self.dict_g_1q_parent = {-1: []} # -1 means no dependency and can be applied at initialisation
+        # -1 means no dependency and can be applied at initialisation
+        self.dict_g_1q_parent = {-1: []}
         n_single_qubit_gate = 0
 
         cz_circuit = qasm2.load(source_file)
@@ -104,6 +117,8 @@ class ZacTile(Scheduler_mixin, Placer_mixin, Verifier_mixin, Router_mixin):
 
         self.n_g = len(self.g_q)
         self.g_s = tuple(['CRZ' for _ in range(self.n_g)])
+        # we can only do this once we have n_q
+        self._set_architecture()
 
     def collect_reuse_qubit(self):
         """
@@ -176,5 +191,18 @@ class ZacTile(Scheduler_mixin, Placer_mixin, Verifier_mixin, Router_mixin):
         if "resyn" in setting:
             self.resyn = setting["resyn"]
 
-    def set_architecture(self, arch: Architecture):
-        self.architecture = arch
+    def _set_architecture(self):
+        # just use n_q as the number of cols in the tile for now
+        with open("zac_config/toy_architecture.json", "r") as f:
+            arch_json = json.load(f)
+            # TODO: design a smarter tile size. Right now it's just the #qubits, making the top row always full.
+            arch_json["storage_zones"][0]["slms"][0]["c"] = self.n_q
+            self.width = self.n_q
+
+            arch = Architecture(arch_json)
+            arch.preprocessing()
+            self.architecture = arch
+
+    def calculate_global_pos(self, anchor_pos: tuple[int, int]) -> tuple[int, int]:
+        # transforms the anchor position to its global coord by multiplying it with the tile width
+        pass
