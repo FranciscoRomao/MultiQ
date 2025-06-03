@@ -1,4 +1,4 @@
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 
 @dataclass
 class MultiQConfig:
@@ -26,7 +26,7 @@ class MultiQConfig:
     routing_strategy: str = "maximalis_sort"
     # General Settings
     enable_verification: bool = True
-    l2: bool = True
+    l2: bool = False
     reuse: bool = True
     resyn: bool = True
     has_dependency: bool = True
@@ -40,7 +40,6 @@ class MultiQConfig:
     def __post_init__(self):
         if self.scheduling_strategy not in ["asap", "graph_coloring"]:
              raise ValueError(f"Unknown scheduling_strategy: {self.scheduling_strategy}")
-
 
     @classmethod
     def from_config(cls, config_dict: dict) -> 'MultiQConfig':

@@ -4,13 +4,15 @@ import math
 
 import networkx as nx
 
-from .tile import ZacTile
+from .tile import Tile
 from multiq.types import Movement, row_compatible, column_compatible
+from multiq.configuration import MultiQConfig
 
 logger = logging.getLogger("multiq")
 
+
 class PlacementOptimiser:
-    def __init__(self, grid_rows: int, grid_cols: int, tiles_to_place: list[ZacTile]):
+    def __init__(self, config: MultiQConfig,  tiles_to_place: list[Tile]):
         """ Create a new tile placement optimiser.
 
         Args:
@@ -18,58 +20,121 @@ class PlacementOptimiser:
             grid_cols (int): Grid columns.
             tiles_to_place (list[ZacTile]): The tiles to place. Must not contain any None objects.
         """
-        self.grid_rows = grid_rows
-        self.grid_cols = grid_cols
+        self.config = config
+        self.grid_cols = config.grid_cols
+        self.grid_rows = config.grid_rows  # Use grid_rows from config
 
+        # Filter out tiles with non-positive width, though _get_tile_grid_width handles 0.
         self.tiles_to_place = tiles_to_place
-        self.empty_slot_count = grid_rows * \
-            grid_cols - len(self.tiles_to_place)
+
+    def _get_tile_width_in_cells(self, tile: Tile | None) -> int:
+        if tile is None:
+            return 1  # An empty slot conceptually takes 1 grid column
+        # tile.width is assumed to be set by Orchestrator as number of grid cells.
+        # tile.tile_width was an old attribute, ensure we use tile.width
+        return max(1, tile.width if hasattr(tile, 'width') else 1)
+
+    def _can_place_tile(self, placement: list[list[Tile | None]], tile: Tile, r_root: int, c_root: int) -> bool:
+        """Checks if a tile can be placed at (r_root, c_root) without overlaps."""
+        tile_w = self._get_tile_width_in_cells(tile)
+
+        if not (0 <= r_root < self.grid_rows):  # Row bounds
+            return False
+        if not (0 <= c_root < self.grid_cols and c_root + tile_w <= self.grid_cols):  # Column bounds
+            return False
+
+        for c_offset in range(tile_w):
+            if placement[r_root][c_root + c_offset] is not None:
+                return False  # Collision
+        return True
+
+    def _place_tile(self, placement: list[list[Tile | None]], tile: Tile, r_root: int, c_root: int):
+        """Places a tile at (r_root, c_root), marking its full extent."""
+        tile_w = self._get_tile_width_in_cells(tile)
+        placement[r_root][c_root] = tile
+        # Mark subsequent cells covered by this tile as None
+        for c_offset in range(1, tile_w):
+            if c_root + c_offset < self.grid_cols:
+                placement[r_root][c_root + c_offset] = None
+
+    def _clear_cells_for_tile(self, placement: list[list[Tile | None]], r_root: int, c_root: int, tile_w: int):
+        """Clears all cells that would be occupied by a tile of width tile_w at (r_root, c_root)."""
+        if not (0 <= r_root < self.grid_rows):
+            return
+        for c_offset in range(tile_w):
+            if 0 <= c_root + c_offset < self.grid_cols:
+                placement[r_root][c_root + c_offset] = None
 
     def count_inter_tile_conflicts(
         self,
-        move_graphs: list[tuple[int, int, nx.Graph, list[Movement]]]
+        # move_graphs: list of (anchor_r, anchor_c, tile_h_cells, tile_w_cells, intra_tile_graph, list_of_local_moves)
+        move_graphs: list[tuple[int, int, int, int, nx.Graph, list[Movement]]]
     ) -> int:
         """
         Counts potential inter-tile movement conflicts based on placement.
-        move_graphs: list of (tile_row_idx, tile_col_idx, intra_tile_graph, list_of_tile_moves)
+        Assumes Movement objects contain local coordinates.
         """
         if not move_graphs:
             return 0
 
-        all_moves_details = []
+        # Stores (global_node_idx, r_anchor, c_anchor, h_cells, w_cells, local_movement_obj)
+        all_moves_details = [] 
         node_offset = 0
-        for r_idx, c_idx, graph, moves in move_graphs:
-            for i, move_obj in enumerate(moves):
-                # (global_node_idx, tile_r, tile_c, movement_obj)
+        for r_anchor, c_anchor, h_cells, w_cells, graph, local_moves in move_graphs:
+            for i, local_move_obj in enumerate(local_moves):
                 all_moves_details.append(
-                    (node_offset + i, r_idx, c_idx, move_obj))
+                    (node_offset + i, r_anchor, c_anchor, h_cells, w_cells, local_move_obj))
             node_offset += graph.number_of_nodes()
 
         inter_tile_conflict_count = 0
         for i in range(len(all_moves_details)):
-            _global_idx1, r_idx_1, c_idx_1, mov1 = all_moves_details[i]
+            _global_idx1, r1_anchor, c1_anchor, h1_cells, w1_cells, local_mov1 = all_moves_details[i]
             for j in range(i + 1, len(all_moves_details)):
-                _global_idx2, r_idx_2, c_idx_2, mov2 = all_moves_details[j]
+                _global_idx2, r2_anchor, c2_anchor, h2_cells, w2_cells, local_mov2 = all_moves_details[j]
 
                 # Skip if moves are from the same tile
-                if r_idx_1 == r_idx_2 and c_idx_1 == c_idx_2:
+                if r1_anchor == r2_anchor and c1_anchor == c2_anchor:
                     continue
 
-                conflict = False
-                # Check row conflict: same grid row, different tiles
-                if r_idx_1 == r_idx_2:  # c_idx_1 != c_idx_2 is implied by prev check
-                    conflict |= not row_compatible(mov1, mov2)
-                # Check column conflict: same grid col, different tiles
-                elif c_idx_1 == c_idx_2:  # r_idx_1 != r_idx_2 is again implied
-                    conflict |= not column_compatible(mov1, mov2)
+                # Translate local movements to global physical coordinates
+                # Assumes tile's local (0,0) physical origin corresponds to the
+                # global physical origin of its anchor cell (r_anchor, c_anchor).
+                g_mov1 = Movement(
+                    local_mov1.qubit_index,
+                    local_mov1.start_x + c1_anchor * self.config.physical_cell_width_um,
+                    local_mov1.end_x   + c1_anchor * self.config.physical_cell_width_um,
+                    local_mov1.start_y + r1_anchor * self.config.physical_cell_height_um,
+                    local_mov1.end_y   + r1_anchor * self.config.physical_cell_height_um
+                )
+                g_mov2 = Movement(
+                    local_mov2.qubit_index,
+                    local_mov2.start_x + c2_anchor * self.config.physical_cell_width_um,
+                    local_mov2.end_x   + c2_anchor * self.config.physical_cell_width_um,
+                    local_mov2.start_y + r2_anchor * self.config.physical_cell_height_um,
+                    local_mov2.end_y   + r2_anchor * self.config.physical_cell_height_um
+                )
 
-                inter_tile_conflict_count += (1 if conflict else 0)
+                current_pair_conflict = False
+                # Check row conflict: Do their row spans (in grid cells) overlap?
+                if max(r1_anchor, r2_anchor) < min(r1_anchor + h1_cells, r2_anchor + h2_cells):
+                    if not row_compatible(g_mov1, g_mov2): 
+                        current_pair_conflict = True
+                
+                # Check column conflict: Do their column spans (in grid cells) overlap?
+                # Use 'if' not 'elif' in case tiles overlap in both row and column (e.g. same cell for 1x1 tiles)
+                if max(c1_anchor, c2_anchor) < min(c1_anchor + w1_cells, c2_anchor + w2_cells): 
+                    if not column_compatible(g_mov1, g_mov2): 
+                        current_pair_conflict = True
+
+                if current_pair_conflict:
+                    inter_tile_conflict_count += 1
 
         return inter_tile_conflict_count
 
-    def calculate_contention(self, placement: list[list[ZacTile | None]]) -> float:
+    def calculate_contention(self, placement: list[list[Tile | None]]) -> float:
         """
         Calculates a contention score for a given placement. Considers all layers of movements.
+        Placement stores tiles at their top-left anchor. Tiles have .width and .height in cells.
         """
         total_contention_score = 0.0
         max_layers = 0
@@ -78,85 +143,171 @@ class PlacementOptimiser:
         for r_idx, row_tiles in enumerate(placement):
             for c_idx, tile in enumerate(row_tiles):
                 if tile and tile.gate_scheduling:
-                    max_layers = max(max_layers, len(tile.gate_scheduling))
-        
+                    max_layers = max(max_layers, len(tile.gate_scheduling)) # tile is at its anchor
+
         if max_layers == 0:
-            return 0.0 # no layers => no contention
+            return 0.0  # no layers => no contention
 
         for layer_to_evaluate in range(max_layers):
-            graphs_for_this_layer: list[tuple[int, int, nx.Graph, list[Movement]]] = []
+            # (anchor_r, anchor_c, h_cells, w_cells, intra_tile_graph, list_of_local_moves)
+            graphs_for_this_layer: list[tuple[int, int, int, int, nx.Graph, list[Movement]]] = []
             for r_idx, row_tiles in enumerate(placement):
                 for c_idx, tile in enumerate(row_tiles):
-                    if tile and tile.gate_scheduling and layer_to_evaluate < len(tile.gate_scheduling):
-                        graph, moves = tile.nx_interference_graph(layer_to_evaluate)
-                        if graph is not None and moves:
-                            # (tile_grid_row, tile_grid_col, intra_tile_graph, list_of_tile_moves)
-                            graphs_for_this_layer.append((r_idx, c_idx, graph, moves))
+                    if tile: # tile is at its anchor (r_idx, c_idx)
+                        if tile.gate_scheduling and layer_to_evaluate < len(tile.gate_scheduling):
+                            # nx_interference_graph should NOT take coord_offset.
+                            # It returns local moves.
+                            graph, local_moves = tile.nx_interference_graph(layer_to_evaluate)
+                            if graph is not None and local_moves:
+                                # Pass tile's anchor (r_idx, c_idx) and its dimensions in cells
+                                # tile.height is assumed to be 1 cell for QPU rows.
+                                # tile.width is width in cells.
+                                graphs_for_this_layer.append(
+                                    (r_idx, c_idx, tile.height, tile.width, graph, local_moves))
 
             if graphs_for_this_layer:
-                layer_contention = self.count_inter_tile_conflicts(graphs_for_this_layer)
+                layer_contention = self.count_inter_tile_conflicts(
+                    graphs_for_this_layer)
                 total_contention_score += float(layer_contention)
-        
+
         return total_contention_score
 
-    def generate_initial_placement(self) -> list[list[ZacTile | None]]:
+    def generate_initial_placement(self) -> list[list[Tile | None]]:
         """Generates an initial placement (i.e. random fill)."""
-        grid_slots = []
-        for r in range(self.grid_rows):
-            for c in range(self.grid_cols):
-                grid_slots.append((r, c))
-
-        random.shuffle(grid_slots)  # random order for filling slots
-
-        current_placement: list[list[ZacTile | None]] = [
+        current_placement: list[list[Tile | None]] = [
             [None for _ in range(self.grid_cols)] for _ in range(self.grid_rows)
         ]
 
-        tiles_to_assign = list(self.tiles_to_place)  # copy
+        tiles_to_assign = list(self.tiles_to_place)
+        # Also shuffle tiles for more randomness
+        random.shuffle(tiles_to_assign)
 
-        for i in range(len(tiles_to_assign)):
-            if i < len(grid_slots):
-                r, c = grid_slots[i]
-                current_placement[r][c] = tiles_to_assign[i]
-            else:
+        num_actually_placed = 0
+        for tile_to_be_placed in tiles_to_assign:
+            placed_this_tile = False
+
+            # Find all valid root positions for the current tile_to_be_placed
+            # A valid root (r_idx, c_idx) is one where current_placement[r_idx][c_idx] is None,
+            # and the entire span of tile_to_be_placed fits into None cells.
+            possible_valid_starts_for_this_tile = []
+            for r_idx in range(self.grid_rows):
+                c_idx = 0
+                while c_idx < self.grid_cols:
+                    # If current_placement[r_idx][c_idx] is None, it's a candidate root.
+                    # _can_place_tile will verify if the whole span is also None.
+                    if current_placement[r_idx][c_idx] is None:
+                        if self._can_place_tile(current_placement, tile_to_be_placed, r_idx, c_idx):
+                            possible_valid_starts_for_this_tile.append(
+                                (r_idx, c_idx))
+                        c_idx += 1  # Move to the next column to check as a potential root
+                    else:
+                        # This cell is occupied by an existing tile's root. Skip its entire cell span.
+                        existing_tile_width = self._get_tile_width_in_cells(
+                            current_placement[r_idx][c_idx])
+                        c_idx += existing_tile_width
+
+            random.shuffle(possible_valid_starts_for_this_tile)
+            
+            if possible_valid_starts_for_this_tile:
+                # Pick the first valid shuffled start
+                r_start, c_start = possible_valid_starts_for_this_tile[0]
+                self._place_tile(current_placement,
+                                 tile_to_be_placed, r_start, c_start)
+                placed_this_tile = True
+                tile_to_be_placed.r_coord = r_start # Store anchor in tile
+                tile_to_be_placed.c_coord = c_start
+                num_actually_placed += 1
+
+            if not placed_this_tile:
                 logger.warning(
-                    "More tiles than available grid slots during placement generation.")
-                break
+                    f"Could not place tile ({tile_to_be_placed.source_name}, width_cells: {self._get_tile_width_in_cells(tile_to_be_placed)}) in initial random placement.")
 
+        if num_actually_placed < len(self.tiles_to_place):
+            logger.warning(
+                f"Initial placement: Only placed {num_actually_placed}/{len(self.tiles_to_place)} tiles due to space constraints or ordering.")
         return current_placement
 
-    def get_neighbour_placement(self, current_placement: list[list[ZacTile | None]]) -> list[list[ZacTile | None]]:
+    def get_neighbour_placement(self, current_placement: list[list[Tile | None]]) -> list[list[Tile | None]]:
         """Generates a neighbour placement by swapping two items (tiles or None)."""
-        new_placement = [
-            # Shallow copy rows, tile objects are references
-            row[:] for row in current_placement]
+        new_placement = [row[:]
+                         for row in current_placement]  # Start with a copy
 
-        # Pick two distinct random cells in the grid
-        r1, c1 = random.randrange(
-            self.grid_rows), random.randrange(self.grid_cols)
-        r2, c2 = random.randrange(
-            self.grid_rows), random.randrange(self.grid_cols)
-        while r1 == r2 and c1 == c2:  # Ensure they are different cells
-            r2, c2 = random.randrange(
-                self.grid_rows), random.randrange(self.grid_cols)
+        # List of dicts: {'r': r, 'c': c, 'tile': tile_obj_or_None, 'w': width}
+        candidate_items_for_swap = []
+        for r_idx in range(self.grid_rows):
+            c_idx = 0
+            while c_idx < self.grid_cols:
+                cell_content = new_placement[r_idx][c_idx]
+                if isinstance(cell_content, Tile):
+                    width = self._get_tile_width_in_cells(cell_content)
+                    candidate_items_for_swap.append(
+                        {'r': r_idx, 'c': c_idx, 'tile': cell_content, 'w': width})
+                    c_idx += width
+                else:  # It's a None cell, representing an empty slot of width 1
+                    candidate_items_for_swap.append(
+                        {'r': r_idx, 'c': c_idx, 'tile': None, 'w': 1})
+                    c_idx += 1
 
-        # Swap the contents of these two cells
-        new_placement[r1][c1], new_placement[r2][c2] = new_placement[r2][c2], new_placement[r1][c1]
+        if len(candidate_items_for_swap) < 2:
+            return new_placement  # Not enough distinct items to swap
 
-        return new_placement
+        # Pick two distinct items to try and swap
+        idx1, idx2 = random.sample(range(len(candidate_items_for_swap)), 2)
 
-    def optimise_placement(self, iterations: int = 1000, initial_temp: float = 10.0, cooling_rate: float = 0.995) -> list[list[ZacTile | None]]:
+        item1_data = candidate_items_for_swap[idx1]
+        item2_data = candidate_items_for_swap[idx2]
+
+        r1, c1, tile1, w1 = item1_data['r'], item1_data['c'], item1_data['tile'], item1_data['w']
+        r2, c2, tile2, w2 = item2_data['r'], item2_data['c'], item2_data['tile'], item2_data['w']
+
+        # Create a temporary board state where both items' original spots are fully cleared
+        # Use a copy of new_placement for checks
+        board_after_clearing_both = [row[:] for row in new_placement]
+        self._clear_cells_for_tile(board_after_clearing_both, r1, c1, w1)
+        self._clear_cells_for_tile(board_after_clearing_both, r2, c2, w2)
+
+        # Check if tile1 can be placed at item2's original location (r2, c2)
+        check1_possible = (tile1 is None) or self._can_place_tile(
+            board_after_clearing_both, tile1, r2, c2)
+
+        if not check1_possible:
+            # Swap invalid, return original copy
+            return [row[:] for row in current_placement]
+
+        # If check1 is possible, simulate placing tile1 for the next check
+        board_for_check2 = [row[:] for row in board_after_clearing_both]
+        if tile1:
+            self._place_tile(board_for_check2, tile1, r2, c2)
+
+        # Check if tile2 can be placed at item1's original location (r1, c1)
+        check2_possible = (tile2 is None) or self._can_place_tile(
+            board_for_check2, tile2, r1, c1)
+
+        if check2_possible:  # Both moves are valid, apply to new_placement
+            # Perform the swap on the actual new_placement (which started as a copy of current_placement)
+            self._clear_cells_for_tile(new_placement, r1, c1, w1)
+            self._clear_cells_for_tile(new_placement, r2, c2, w2)
+            if tile2:
+                self._place_tile(new_placement, tile2, r1, c1)
+                tile2.r_coord, tile2.c_coord = r1, c1 # Update tile's own anchor
+            if tile1:
+                self._place_tile(new_placement, tile1, r2, c2)
+                tile1.r_coord, tile1.c_coord = r2, c2 # Update tile's own anchor
+
+            # logger.debug(f"Swapped: Tile1 (w:{w1}) at ({r1},{c1}) with Tile2 (w:{w2}) at ({r2},{c2})")
+            return new_placement
+        else:
+            # Swap is not fully valid, return a copy of the original state
+            return [row[:] for row in current_placement]
+
+    def optimise_placement(self, iterations: int = 1000, initial_temp: float = 10.0, cooling_rate: float = 0.995) -> list[list[Tile | None]]:
         """
         Optimises tile placement using Simulated Annealing. Assumes tiles in self.tiles_to_place are already scheduled.
         """
 
         if not self.tiles_to_place:
-            logger.info("No tiles to place.")
+            logger.info("No tiles provided to PlacementOptimiser.")
             return [[None for _ in range(self.grid_cols)] for _ in range(self.grid_rows)]
-
-        if len(self.tiles_to_place) > self.grid_rows * self.grid_cols:
-            logger.warning(
-                "More tiles to place than grid capacity. Placing a subset.")
 
         current_placement = self.generate_initial_placement()
         current_contention = self.calculate_contention(current_placement)
@@ -167,12 +318,13 @@ class PlacementOptimiser:
         temp = initial_temp
 
         logger.info(
-            f"Starting placement optimisation. Initial contention: {current_contention:.2f} (for {len(self.tiles_to_place)} tiles)")
+            f"Starting placement optimisation. Initial contention: {current_contention:.2f} (target {len(self.tiles_to_place)} tiles)")
 
         for i in range(iterations):
-            placement = self.get_neighbour_placement(
-                current_placement)
-            contention = self.calculate_contention(placement)
+            # Pass a copy of current_placement to get_neighbour_placement,
+            # so current_placement is only updated if the move is accepted.
+            neighbour_p = self.get_neighbour_placement(current_placement)
+            contention = self.calculate_contention(neighbour_p)
 
             acceptance_probability = 0.0
             if contention < current_contention:
@@ -182,17 +334,19 @@ class PlacementOptimiser:
                 acceptance_probability = math.exp(-delta_energy / temp)
 
             if random.random() < acceptance_probability:
-                current_placement = placement
+                current_placement = neighbour_p  # Accept the new placement
                 current_contention = contention
                 if current_contention < best_contention:
-                    best_placement = [row[:] for row in current_placement]
+                    best_placement = [row[:]
+                                      # Store a copy
+                                      for row in current_placement]
                     best_contention = current_contention
 
             temp *= cooling_rate
             if i > 0 and i % (iterations // 20) == 0:
                 # log progress periodically
                 logger.info(
-                    f"Placement optimiser Iteration {i}: Temp={temp:.4f}, Current contention={current_contention:.2f}, Best contention={best_contention:.2f}")
+                    f"Placement optimiser iteration {i}: Temp={temp:.4f}, current contention={current_contention:.2f}, best contention={best_contention:.2f}")
 
         logger.info(
             f"Finished placement optimisation. Best contention: {best_contention:.2f}")
