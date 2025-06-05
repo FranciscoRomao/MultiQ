@@ -12,7 +12,6 @@ from .placement import PlacementOptimiser
 
 logger = logging.getLogger("multiq")
 
-
 class Orchestrator:
     def __init__(self, arch: Architecture, config: MultiQConfig):
         self.architecture = arch
@@ -66,7 +65,7 @@ class Orchestrator:
 
         for (r_idx, c_idx) in self.active_tiles:
             tile = self.tiles[r_idx][c_idx]
-            assert (tile is not None)
+            assert (tile)
 
             if layer >= len(tile.gate_scheduling):
                 self.active_tiles.remove((r_idx, c_idx))
@@ -80,10 +79,6 @@ class Orchestrator:
             return
 
         graph, global_moves = self.combine_nx_graphs(graphs)
-
-        # fig = plt.figure()
-        # nx.draw(graph, ax=fig.add_subplot(), with_labels=True)
-        # fig.savefig(f"graph_layer_{layer}_before_removals.png")
 
         while graph.number_of_nodes() > 0:
             comp_graph = nx.complement(graph)
@@ -113,7 +108,7 @@ class Orchestrator:
             tile = self.tiles[r_idx][c_idx]
 
             graph, moves = tile.nx_reverse_interference_graph(layer)
-            if graph is not None:
+            if graph:
                 graphs.append((r_idx, c_idx, graph, moves))
         graph, global_moves = self.combine_nx_graphs(graphs)
 
@@ -162,7 +157,7 @@ class Orchestrator:
         # process the instructions on the tile level
         for (r_idx, c_idx) in self.active_tiles:
             tile = self.tiles[r_idx][c_idx]
-            assert (tile is not None)
+            assert (tile)
 
             tile_moves = indp_moves_per_tile[(r_idx, c_idx)]
             qubits = {move.qubit_index for move in tile_moves}
@@ -174,7 +169,7 @@ class Orchestrator:
 
         for (r_idx, c_idx) in self.active_tiles:
             tile = self.tiles[r_idx][c_idx]
-            assert (tile is not None)
+            assert (tile)
 
             if tile.qubit_mapping[2 * layer + 2] is None:
                 tile.construct_reverse_layer(
@@ -206,7 +201,7 @@ class Orchestrator:
         
         for (r_idx, c_idx) in self.active_tiles:
             tile = self.tiles[r_idx][c_idx]
-            assert (tile is not None)
+            assert (tile)
 
             instr_id_start = instr_start_indices[(r_idx, c_idx)]
             # get durations of move operations
@@ -220,7 +215,7 @@ class Orchestrator:
         start_times = []
         for (r_idx, c_idx), idx in instr_start_indices.items():
             tile = self.tiles[r_idx][c_idx]
-            assert(tile is not None)
+            assert(tile)
             instr = tile.result_json["instructions"][idx]
             time_st_i = tile.get_begin_time(idx, instr["dependency"])
             start_times.append(time_st_i)
@@ -229,7 +224,7 @@ class Orchestrator:
 
         for (r_idx, c_idx) in self.active_tiles:
             tile = self.tiles[r_idx][c_idx]
-            assert (tile is not None)
+            assert (tile)
 
             for duration, idx in durations[(r_idx, c_idx)]:
                 instr = tile.result_json["instructions"][idx]
@@ -260,7 +255,7 @@ class Orchestrator:
         # find out the earliest time the global pulse can start
         for (r_idx, c_idx), start_idx in ryd_instr_start_indices.items():
             tile = self.tiles[r_idx][c_idx]
-            assert(tile is not None)
+            assert(tile)
             
             dep = tile.result_json["instructions"][start_idx]["dependency"]
             rydb_begin_time = tile.get_begin_time(start_idx, dep)
@@ -273,7 +268,7 @@ class Orchestrator:
         # assign times to instructions
         for (r_idx, c_idx), start_idx in ryd_instr_start_indices.items():
             tile = self.tiles[r_idx][c_idx]
-            assert(tile is not None)
+            assert(tile)
             
             # use this counter for sequential 1q gate applications in the gate layer
             local_start_time = global_end_time
@@ -305,10 +300,10 @@ class Orchestrator:
         gate_instrs = {(r, c): 0 for (r, c) in self.active_tiles}
         for (r_idx, c_idx) in self.active_tiles:
             tile = self.tiles[r_idx][c_idx]
-            assert (tile is not None)
+            assert (tile)
             initial_indx = tile.process_gate_layer(
                 layer, tile.qubit_mapping[2 * layer + 1])
-            if initial_indx is not None:
+            if initial_indx:
                 gate_instrs[(r_idx, c_idx)] = initial_indx
 
         return gate_instrs

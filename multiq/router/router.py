@@ -3,9 +3,7 @@ import time
 from .graph import GraphOperations_mixin
 from .instruction import Instructions_mixin
 
-
 from multiq.types.movement import Movement
-
 
 class Router_mixin(GraphOperations_mixin, Instructions_mixin):
 
@@ -52,79 +50,6 @@ class Router_mixin(GraphOperations_mixin, Instructions_mixin):
                 raise ValueError
 
         return duration
-
-    # def aod_assignment(self, id_layer_start: int, aod_begin_time: float):
-    #     """
-    #         Assign begin and end times to the operations given that aod_begin_time is the earliest time
-    #         the AoD laser can be used.
-    #     """
-
-    #     # [rearrangeJobs, otherJobs]
-    #     list_instruction_duration = [[], []]
-    #     id_layer_end = len(self.result_json['instructions'])
-    #     duration_idx = 0
-    #     list_gate_layer_idx = []
-
-    #     aod_end_time = 0.0
-
-    #     for idx in range(id_layer_start, id_layer_end):
-    #         if self.result_json['instructions'][idx]["type"] != "rearrangeJob":
-    #             # subsequent ops go into list_instr_durcation[1]
-    #             duration_idx = 1
-    #             list_gate_layer_idx.append(idx)
-    #             continue
-
-    #         # get duration of rearrangeJob
-    #         duration = self.get_duration(self.result_json['instructions'][idx])
-    #         list_instruction_duration[duration_idx].append((duration, idx))
-
-    #     # sort rearrangeJobs from shortest to longest
-    #     list_instruction_duration[0] = sorted(
-    #         list_instruction_duration[0], reverse=True)
-    #     list_instruction_duration[1] = sorted(
-    #         list_instruction_duration[1], reverse=True)
-
-    #     for i in range(2):
-    #         # for rearrange instructions
-    #         for item in list_instruction_duration[i]:
-    #             duration = item[0]
-    #             inst = self.result_json['instructions'][item[1]]
-    #             begin_time = max(aod_begin_time, self.get_begin_time(
-    #                 item[1], inst["dependency"]))
-    #             end_time = begin_time + duration
-    #             inst["dependency"]["aod"] = -1
-    #             # self.aod_dependency[aod_id] = item[1]
-    #             inst["begin_time"] = begin_time
-    #             inst["end_time"] = end_time
-    #             inst["aod_id"] = 0  # Fixed to 0. Using only one AoD for now
-    #             aod_end_time = end_time
-
-    #             for detail_inst in inst["insts"]:
-    #                 detail_inst["begin_time"] += begin_time
-    #                 detail_inst["end_time"] += begin_time
-    #             if self.result_json["runtime"] < end_time:
-    #                 self.result_json["runtime"] = end_time
-
-    #         # for gate/rydberg instructions
-    #         if i == 0:
-    #             for gate_layer_idx in list_gate_layer_idx:
-    #                 # laser scheduling
-    #                 inst = self.result_json['instructions'][gate_layer_idx]
-    #                 begin_time = self.get_begin_time(
-    #                     gate_layer_idx, inst["dependency"])
-    #                 if inst["type"] == "rydberg":
-    #                     end_time = begin_time + self.architecture.time_rydberg
-    #                 else:
-    #                     # for sequential gate execution
-    #                     end_time = begin_time + \
-    #                         (self.architecture.time_1qGate *
-    #                          len(inst["gates"])) + self.common_1q
-
-    #                 if self.result_json["runtime"] < end_time:
-    #                     self.result_json["runtime"] = end_time
-    #                 inst["begin_time"] = begin_time
-    #                 inst["end_time"] = end_time
-    #     return aod_end_time
 
     def get_begin_time(self, cur_inst_idx: int, dependency: dict):
         """ 

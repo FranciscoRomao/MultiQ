@@ -203,6 +203,7 @@ class ZacTile(Scheduler_mixin, Placer_mixin, Verifier_mixin, Router_mixin):
 
             
     def calculate_global_pos(self, anchor_pos: tuple[int,int]) -> tuple[int,int]:
+        # transforms the anchor position to its global coord by multiplying it with the tile width
         pass
         
 

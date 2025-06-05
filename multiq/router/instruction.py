@@ -2,6 +2,8 @@ from copy import deepcopy
 from itertools import chain
 
 class Instructions_mixin:
+    PARKING_DIST = 1
+
     def write_rearrangement_instruction(self, inst_idx: int, aod_qubits: list, begin_location: list, end_location: list, dependency: dict):
         inst = {
             "type": "rearrangeJob",

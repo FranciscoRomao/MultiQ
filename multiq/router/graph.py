@@ -5,7 +5,6 @@ from multiq.types.movement import Movement
 
 
 class GraphOperations_mixin:
-    PARKING_DIST = 1
 
     def _interference_graph(self, layer, from_mapping, to_mapping, coord_offset: tuple[int, int] | None = None):
         qubits_in_layer = []  # consists of qubits to be moved
