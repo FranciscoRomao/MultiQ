@@ -333,7 +333,7 @@ class Orchestrator:
         for i, row in enumerate(self.tiles):
             for j, tile in enumerate(row):
                 if tile:
-                    logger.info(f"Tile ({i},{j}): {tile.result_json["runtime"]} ms")
+                    logger.info(f"Tile ({tile.source_name}) at ({i},{j}): {tile.result_json["runtime"]} ms")
 
     def set_programs(self, source_files: list[str]):
         if len(source_files) > self.config.grid_rows * self.config.grid_cols:

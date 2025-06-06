@@ -7,11 +7,13 @@ based upon the animator in ZAC but has been extended and cleaned-up.
 from matplotlib.animation import FFMpegWriter, FuncAnimation
 import matplotlib.pyplot as plt
 import matplotlib
+from matplotlib.gridspec import GridSpec
 import bisect
 
 from zac.ds.architecture import Architecture
 
 from multiq.compiler.tile import Tile
+from multiq.configuration import MultiQConfig
 
 # constants for animation
 FPS = 60  # frames per second
@@ -353,10 +355,11 @@ class TileAnimation:
 
 
 class Animator():
-    def __init__(self, architecture: Architecture, grid_rows, grid_cols):
+    def __init__(self, config: MultiQConfig, grid_rows, grid_cols):
         self.grid_rows = grid_rows
         self.grid_cols = grid_cols
-        self.architecture = architecture
+        self.config = config
+
         matplotlib.use('Agg')
 
     def multi_animate(
@@ -370,23 +373,30 @@ class Animator():
         matplotlib.rcParams.update({'font.size': font_size})
         plt.rcParams['animation.ffmpeg_path'] = ffmpeg
 
-        self.fig, self.axes = self.setup_canvas(scaling_factor)
+        self.fig = self.setup_canvas(tiles, scaling_factor, inches_per_micron_calc=PT_MICRON / plt.rcParams['figure.dpi'])
         self.inst_str = ''
 
         # Create the animation classes for the tiles
+        # self.axes_map is populated by setup_canvas, mapping (r,c_root) to an Axes object
+        # self.anims maps (r,c_root) of a tile to its TileAnimation instance
         self.anims: dict[tuple[int,int], TileAnimation | None] = {(r,c) : None for r in range(self.grid_rows) for c in range(self.grid_cols)}
         for r, row in enumerate(tiles):
             for c, tile in enumerate(row):
-                if tile is not None:
-                    self.anims[(r,c)] = TileAnimation(tile.result_json, self.architecture, self.axes[r][c])
+                if tile:
+                    # Use self.axes_map which is populated by the new setup_canvas
+                    # (r,c) is the root coordinate of the tile.
+                    self.anims[(r,c)] = TileAnimation(tile.result_json, tile.architecture, self.axes_map[(r,c)])
 
-
-        # self.tiles = [TileAnimation(
-        #    tiles_codes[i], self.architecture, self.axes[i]) for i in range(self.n_tiles)]
 
         # Use longest tile anim as frame count
-        schedules = {(r,c): t.create_schedule() if t is not None else 0 for (r,c), t in self.anims.items()}
-        n_frames = max(schedules.values())
+        schedules_durations = {}
+        for (r_root, c_root), anim_instance in self.anims.items():
+            if anim_instance is not None:
+                schedules_durations[(r_root, c_root)] = anim_instance.create_schedule()
+        
+        n_frames = 0
+        if schedules_durations:
+            n_frames = max(schedules_durations.values())
 
         anim = FuncAnimation(
             self.fig,
@@ -396,67 +406,93 @@ class Animator():
         )
         anim.save(output, writer=FFMpegWriter(FPS))
 
-    def setup_canvas(self, scaling_factor: int):
+    def setup_canvas(self, tiles: list[list[Tile | None]], scaling_factor: int, inches_per_micron_calc: float):
         """set up various objects before actually drawing."""
-        # unit conversion factor from um to inches for figsize
-        # scaling_factor is PT_MICRON (points per micron)
-        # plt.rcParams['figure.dpi'] is points per inch
-        # inches_per_micron = (points / micron) / (points / inch) = inches / micron
-        inches_per_micron = scaling_factor / plt.rcParams['figure.dpi']
+        
+        # Calculate figsize based on representative cell size
+        max_phys_width_per_grid_cell = 0
+        max_phys_height_per_grid_cell = 0
+        default_arch_for_empty = None
 
-        tile_native_width_um = (self.architecture.arch_range[1][0] -
-                                self.architecture.arch_range[0][0])
-        tile_native_height_um = (self.architecture.arch_range[1][1] -
-                                 self.architecture.arch_range[0][1])
+        for r_idx in range(self.grid_rows):
+            for c_idx in range(self.grid_cols):
+                tile = tiles[r_idx][c_idx]
+                if tile:
+                    if not default_arch_for_empty: default_arch_for_empty = tile.architecture
+                    phys_w = tile.architecture.arch_range[1][0] - tile.architecture.arch_range[0][0]
+                    phys_h = tile.architecture.arch_range[1][1] - tile.architecture.arch_range[0][1]
+                    grid_w_span = getattr(tile, 'tile_width', 1) # Assumes tile_width is num grid cells
+                    
+                    max_phys_width_per_grid_cell = max(max_phys_width_per_grid_cell, phys_w / grid_w_span)
+                    max_phys_height_per_grid_cell = max(max_phys_height_per_grid_cell, phys_h) # Assuming height span is 1
 
-        # Effective width/height of one subplot's content area in microns,
-        # including the CANVAS_PADDING that expands its xlim/ylim.
-        subplot_content_width_um = tile_native_width_um + 2 * CANVAS_PADDING
-        subplot_content_height_um = tile_native_height_um + 2 * CANVAS_PADDING
+        if max_phys_width_per_grid_cell == 0 and default_arch_for_empty: # Grid might be all None
+            max_phys_width_per_grid_cell = default_arch_for_empty.arch_range[1][0] - default_arch_for_empty.arch_range[0][0]
+        if max_phys_height_per_grid_cell == 0 and default_arch_for_empty:
+            max_phys_height_per_grid_cell = default_arch_for_empty.arch_range[1][1] - default_arch_for_empty.arch_range[0][1]
+        if max_phys_width_per_grid_cell == 0: max_phys_width_per_grid_cell = 50 # Fallback
+        if max_phys_height_per_grid_cell == 0: max_phys_height_per_grid_cell = 50 # Fallback
 
-        # Total figure size in inches.
-        # This accounts for all tiles and the TILE_PADDING space between them.
-        total_figure_width_inches = (self.grid_cols * subplot_content_width_um +
-                                     max(0, self.grid_cols - 1) * TILE_PADDING) * inches_per_micron
-        total_figure_height_inches = (self.grid_rows * subplot_content_height_um +
-                                      max(0, self.grid_rows - 1) * TILE_PADDING) * inches_per_micron
+        # Add canvas padding to the representative cell size for figsize calculation
+        effective_cell_width_um = max_phys_width_per_grid_cell + 2 * CANVAS_PADDING
+        effective_cell_height_um = max_phys_height_per_grid_cell + 2 * CANVAS_PADDING
 
-        fig, axes = plt.subplots(
-            self.grid_rows, self.grid_cols,
-            figsize=(total_figure_width_inches, total_figure_height_inches),
-            squeeze=False  # Ensures axes is always a 2D numpy array
-        )
+        total_figure_width_um = self.grid_cols * effective_cell_width_um + max(0, self.grid_cols - 1) * TILE_PADDING
+        total_figure_height_um = self.grid_rows * effective_cell_height_um + max(0, self.grid_rows - 1) * TILE_PADDING
+        
+        fig_width_inches = total_figure_width_um * inches_per_micron_calc
+        fig_height_inches = total_figure_height_um * inches_per_micron_calc
+
+        fig = plt.figure(figsize=(fig_width_inches, fig_height_inches))
+        gs = GridSpec(self.grid_rows, self.grid_cols, figure=fig)
+
+        self.axes_map: dict[tuple[int,int], plt.Axes] = {}
+        processed_cells = set()
 
         for r in range(self.grid_rows):
             for c in range(self.grid_cols):
-                ax = axes[r][c]
-                # Set the limits for each subplot based on architecture range and canvas padding
-                ax.set_xlim([
-                    self.architecture.arch_range[0][0] - CANVAS_PADDING,
-                    self.architecture.arch_range[1][0] + CANVAS_PADDING
-                ])
-                ax.set_ylim([
-                    self.architecture.arch_range[0][1] - CANVAS_PADDING,
-                    self.architecture.arch_range[1][1] + CANVAS_PADDING
-                ])
+                if (r, c) in processed_cells:
+                    continue
 
-                # Optional: Remove ticks and labels for a cleaner look
-                ax.set_xticks([])
-                ax.set_yticks([])
-                # ax.axis('off') # This would also remove the title set by TileAnimation's update
-                ax.set_aspect('equal', adjustable='box') # Ensure consistent scaling
+                tile = tiles[r][c]
+                if tile:
+                    tile_grid_width_span = getattr(tile, 'tile_width', 1)
+                    ax = fig.add_subplot(gs[r, c : c + tile_grid_width_span])
+                    
+                    current_tile_arch = tile.architecture
+                    ax.set_xlim([
+                        current_tile_arch.arch_range[0][0] - CANVAS_PADDING,
+                        current_tile_arch.arch_range[1][0] + CANVAS_PADDING
+                    ])
+                    ax.set_ylim([
+                        current_tile_arch.arch_range[0][1] - CANVAS_PADDING,
+                        current_tile_arch.arch_range[1][1] + CANVAS_PADDING
+                    ])
+                    self.axes_map[(r,c)] = ax # Store ax by root coordinate
 
-        plt.tight_layout()
+                    for k_col_offset in range(tile_grid_width_span):
+                        processed_cells.add((r, c + k_col_offset))
+                else: # This is an empty slot not covered by a multi-width tile
+                    ax = fig.add_subplot(gs[r, c])
+                    ax.axis('off') # Make empty slots invisible
+                    # self.axes_map[(r,c)] = ax # Optionally store if needed
+                    processed_cells.add((r,c))
+                
+                if (r,c) in self.axes_map: # If an axis was created for this root
+                    self.axes_map[(r,c)].set_xticks([])
+                    self.axes_map[(r,c)].set_yticks([])
+                    self.axes_map[(r,c)].set_aspect('equal', adjustable='box')
 
-        return fig, axes
+        fig.tight_layout(pad=0.5, h_pad=TILE_PADDING * inches_per_micron_calc, w_pad=TILE_PADDING * inches_per_micron_calc)
+        return fig
 
     # Initial frame over all subplots
     def initial_frame(self):
-        for t in self.anims.values():
-            if t is not None:
-                t.initial_frame()
+        for anim_obj in self.anims.values():
+            if anim_obj:
+                anim_obj.initial_frame()
 
     def update(self, f: int):  # f is the frame
-        for t in self.anims.values():
-                if t is not None:
-                    t.update(f)
+        for anim_obj in self.anims.values():
+            if anim_obj:
+                anim_obj.update(f)

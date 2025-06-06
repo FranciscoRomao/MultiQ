@@ -21,6 +21,7 @@ class Tile(Scheduler_mixin, Placer_mixin, Verifier_mixin, Router_mixin):
         self.n_g = 0
         self.g_q = []
 
+        self.source_name = ""
         self.dir = "./result/"
         self.architecture = None
 
@@ -62,9 +63,11 @@ class Tile(Scheduler_mixin, Placer_mixin, Verifier_mixin, Router_mixin):
 
     def load_program(self, source_file: str):
         """ Load QASM source from source_file and apply Qiskit optimisations. """
+        self.source_name = source_file
 
         self.g_q = []
-        self.dict_g_1q_parent = {-1: []} # -1 means no dependency and can be applied at initialisation
+        # -1 means no dependency and can be applied at initialisation
+        self.dict_g_1q_parent = {-1: []}
         n_single_qubit_gate = 0
 
         cz_circuit = qasm2.load(source_file)
@@ -187,24 +190,18 @@ class Tile(Scheduler_mixin, Placer_mixin, Verifier_mixin, Router_mixin):
         if "resyn" in setting:
             self.resyn = setting["resyn"]
 
-            
     def _set_architecture(self):
         # just use n_q as the number of cols in the tile for now
         with open("zac_config/toy_architecture.json", "r") as f:
             arch_json = json.load(f)
             # TODO: design a smarter tile size. Right now it's just the #qubits, making the top row always full.
-            if arch_json["storage_zones"]["slms"][0]:
-                arch_json["storage_zones"]["slms"][0]["c"]= self.n_q
-                self.tile_width = self.n_q * self.config.physical_col_width
-            
+            arch_json["storage_zones"][0]["slms"][0]["c"] = self.n_q
+            self.tile_width = self.n_q * self.config.physical_col_width
+
             arch = Architecture(arch_json)
             arch.preprocessing()
-            self.arch = arch
+            self.architecture = arch
 
-            
-    def calculate_global_pos(self, anchor_pos: tuple[int,int]) -> tuple[int,int]:
+    def calculate_global_pos(self, anchor_pos: tuple[int, int]) -> tuple[int, int]:
         # transforms the anchor position to its global coord by multiplying it with the tile width
         pass
-        
-
-        

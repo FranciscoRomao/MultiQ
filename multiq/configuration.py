@@ -19,7 +19,7 @@ class MultiQConfig:
     has_dependency: bool = True
 
     # QPU configuration
-    grid_cols: int = 24 # 24 qubits wide
+    grid_cols: int = 16 # 24 qubits wide
     grid_rows: int = 2
     physical_col_width: int = 1 # 1 qubit = 1 col
 
