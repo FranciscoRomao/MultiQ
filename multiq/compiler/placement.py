@@ -4,14 +4,14 @@ import math
 
 import networkx as nx
 
-from .tile import ZacTile
+from .tile import Tile
 from multiq.types import Movement, row_compatible, column_compatible
 from multiq.configuration import MultiQConfig
 
 logger = logging.getLogger("multiq")
 
 class PlacementOptimiser:
-    def __init__(self, config: MultiQConfig,  tiles_to_place: list[ZacTile]):
+    def __init__(self, config: MultiQConfig,  tiles_to_place: list[Tile]):
         """ Create a new tile placement optimiser.
 
         Args:
@@ -69,7 +69,7 @@ class PlacementOptimiser:
 
         return inter_tile_conflict_count
 
-    def calculate_contention(self, placement: list[list[ZacTile | None]]) -> float:
+    def calculate_contention(self, placement: list[list[Tile | None]]) -> float:
         """
         Calculates a contention score for a given placement. Considers all layers of movements.
         """
@@ -101,7 +101,7 @@ class PlacementOptimiser:
         
         return total_contention_score
 
-    def generate_initial_placement(self) -> list[list[ZacTile | None]]:
+    def generate_initial_placement(self) -> list[list[Tile | None]]:
         """Generates an initial placement (i.e. random fill)."""
         grid_slots = []
         for r in range(self.grid_rows):
@@ -110,7 +110,7 @@ class PlacementOptimiser:
 
         random.shuffle(grid_slots)  # random order for filling slots
 
-        current_placement: list[list[ZacTile | None]] = [
+        current_placement: list[list[Tile | None]] = [
             [None for _ in range(self.grid_cols)] for _ in range(self.grid_rows)
         ]
 
@@ -127,7 +127,7 @@ class PlacementOptimiser:
 
         return current_placement
 
-    def get_neighbour_placement(self, current_placement: list[list[ZacTile | None]]) -> list[list[ZacTile | None]]:
+    def get_neighbour_placement(self, current_placement: list[list[Tile | None]]) -> list[list[Tile | None]]:
         """Generates a neighbour placement by swapping two items (tiles or None)."""
         new_placement = [
             # Shallow copy rows, tile objects are references
@@ -142,12 +142,11 @@ class PlacementOptimiser:
             r2, c2 = random.randrange(
                 self.grid_rows), random.randrange(self.grid_cols)
 
-        # Swap the contents of these two cells
         new_placement[r1][c1], new_placement[r2][c2] = new_placement[r2][c2], new_placement[r1][c1]
 
         return new_placement
 
-    def optimise_placement(self, iterations: int = 1000, initial_temp: float = 10.0, cooling_rate: float = 0.995) -> list[list[ZacTile | None]]:
+    def optimise_placement(self, iterations: int = 1000, initial_temp: float = 10.0, cooling_rate: float = 0.995) -> list[list[Tile | None]]:
         """
         Optimises tile placement using Simulated Annealing. Assumes tiles in self.tiles_to_place are already scheduled.
         """

@@ -1,13 +1,13 @@
 
 from zac.ds.architecture import Architecture
 
-from .tile import ZacTile
+from .tile import Tile
 
 # build (global) instructions for the orchestrator
 
 
 class InstructionBuilder:
-    def write_initial_instruction(self, tile: ZacTile):
+    def write_initial_instruction(self, tile: Tile):
         end_time = 0.0
         tile.result_json["instructions"].clear()
         tile.result_json["instructions"].append(

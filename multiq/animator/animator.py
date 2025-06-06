@@ -11,7 +11,7 @@ import bisect
 
 from zac.ds.architecture import Architecture
 
-from multiq.compiler.tile import ZacTile
+from multiq.compiler.tile import Tile
 
 # constants for animation
 FPS = 60  # frames per second
@@ -361,7 +361,7 @@ class Animator():
 
     def multi_animate(
             self,
-            tiles: list[list[ZacTile | None]],
+            tiles: list[list[Tile | None]],
             output: str,
             scaling_factor: int = PT_MICRON,
             font_size: int = 10,

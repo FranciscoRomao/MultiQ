@@ -6,7 +6,7 @@ import logging
 from multiq.configuration import MultiQConfig
 from multiq.types import Movement, row_compatible, column_compatible
 
-from .tile import ZacTile
+from .tile import Tile
 from .builder import InstructionBuilder
 from .placement import PlacementOptimiser
 
@@ -18,7 +18,7 @@ class Orchestrator:
         self.config: MultiQConfig = config
         
         # start with placeholders for the tiles. They are created in set_program()
-        self.tiles: list[list[ZacTile | None]] = [
+        self.tiles: list[list[Tile | None]] = [
             [None for _ in range(self.config.grid_cols)] for _ in range(self.config.grid_rows)]
         self.instr_builder = InstructionBuilder()
         self.tiles_to_place = []
@@ -312,8 +312,6 @@ class Orchestrator:
     #     self.config = MultiQConfig.from_config(setting)
 
     def compile(self):
-
-
         # gate shceduling and placement are done per-tile with no cross-tile considerations
         for tile in self.tiles_to_place:
             if tile is None:
@@ -345,7 +343,7 @@ class Orchestrator:
         self.tiles_to_place.clear()
 
         for source in source_files:
-            tile = ZacTile(self.config)
+            tile = Tile(self.config)
             zac_settings = {
                 "routing_strategy": "maximalis",
                 "scheduling": "asap",

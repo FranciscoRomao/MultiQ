@@ -14,7 +14,7 @@ from multiq.configuration import MultiQConfig
 from multiq.router.router import Router_mixin
 
 
-class ZacTile(Scheduler_mixin, Placer_mixin, Verifier_mixin, Router_mixin):
+class Tile(Scheduler_mixin, Placer_mixin, Verifier_mixin, Router_mixin):
     def __init__(self, config: MultiQConfig):
         self.config = config
         self.n_q = 0
