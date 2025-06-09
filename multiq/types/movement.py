@@ -1,6 +1,8 @@
 from dataclasses import dataclass, field
 import typing
 
+
+
 # AoD movement for a specific qubit
 class Movement(typing.NamedTuple):
     qubit_index: int
@@ -8,6 +10,15 @@ class Movement(typing.NamedTuple):
     end_x: int
     start_y: int
     end_y: int
+
+class GridCoord(typing.NamedTuple):
+    x: int
+    y: int
+
+class TileMovement(typing.NamedTuple):
+    row_idx: int
+    col_idx: int
+    movement: Movement
 
 # Across multiple tiles, only moves that share row coords can be done in parallel
 def row_compatible(a: Movement, b: Movement) -> bool:

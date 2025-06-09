@@ -22,9 +22,9 @@ PT_MICRON = 8  # scaling factor: points per micron
 MUS_PER_FRM = 150 / FPS  # microseconds per frame
 MUS_PER_FRM_SLOW = 7 / FPS  # in slow motion, i.e., Rydberg
 # Padding between outer-most tile and graph axes
-CANVAS_PADDING = 2
+CANVAS_PADDING = 0.5
 # Padding between each tile
-TILE_PADDING = 1
+TILE_PADDING = 0.1
 # Padding around each entanglement zone
 RYDBERG_PADDING = 3
 
@@ -354,7 +354,7 @@ class TileAnimation:
         return self.piecewise_schedule[-1][0]
 
 
-class Animator():
+class Animator:
     def __init__(self, config: MultiQConfig, grid_rows, grid_cols):
         self.grid_rows = grid_rows
         self.grid_cols = grid_cols

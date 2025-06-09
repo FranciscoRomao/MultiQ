@@ -951,10 +951,12 @@ rustworkx = ">=0.16.0,<0.17.0"
 scipy = ">=1.15.2,<2.0.0"
 
 [package.source]
-type = "directory"
-url = "../ZAC"
+type = "git"
+url = "git@github.com:danvonk/ZAC.git"
+reference = "HEAD"
+resolved_reference = "c0c3bd0305552561ecc5805bb0709756b24c97f3"
 
 [metadata]
 lock-version = "2.0"
 python-versions = "^3.12"
-content-hash = "6e063c2e12a2b04ee726a5059b50b9bacba1bcc226bedd63eab46f209f827810"
+content-hash = "37b141336e4ec1539ed180980b7eedb36d487b3a8a3b35edfab4572e5ddfa2d4"

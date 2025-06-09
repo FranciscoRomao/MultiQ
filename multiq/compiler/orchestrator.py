@@ -4,7 +4,7 @@ import networkx as nx
 import logging
 
 from multiq.configuration import MultiQConfig
-from multiq.types import Movement, row_compatible, column_compatible
+from multiq.types import Movement, row_compatible, column_compatible, TileMovement
 
 from .tile import Tile
 from .builder import InstructionBuilder
@@ -12,11 +12,12 @@ from .placement import PlacementOptimiser
 
 logger = logging.getLogger("multiq")
 
+
 class Orchestrator:
     def __init__(self, arch: Architecture, config: MultiQConfig):
         self.architecture = arch
         self.config: MultiQConfig = config
-        
+
         # start with placeholders for the tiles. They are created in set_program()
         self.tiles: list[list[Tile | None]] = [
             [None for _ in range(self.config.grid_cols)] for _ in range(self.config.grid_rows)]
@@ -32,7 +33,6 @@ class Orchestrator:
         # (r,c) indices of the active tiles. It refers to the top-left corner of the tile
         self.active_tiles: list[tuple[int, int]] = []
 
-
     def route(self):
         """ Routes all movements, gate ops, rydberg ops across all of the tiles. """
 
@@ -44,7 +44,8 @@ class Orchestrator:
                     tile.prepare_routing()
                     active_tile_objs.append(tile)
 
-        logger.info(f"There are {len(self.active_tiles)} active tiles before routing.")
+        logger.info(
+            f"There are {len(self.active_tiles)} active tiles before routing.")
 
         # write_initial_instruction() returns end_time. Global schedule waits till last tile is finished
         self.global_time = max(
@@ -73,14 +74,14 @@ class Orchestrator:
                     f"Removing tile_id ({r_idx}, {c_idx}) as it has finished")
                 continue
             graph, moves = tile.nx_interference_graph(layer)
-            graphs.append((r_idx, c_idx, graph, moves))
+            if graph: # Ensure graph is not None
+                graphs.append((r_idx, c_idx, graph, moves))
 
         if len(graphs) == 0:
             return
 
-        graph, global_moves = self.combine_nx_graphs(graphs)
-
-        while graph.number_of_nodes() > 0:
+        combined_graph, global_moves = self.combine_nx_graphs(graphs, layer, is_forward_move=True)
+        while combined_graph.number_of_nodes() > 0:
             comp_graph = nx.complement(graph)
             indp_nodes = max(nx.find_cliques(comp_graph), key=len, default=[])
             graph.remove_nodes_from(indp_nodes)
@@ -110,10 +111,10 @@ class Orchestrator:
             graph, moves = tile.nx_reverse_interference_graph(layer)
             if graph:
                 graphs.append((r_idx, c_idx, graph, moves))
-        graph, global_moves = self.combine_nx_graphs(graphs)
-
-        while graph.number_of_nodes() > 0:
-            comp_graph = nx.complement(graph)
+        
+        combined_graph_rev, global_moves_rev = self.combine_nx_graphs(graphs, layer, is_forward_move=False)
+        while combined_graph_rev.number_of_nodes() > 0:
+            comp_graph = nx.complement(combined_graph_rev)
             indp_nodes = max(nx.find_cliques(comp_graph), key=len, default=[])
 
             indp_moves_per_tile = {(r_idx, c_idx): []
@@ -121,37 +122,119 @@ class Orchestrator:
 
             for i_node in indp_nodes:
                 (row_idx, col_idx, movement) = global_moves[i_node]
-                indp_moves_per_tile[(row_idx, col_idx)].append(movement)
+                indp_moves_per_tile[(row_idx, col_idx)].append(movement) # Should use global_moves_rev
 
             tile_reverse_indices = {
                 (row_idx, col_idx): len(self.tiles[row_idx][col_idx].result_json["instructions"]) for (row_idx, col_idx) in self.active_tiles}
 
             self.process_rev_movement(layer, indp_moves_per_tile)
             self.aod_assignment(tile_reverse_indices)
-            graph.remove_nodes_from(indp_nodes)
+            combined_graph_rev.remove_nodes_from(indp_nodes)
 
-    def combine_nx_graphs(self, graphs: list[tuple[int, int, nx.Graph, list[Movement]]]) -> tuple[nx.Graph, list[tuple[int, int, Movement]]]:
+    def combine_nx_graphs(self, graphs: list[tuple[int, int, nx.Graph, list[Movement]]], layer: int, is_forward_move: bool) -> tuple[nx.Graph, list[TileMovement]]:
         """ Take a list of (tile_id, conflict graph, movement list) and combine it into a single graph """
         graph_data = [g for _, _, g, _ in graphs]
+        if not graph_data:
+            return nx.Graph(), []
+            
         # nodes become [0,...,len(g_1),...,len(g_2),...]
         combined_graph = nx.disjoint_union_all(graph_data)
         # combined_graph's nodes index into this list
-        global_move_data = []
+        global_move_data: list[TileMovement] = []
 
         for r_idx, c_idx, _, moves_for_tile in graphs:
             for move in moves_for_tile:
-                global_move_data.append((r_idx, c_idx, move))
+                global_move_data.append(TileMovement(r_idx, c_idx, move))
 
-        for i, (r_idx_1, c_idx_1, mov) in enumerate(global_move_data):
-            for j, (r_idx_2, c_idx_2, mov2) in enumerate(global_move_data):
+        for i, tm1 in enumerate(global_move_data):
+            for j, tm2 in enumerate(global_move_data):
+                if i >= j: # Avoid self-loops and duplicate checks
+                    continue
+
+                r_idx_1, c_idx_1, mov1 = tm1.row_idx, tm1.col_idx, tm1.movement
+                r_idx_2, c_idx_2, mov2 = tm2.row_idx, tm2.col_idx, tm2.movement
+
                 if r_idx_1 == r_idx_2 and c_idx_1 != c_idx_2:
-                    if not row_compatible(mov, mov2):
+                    if not row_compatible(mov1, mov2):
                         combined_graph.add_edge(i, j)
                 if c_idx_1 == c_idx_2 and r_idx_1 != r_idx_2:
-                    if not column_compatible(mov, mov2):
+                    if not column_compatible(mov1, mov2):
+                        combined_graph.add_edge(i, j)
+                if r_idx_1 != r_idx_2 and c_idx_1 != c_idx_2:
+                    logger.info(f"Checking for diagonal edge ({i}, {j})")
+                    if not self.diagonal_compatible(tm1, tm2, layer, is_forward_move):
                         combined_graph.add_edge(i, j)
 
         return combined_graph, global_move_data
+
+    def global_movement(self, r_idx, c_idx, m: Movement) -> Movement:
+        """ Convert a tile-local movement into a QPU-global movement """
+        y_offset = c_idx * self.config.physical_grid_width
+        x_offset = r_idx * self.config.physical_grid_width
+        return Movement (m.qubit_index, m.start_x + x_offset, m.end_x + x_offset, m.start_y + y_offset, m.end_y + y_offset)
+
+    def diagonal_compatible(self, tm1: TileMovement, tm2: TileMovement, layer: int, is_forward_move: bool) -> bool:
+        """ Check if two movements (from different, diagonal tiles) are compatible
+            with the other ones on the QPU.
+        Returns True if compatible, False if there's a conflict.
+        """
+        epsilon = 1e-9 # For floating point comparisons
+
+        # 1. Get global start coordinates for tm1 and tm2 movements
+        global_m1 = self.global_movement(tm1.row_idx, tm1.col_idx, tm1.movement)
+        global_m2 = self.global_movement(tm2.row_idx, tm2.col_idx, tm2.movement)
+
+        # 2. Identify intersection points (these are in global coordinates)
+        # Intersection 1: X from m1's start, Y from m2's start
+        intersect1_gx, intersect1_gy = global_m1.start_x, global_m2.start_y
+        # Intersection 2: X from m2's start, Y from m1's start
+        intersect2_gx, intersect2_gy = global_m2.start_x, global_m1.start_y
+
+        intersections_to_check = [(intersect1_gx, intersect1_gy), (intersect2_gx, intersect2_gy)]
+
+        # Determine the correct mapping index based on the movement phase
+        mapping_idx = 2 * layer if is_forward_move else 2 * layer + 1
+
+        for gx, gy in intersections_to_check:
+            # 3a. Find which tile (target_tile_r, target_tile_c) contains this global point (gx, gy)
+            for r_target in range(self.config.grid_rows):
+                for c_target in range(self.config.grid_cols):
+                    target_tile = self.tiles[r_target][c_target]
+                    if target_tile is None:
+                        continue
+
+                    # Calculate tile's origin in global coordinates (consistent with global_movement)
+                    tile_origin_global_x = r_target * self.config.physical_grid_width
+                    tile_origin_global_y = c_target * self.config.physical_grid_width
+
+                    # Convert global intersection point to local coordinates within this target_tile
+                    local_x_in_target = gx - tile_origin_global_x
+                    local_y_in_target = gy - tile_origin_global_y
+
+                    arch = target_tile.architecture
+
+                    # Check if the local coordinates are within the tile's architecture boundaries
+                    if not (arch.arch_range[0][0] <= local_x_in_target < arch.arch_range[1][0] and \
+                            arch.arch_range[0][1] <= local_y_in_target < arch.arch_range[1][1]):
+                        continue # Intersection is not in this tile
+
+                    # 3b. Check qubit_mapping for the target_tile at the determined mapping_idx
+                    if mapping_idx >= len(target_tile.qubit_mapping) or \
+                       target_tile.qubit_mapping[mapping_idx] is None:
+                        continue # Mapping not defined for this tile at this stage, so no conflict from it.
+
+                    qubit_physical_locations = target_tile.qubit_mapping[mapping_idx]
+                    for _, q_slm_pos_tuple in enumerate(qubit_physical_locations):
+                        if q_slm_pos_tuple is None: # Qubit not mapped
+                            continue
+                        
+                        q_local_x, q_local_y = target_tile.architecture.exact_SLM_location(
+                            q_slm_pos_tuple[0], q_slm_pos_tuple[1], q_slm_pos_tuple[2]
+                        )
+                        if abs(q_local_x - local_x_in_target) < epsilon and \
+                           abs(q_local_y - local_y_in_target) < epsilon:
+                            return False # Conflict: qubit found at intersection
+        return True
 
     def process_movement(self, layer: int, indp_moves_per_tile: dict[tuple[int, int], list[Movement]]):
         # process the instructions on the tile level
@@ -195,10 +278,10 @@ class Orchestrator:
         # Annoyingly, we need to calculate the durations first. This is because
         # get_duration updates the relative begin and end times of the subinstructions
         # as a side effect.
-        #durations = [[] for _ in range(len(self.active_tiles))]
-        
-        durations = {(r,c) : [] for (r,c) in self.active_tiles}
-        
+        # durations = [[] for _ in range(len(self.active_tiles))]
+
+        durations = {(r, c): [] for (r, c) in self.active_tiles}
+
         for (r_idx, c_idx) in self.active_tiles:
             tile = self.tiles[r_idx][c_idx]
             assert (tile)
@@ -210,12 +293,13 @@ class Orchestrator:
                 if instr["type"] != "rearrangeJob":
                     # we have reached the gate operations
                     break
-                durations[(r_idx, c_idx)].append((tile.get_duration(instr), idx))
+                durations[(r_idx, c_idx)].append(
+                    (tile.get_duration(instr), idx))
 
         start_times = []
         for (r_idx, c_idx), idx in instr_start_indices.items():
             tile = self.tiles[r_idx][c_idx]
-            assert(tile)
+            assert (tile)
             instr = tile.result_json["instructions"][idx]
             time_st_i = tile.get_begin_time(idx, instr["dependency"])
             start_times.append(time_st_i)
@@ -248,15 +332,15 @@ class Orchestrator:
 
                 self.aod_end_time = max(self.aod_end_time, end_time)
 
-    def rydberg_assignment(self, ryd_instr_start_indices: dict[tuple[int,int], int]):
+    def rydberg_assignment(self, ryd_instr_start_indices: dict[tuple[int, int], int]):
         global_earliest_start = 0.0
         global_end_time = 0.0
 
         # find out the earliest time the global pulse can start
         for (r_idx, c_idx), start_idx in ryd_instr_start_indices.items():
             tile = self.tiles[r_idx][c_idx]
-            assert(tile)
-            
+            assert (tile)
+
             dep = tile.result_json["instructions"][start_idx]["dependency"]
             rydb_begin_time = tile.get_begin_time(start_idx, dep)
             global_earliest_start = max(global_earliest_start, rydb_begin_time)
@@ -268,8 +352,8 @@ class Orchestrator:
         # assign times to instructions
         for (r_idx, c_idx), start_idx in ryd_instr_start_indices.items():
             tile = self.tiles[r_idx][c_idx]
-            assert(tile)
-            
+            assert (tile)
+
             # use this counter for sequential 1q gate applications in the gate layer
             local_start_time = global_end_time
 
@@ -321,7 +405,7 @@ class Orchestrator:
             tile.collect_reuse_qubit()
             tile.place_qubit_initial()
             tile.place_qubit_intermedeiate()
-                
+
         # Only once we have scheduling info, do we place on the tile grid
         optim = PlacementOptimiser(self.config, self.tiles_to_place)
         self.tiles = optim.optimise_placement()
@@ -333,7 +417,8 @@ class Orchestrator:
         for i, row in enumerate(self.tiles):
             for j, tile in enumerate(row):
                 if tile:
-                    logger.info(f"Tile ({tile.source_name}) at ({i},{j}): {tile.result_json["runtime"]} ms")
+                    logger.info(
+                        f"Tile ({tile.source_name}) at ({i},{j}): {tile.result_json["runtime"]} ms")
 
     def set_programs(self, source_files: list[str]):
         if len(source_files) > self.config.grid_rows * self.config.grid_cols:
@@ -356,4 +441,3 @@ class Orchestrator:
             tile.parse_setting(zac_settings)
             tile.load_program(source)
             self.tiles_to_place.append(tile)
-                   

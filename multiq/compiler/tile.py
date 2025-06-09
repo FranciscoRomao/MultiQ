@@ -196,7 +196,7 @@ class Tile(Scheduler_mixin, Placer_mixin, Verifier_mixin, Router_mixin):
             arch_json = json.load(f)
             # TODO: design a smarter tile size. Right now it's just the #qubits, making the top row always full.
             arch_json["storage_zones"][0]["slms"][0]["c"] = self.n_q
-            self.tile_width = self.n_q * self.config.physical_col_width
+            self.tile_width = self.n_q * self.config.physical_grid_width
 
             arch = Architecture(arch_json)
             arch.preprocessing()

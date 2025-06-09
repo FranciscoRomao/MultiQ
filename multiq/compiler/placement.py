@@ -132,7 +132,7 @@ class PlacementOptimiser:
                         # Assuming physical_col_width also applies to row height for square physical cells,
                         # or that coordinates are effectively grid-based if physical_col_width is 1.
 
-                        offset_x = c_idx * self.config.physical_col_width
+                        offset_x = c_idx * self.config.physical_grid_width
                         # offset_y = r_idx * self.config.physical_col_width # Or use a specific physical_row_height from config if available
                         coord_offset_val = (offset_x, 0.0)
 
