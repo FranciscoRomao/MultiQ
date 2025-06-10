@@ -6,7 +6,7 @@ from multiq.types.movement import Movement
 
 class GraphOperations_mixin:
 
-    def _interference_graph(self, layer, from_mapping, to_mapping, coord_offset: tuple[int, int] | None = None):
+    def _interference_graph(self, layer, from_mapping, to_mapping, coord_offset: tuple[int, int] | None = None) -> tuple[nx.Graph, list]:
         qubits_in_layer = []  # consists of qubits to be moved
         for gate in self.gate_scheduling[layer]:
             for q in gate:
@@ -20,7 +20,7 @@ class GraphOperations_mixin:
         graph = self.nx_graph(vectors)
         return graph, vectors
 
-    def nx_reverse_interference_graph(self, layer: int, coord_offset: tuple[int, int] | None = None):
+    def nx_reverse_interference_graph(self, layer: int, coord_offset: tuple[int, int] | None = None) -> tuple[nx.Graph, list]:
         if layer + 2 >= len(self.qubit_mapping):
             return None, None
 
@@ -38,7 +38,7 @@ class GraphOperations_mixin:
 
         return self._interference_graph(layer, initial_mapping, gate_mapping, coord_offset)
 
-    def graph_construction(self, remain_graph: list, initial_mapping: list, final_mapping: list, coord_offset: tuple[int, int] | None = None):
+    def graph_construction(self, remain_graph: list, initial_mapping: list, final_mapping: list, coord_offset: tuple[int, int] | None = None) -> list[Movement]:
         vectors = []
         if self.use_window:
             vector_length = min(self.window_size, len(remain_graph))

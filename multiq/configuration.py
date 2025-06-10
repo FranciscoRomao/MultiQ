@@ -22,7 +22,7 @@ class MultiQConfig:
     grid_cols: int = 16 # 24 qubits wide
     grid_rows: int = 2
     physical_grid_width: int = 1 # 1 qubit = 1 col
-    physical_grid_height: int = 8 # 8 qubits high
+    physical_grid_height: int = 4 # 4 qubits high QPU
 
     def __post_init__(self):
         if self.scheduling_strategy not in ["asap", "graph_coloring"]:
