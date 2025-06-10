@@ -87,8 +87,6 @@ class Orchestrator:
         while graph.number_of_nodes() > 0:
             comp_graph = nx.complement(graph)
             indp_nodes = max(nx.find_cliques(comp_graph), key=len, default=[])
-            logger.info(
-                f"There are {len(indp_nodes)} indp nodes of {len(comp_graph.nodes)}. Removing them.")
             indp_moves_per_tile = {(r_idx, c_idx): []
                                    for (r_idx, c_idx) in self.active_tiles}
 
@@ -101,7 +99,6 @@ class Orchestrator:
             tile_reverse_indices = {
                 (row_idx, col_idx): len(self.tiles[row_idx][col_idx].result_json["instructions"]) for (row_idx, col_idx) in self.active_tiles}
             self.process_movement(layer, indp_moves_per_tile)
-            logger.info("Processed movements")
             self.aod_assignment(tile_reverse_indices)
             graph.remove_nodes_from(indp_nodes)
 
@@ -173,6 +170,7 @@ class Orchestrator:
                         combined_graph.add_edge(i, j)
                 if r_idx_1 != r_idx_2 and c_idx_1 != c_idx_2:
                     if not self.diagonal_compatible(tm1, tm2, layer, is_forward_move):
+                        logger.info(f"Edge ({i}, {j}) not diagonal compatible.")
                         combined_graph.add_edge(i, j)
 
         return combined_graph, global_move_data

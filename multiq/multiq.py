@@ -47,7 +47,7 @@ class MultiQ:
         compiler.set_programs(input_files)
         compiler.compile()
         
-        anim = Animator(self.arch, conf.grid_rows, conf.grid_cols)
+        anim = Animator(conf, conf.grid_rows, conf.grid_cols)
         anim.multi_animate(compiler.tiles, "test.mp4")
 
         
