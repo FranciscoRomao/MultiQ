@@ -113,7 +113,7 @@ class Orchestrator:
 
         for (r_idx, c_idx) in self.active_tiles:
             tile = self.tiles[r_idx][c_idx]
-
+            assert (tile)
             graph, moves = tile.nx_reverse_interference_graph(layer)
             if graph:
                 graphs.append((r_idx, c_idx, graph, moves))
@@ -141,7 +141,7 @@ class Orchestrator:
 
     def combine_nx_graphs(self, graphs: list[tuple[int, int, nx.Graph, list[Movement]]], layer: int, is_forward_move: bool) -> tuple[nx.Graph, list[TileMovement]]:
         """ Take a list of (tile_id, conflict graph, movement list) and combine it into a single graph """
-        graph_data: nx.Graph = [g for _, _, g, _ in graphs]
+        graph_data = [g for _, _, g, _ in graphs]
         if not graph_data:
             return nx.Graph(), []
 
@@ -186,7 +186,7 @@ class Orchestrator:
             with the other ones on the QPU.
         Returns True if compatible, False if there's a conflict.
         """
-        epsilon = 1e-9  # For floating point comparisons
+        epsilon = 1e-9
 
         # 1. Get global start coordinates for tm1 and tm2 movements
         global_m1 = self.global_movement(
