@@ -25,22 +25,18 @@ class PlacementOptimiser:
         self.grid_rows = config.grid_rows  # Use grid_rows from config
 
         # Filter out tiles with non-positive width, though _get_tile_grid_width handles 0.
-        self.tiles_to_place = [
-            t for t in tiles_to_place if hasattr(t, 'tile_width')]
-        if len(self.tiles_to_place) < len(tiles_to_place):
-            logger.warning(
-                "Some tiles were missing 'tile_width' attribute and were excluded from placement.")
+        self.tiles_to_place = tiles_to_place
 
-    def _get_tile_grid_width(self, tile: Tile | None) -> int:
+    def _get_tile_width_in_cells(self, tile: Tile | None) -> int:
         if tile is None:
             return 1  # An empty slot conceptually takes 1 grid column
-        # tile.tile_width is assumed to be the number of grid columns it occupies.
-        # Ensure it's at least 1.
-        return max(1, tile.tile_width if hasattr(tile, 'tile_width') else 1)
+        # tile.width is assumed to be set by Orchestrator as number of grid cells.
+        # tile.tile_width was an old attribute, ensure we use tile.width
+        return max(1, tile.width if hasattr(tile, 'width') else 1)
 
     def _can_place_tile(self, placement: list[list[Tile | None]], tile: Tile, r_root: int, c_root: int) -> bool:
         """Checks if a tile can be placed at (r_root, c_root) without overlaps."""
-        tile_w = self._get_tile_grid_width(tile)
+        tile_w = self._get_tile_width_in_cells(tile)
 
         if not (0 <= r_root < self.grid_rows):  # Row bounds
             return False
@@ -54,7 +50,7 @@ class PlacementOptimiser:
 
     def _place_tile(self, placement: list[list[Tile | None]], tile: Tile, r_root: int, c_root: int):
         """Places a tile at (r_root, c_root), marking its full extent."""
-        tile_w = self._get_tile_grid_width(tile)
+        tile_w = self._get_tile_width_in_cells(tile)
         placement[r_root][c_root] = tile
         # Mark subsequent cells covered by this tile as None
         for c_offset in range(1, tile_w):
@@ -71,49 +67,74 @@ class PlacementOptimiser:
 
     def count_inter_tile_conflicts(
         self,
-        move_graphs: list[tuple[int, int, nx.Graph, list[Movement]]]
+        # move_graphs: list of (anchor_r, anchor_c, tile_h_cells, tile_w_cells, intra_tile_graph, list_of_local_moves)
+        move_graphs: list[tuple[int, int, int, int, nx.Graph, list[Movement]]]
     ) -> int:
         """
         Counts potential inter-tile movement conflicts based on placement.
-        move_graphs: list of (tile_row_idx, tile_col_idx, intra_tile_graph, list_of_tile_moves)
+        Assumes Movement objects contain local coordinates.
         """
         if not move_graphs:
             return 0
 
-        all_moves_details = []
+        # Stores (global_node_idx, r_anchor, c_anchor, h_cells, w_cells, local_movement_obj)
+        all_moves_details = [] 
         node_offset = 0
-        for r_idx, c_idx, graph, moves in move_graphs:
-            for i, move_obj in enumerate(moves):
-                # (global_node_idx, tile_r, tile_c, movement_obj)
+        for r_anchor, c_anchor, h_cells, w_cells, graph, local_moves in move_graphs:
+            for i, local_move_obj in enumerate(local_moves):
                 all_moves_details.append(
-                    (node_offset + i, r_idx, c_idx, move_obj))
+                    (node_offset + i, r_anchor, c_anchor, h_cells, w_cells, local_move_obj))
             node_offset += graph.number_of_nodes()
 
         inter_tile_conflict_count = 0
         for i in range(len(all_moves_details)):
-            _global_idx1, r_idx_1, c_idx_1, mov1 = all_moves_details[i]
+            _global_idx1, r1_anchor, c1_anchor, h1_cells, w1_cells, local_mov1 = all_moves_details[i]
             for j in range(i + 1, len(all_moves_details)):
-                _global_idx2, r_idx_2, c_idx_2, mov2 = all_moves_details[j]
+                _global_idx2, r2_anchor, c2_anchor, h2_cells, w2_cells, local_mov2 = all_moves_details[j]
 
                 # Skip if moves are from the same tile
-                if r_idx_1 == r_idx_2 and c_idx_1 == c_idx_2:
+                if r1_anchor == r2_anchor and c1_anchor == c2_anchor:
                     continue
 
-                conflict = False
-                # Check row conflict: same grid row, different tiles
-                if r_idx_1 == r_idx_2:  # c_idx_1 != c_idx_2 is implied by prev check
-                    conflict |= not row_compatible(mov1, mov2)
-                # Check column conflict: same grid col, different tiles
-                elif c_idx_1 == c_idx_2:  # r_idx_1 != r_idx_2 is again implied
-                    conflict |= not column_compatible(mov1, mov2)
+                # Translate local movements to global physical coordinates
+                # Assumes tile's local (0,0) physical origin corresponds to the
+                # global physical origin of its anchor cell (r_anchor, c_anchor).
+                g_mov1 = Movement(
+                    local_mov1.qubit_index,
+                    local_mov1.start_x + c1_anchor * self.config.physical_cell_width_um,
+                    local_mov1.end_x   + c1_anchor * self.config.physical_cell_width_um,
+                    local_mov1.start_y + r1_anchor * self.config.physical_cell_height_um,
+                    local_mov1.end_y   + r1_anchor * self.config.physical_cell_height_um
+                )
+                g_mov2 = Movement(
+                    local_mov2.qubit_index,
+                    local_mov2.start_x + c2_anchor * self.config.physical_cell_width_um,
+                    local_mov2.end_x   + c2_anchor * self.config.physical_cell_width_um,
+                    local_mov2.start_y + r2_anchor * self.config.physical_cell_height_um,
+                    local_mov2.end_y   + r2_anchor * self.config.physical_cell_height_um
+                )
 
-                inter_tile_conflict_count += (1 if conflict else 0)
+                current_pair_conflict = False
+                # Check row conflict: Do their row spans (in grid cells) overlap?
+                if max(r1_anchor, r2_anchor) < min(r1_anchor + h1_cells, r2_anchor + h2_cells):
+                    if not row_compatible(g_mov1, g_mov2): 
+                        current_pair_conflict = True
+                
+                # Check column conflict: Do their column spans (in grid cells) overlap?
+                # Use 'if' not 'elif' in case tiles overlap in both row and column (e.g. same cell for 1x1 tiles)
+                if max(c1_anchor, c2_anchor) < min(c1_anchor + w1_cells, c2_anchor + w2_cells): 
+                    if not column_compatible(g_mov1, g_mov2): 
+                        current_pair_conflict = True
+
+                if current_pair_conflict:
+                    inter_tile_conflict_count += 1
 
         return inter_tile_conflict_count
 
     def calculate_contention(self, placement: list[list[Tile | None]]) -> float:
         """
         Calculates a contention score for a given placement. Considers all layers of movements.
+        Placement stores tiles at their top-left anchor. Tiles have .width and .height in cells.
         """
         total_contention_score = 0.0
         max_layers = 0
@@ -122,31 +143,27 @@ class PlacementOptimiser:
         for r_idx, row_tiles in enumerate(placement):
             for c_idx, tile in enumerate(row_tiles):
                 if tile and tile.gate_scheduling:
-                    max_layers = max(max_layers, len(tile.gate_scheduling))
+                    max_layers = max(max_layers, len(tile.gate_scheduling)) # tile is at its anchor
 
         if max_layers == 0:
             return 0.0  # no layers => no contention
 
         for layer_to_evaluate in range(max_layers):
-            graphs_for_this_layer: list[tuple[int,
-                                              int, nx.Graph, list[Movement]]] = []
+            # (anchor_r, anchor_c, h_cells, w_cells, intra_tile_graph, list_of_local_moves)
+            graphs_for_this_layer: list[tuple[int, int, int, int, nx.Graph, list[Movement]]] = []
             for r_idx, row_tiles in enumerate(placement):
                 for c_idx, tile in enumerate(row_tiles):
-                    if tile and tile.gate_scheduling and layer_to_evaluate < len(tile.gate_scheduling):
-                        # Calculate the physical offset of the tile's origin in the global grid
-                        # Assuming physical_col_width also applies to row height for square physical cells,
-                        # or that coordinates are effectively grid-based if physical_col_width is 1.
-
-                        offset_x = c_idx * self.config.physical_grid_width
-                        # offset_y = r_idx * self.config.physical_col_width # Or use a specific physical_row_height from config if available
-                        coord_offset_val = (offset_x, 0.0)
-
-                        graph, moves = tile.nx_interference_graph(
-                            layer_to_evaluate, coord_offset=coord_offset_val)
-                        if graph is not None and moves:
-                            # (tile_grid_row, tile_grid_col, intra_tile_graph, list_of_tile_moves)
-                            graphs_for_this_layer.append(
-                                (r_idx, c_idx, graph, moves))
+                    if tile: # tile is at its anchor (r_idx, c_idx)
+                        if tile.gate_scheduling and layer_to_evaluate < len(tile.gate_scheduling):
+                            # nx_interference_graph should NOT take coord_offset.
+                            # It returns local moves.
+                            graph, local_moves = tile.nx_interference_graph(layer_to_evaluate)
+                            if graph is not None and local_moves:
+                                # Pass tile's anchor (r_idx, c_idx) and its dimensions in cells
+                                # tile.height is assumed to be 1 cell for QPU rows.
+                                # tile.width is width in cells.
+                                graphs_for_this_layer.append(
+                                    (r_idx, c_idx, tile.height, tile.width, graph, local_moves))
 
             if graphs_for_this_layer:
                 layer_contention = self.count_inter_tile_conflicts(
@@ -184,24 +201,26 @@ class PlacementOptimiser:
                                 (r_idx, c_idx))
                         c_idx += 1  # Move to the next column to check as a potential root
                     else:
-                        # This cell is occupied by an existing tile's root. Skip its entire span.
-                        existing_tile_width = self._get_tile_grid_width(
+                        # This cell is occupied by an existing tile's root. Skip its entire cell span.
+                        existing_tile_width = self._get_tile_width_in_cells(
                             current_placement[r_idx][c_idx])
                         c_idx += existing_tile_width
 
             random.shuffle(possible_valid_starts_for_this_tile)
-
+            
             if possible_valid_starts_for_this_tile:
                 # Pick the first valid shuffled start
                 r_start, c_start = possible_valid_starts_for_this_tile[0]
                 self._place_tile(current_placement,
                                  tile_to_be_placed, r_start, c_start)
                 placed_this_tile = True
+                tile_to_be_placed.r_coord = r_start # Store anchor in tile
+                tile_to_be_placed.c_coord = c_start
                 num_actually_placed += 1
 
             if not placed_this_tile:
                 logger.warning(
-                    f"Could not place tile ({tile_to_be_placed.source_name}, width: {self._get_tile_grid_width(tile_to_be_placed)}) in initial random placement.")
+                    f"Could not place tile ({tile_to_be_placed.source_name}, width_cells: {self._get_tile_width_in_cells(tile_to_be_placed)}) in initial random placement.")
 
         if num_actually_placed < len(self.tiles_to_place):
             logger.warning(
@@ -220,7 +239,7 @@ class PlacementOptimiser:
             while c_idx < self.grid_cols:
                 cell_content = new_placement[r_idx][c_idx]
                 if isinstance(cell_content, Tile):
-                    width = self._get_tile_grid_width(cell_content)
+                    width = self._get_tile_width_in_cells(cell_content)
                     candidate_items_for_swap.append(
                         {'r': r_idx, 'c': c_idx, 'tile': cell_content, 'w': width})
                     c_idx += width
@@ -270,8 +289,12 @@ class PlacementOptimiser:
             self._clear_cells_for_tile(new_placement, r2, c2, w2)
             if tile2:
                 self._place_tile(new_placement, tile2, r1, c1)
+                tile2.r_coord, tile2.c_coord = r1, c1 # Update tile's own anchor
             if tile1:
                 self._place_tile(new_placement, tile1, r2, c2)
+                tile1.r_coord, tile1.c_coord = r2, c2 # Update tile's own anchor
+
+            # logger.debug(f"Swapped: Tile1 (w:{w1}) at ({r1},{c1}) with Tile2 (w:{w2}) at ({r2},{c2})")
             return new_placement
         else:
             # Swap is not fully valid, return a copy of the original state
@@ -283,8 +306,7 @@ class PlacementOptimiser:
         """
 
         if not self.tiles_to_place:
-            logger.info(
-                "No valid tiles to place (e.g. all have zero or undefined width).")
+            logger.info("No tiles provided to PlacementOptimiser.")
             return [[None for _ in range(self.grid_cols)] for _ in range(self.grid_rows)]
 
         current_placement = self.generate_initial_placement()

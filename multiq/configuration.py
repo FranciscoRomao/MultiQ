@@ -19,10 +19,10 @@ class MultiQConfig:
     has_dependency: bool = True
 
     # QPU configuration
-    grid_cols: int = 16 # 24 qubits wide
-    grid_rows: int = 2
-    physical_grid_width: int = 1 # 1 qubit = 1 col
-    physical_grid_height: int = 4 # 4 qubits high QPU
+    grid_cols: int = 16 # Number of grid cells horizontally
+    grid_rows: int = 2  # Number of QPU rows for tiles
+    physical_cell_width_um: float = 10.0  # physical width of one grid_col cell
+    physical_cell_height_um: float = 50.0 # physical height of one grid_row cell
 
     def __post_init__(self):
         if self.scheduling_strategy not in ["asap", "graph_coloring"]:

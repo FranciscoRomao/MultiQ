@@ -62,27 +62,39 @@ class Orchestrator:
                     t_col.flatten_rearrangment_instruction()
 
     def route_layer(self, layer: int):
-        graphs: list[tuple[int, int, nx.Graph, list]] = []
+        graphs_data_for_combine: list[tuple[int, int,
+                                            int, int, nx.Graph, list[Movement]]] = []
 
         for (r_idx, c_idx) in self.active_tiles:
+            # (r_idx, c_idx) are the anchor coordinates of the tile
             tile = self.tiles[r_idx][c_idx]
-            assert (tile)
+            assert (tile is not None)
+
+            tile_w_cells = tile.width
+            tile_h_cells = tile.height
+            if tile_w_cells <= 0 or tile_h_cells <= 0:
+                logger.error(f"Tile at ({r_idx},{c_idx}) has invalid width/height attributes "
+                             f"(width: {tile_w_cells}, height: {tile_h_cells}) during routing.")
+                self.active_tiles.remove((r_idx, c_idx))
+                continue
 
             if layer >= len(tile.gate_scheduling):
                 self.active_tiles.remove((r_idx, c_idx))
                 logger.info(
                     f"Removing tile_id ({r_idx}, {c_idx}) as it has finished")
                 continue
-            graph, moves = tile.nx_interference_graph(layer)
-            if graph:  # Ensure graph is not None
-                graphs.append((r_idx, c_idx, graph, moves))
+            intra_tile_graph, local_moves = tile.nx_interference_graph(
+                layer)  # Returns local movements
+            if intra_tile_graph and local_moves:  # Check both graph and moves
+                graphs_data_for_combine.append(
+                    (r_idx, c_idx, tile_h_cells, tile_w_cells, intra_tile_graph, local_moves))
 
-        if len(graphs) == 0:
+        if not graphs_data_for_combine:
             return
 
         # we now shadow the old graphs list with the combined graph
         graph, global_moves = self.combine_nx_graphs(
-            graphs, layer, is_forward_move=True)
+            graphs_data_for_combine, layer, is_forward_move=True)
 
         while graph.number_of_nodes() > 0:
             comp_graph = nx.complement(graph)
@@ -92,9 +104,11 @@ class Orchestrator:
 
             # partition the independent set by tile
             for i_node in indp_nodes:
-                tile_move: TileMovement = global_moves[i_node]
-                indp_moves_per_tile[(tile_move.row_idx, tile_move.col_idx)].append(
-                    tile_move.movement)
+                # global_moves now stores: (anchor_r, anchor_c, h_cells, w_cells, local_movement_obj)
+                # The TileMovement type might need adjustment or this unpacking needs care.
+                anchor_r, anchor_c, _, _, local_movement = global_moves[i_node]
+                indp_moves_per_tile[(anchor_r, anchor_c)
+                                    ].append(local_movement)
 
             tile_reverse_indices = {
                 (row_idx, col_idx): len(self.tiles[row_idx][col_idx].result_json["instructions"]) for (row_idx, col_idx) in self.active_tiles}
@@ -105,22 +119,27 @@ class Orchestrator:
         # add gate layers
         rydberg_instrs = self.process_gates(layer)
         self.rydberg_assignment(rydberg_instrs)
-        graphs.clear()
+        graphs_data_for_combine.clear()
 
         # gather reverse movements
-        graphs: list[tuple[int, int, nx.Graph, list]] = []
-        global_moves: list[TileMovement] = []
+        # graphs_data_for_combine was cleared, re-populate for reverse moves
 
         for (r_idx, c_idx) in self.active_tiles:
             tile = self.tiles[r_idx][c_idx]
             assert (tile)
-            graph, moves = tile.nx_reverse_interference_graph(layer)
-            if graph:
-                graphs.append((r_idx, c_idx, graph, moves))
+            tile_h_cells = tile.height
+            tile_w_cells = tile.width
+
+            intra_tile_graph, local_moves = tile.nx_reverse_interference_graph(
+                layer)  # Returns local movements
+            if intra_tile_graph is not None and local_moves:
+                graphs_data_for_combine.append(
+                    (r_idx, c_idx, tile_h_cells, tile_w_cells, intra_tile_graph, local_moves))
 
         # shadow graphs list again
         combined_graph, global_moves = self.combine_nx_graphs(
-            graphs, layer, is_forward_move=False)
+            graphs_data_for_combine, layer, is_forward_move=False)
+
         while combined_graph.number_of_nodes() > 0:
             comp_graph = nx.complement(combined_graph)
             indp_nodes = max(nx.find_cliques(comp_graph), key=len, default=[])
@@ -128,9 +147,9 @@ class Orchestrator:
                                    for (r_idx, c_idx) in self.active_tiles}
 
             for i_node in indp_nodes:
-                (row_idx, col_idx, movement) = global_moves[i_node]
-                indp_moves_per_tile[(row_idx, col_idx)].append(
-                    movement)
+                anchor_r, anchor_c, _h, _w, local_movement = global_moves[i_node]
+                indp_moves_per_tile[(anchor_r, anchor_c)
+                                    ].append(local_movement)
 
             tile_reverse_indices = {
                 (row_idx, col_idx): len(self.tiles[row_idx][col_idx].result_json["instructions"]) for (row_idx, col_idx) in self.active_tiles}
@@ -139,52 +158,85 @@ class Orchestrator:
             self.aod_assignment(tile_reverse_indices)
             combined_graph.remove_nodes_from(indp_nodes)
 
-    def combine_nx_graphs(self, graphs: list[tuple[int, int, nx.Graph, list[Movement]]], layer: int, is_forward_move: bool) -> tuple[nx.Graph, list[TileMovement]]:
-        """ Take a list of (tile_id, conflict graph, movement list) and combine it into a single graph """
-        graph_data = [g for _, _, g, _ in graphs]
+    def combine_nx_graphs(self,
+                          graphs_input: list[tuple[int, int, int, int, nx.Graph, list[Movement]]],
+                          layer: int,
+                          is_forward_move: bool
+                          ) -> tuple[nx.Graph, list[tuple[int, int, int, int, Movement]]]:
+        """
+        Take a list of (tile_anchor_r, tile_anchor_c, tile_h_cells, tile_w_cells,
+                         conflict_graph, list_of_local_movements)
+        and combine it into a single graph with inter-tile conflict edges.
+        Returns the combined graph and a list of
+        (anchor_r, anchor_c, h_cells, w_cells, local_movement_obj) for global node indexing.
+        """
+        graph_data = [g for _, _, _, _, g,
+                      _ in graphs_input]  # Extract intra-tile conflict graphs
         if not graph_data:
             return nx.Graph(), []
 
         # nodes become [0,...,len(g_1),...,len(g_2),...]
         combined_graph = nx.disjoint_union_all(graph_data)
         # combined_graph's nodes index into this list
-        global_move_data: list[TileMovement] = []
-
-        for r_idx, c_idx, _, moves_for_tile in graphs:
-            for move in moves_for_tile:
-                global_move_data.append(TileMovement(r_idx, c_idx, move))
+        # Stores (anchor_r, anchor_c, h_cells, w_cells, local_movement_obj)
+        global_move_data: list[tuple[int, int, int, int, Movement]] = []
+        for r_anchor, c_anchor, h_cells, w_cells, _, local_moves_for_tile in graphs_input:
+            for local_move in local_moves_for_tile:
+                global_move_data.append(
+                    (r_anchor, c_anchor, h_cells, w_cells, local_move))
 
         for i, tm1 in enumerate(global_move_data):
-            for j, tm2 in enumerate(global_move_data):
+            for j, tm2_data in enumerate(global_move_data):
                 if i >= j:  # Avoid self-loops and duplicate checks
                     continue
 
-                r_idx_1, c_idx_1, mov1 = tm1.row_idx, tm1.col_idx, tm1.movement
-                r_idx_2, c_idx_2, mov2 = tm2.row_idx, tm2.col_idx, tm2.movement
+                r1_anchor, c1_anchor, h1_cells, w1_cells, local_mov1 = tm1
+                r2_anchor, c2_anchor, h2_cells, w2_cells, local_mov2 = tm2_data
 
-                if r_idx_1 == r_idx_2 and c_idx_1 != c_idx_2:
-                    if not row_compatible(mov1, mov2):
+                # Skip if moves are from the same tile (check by anchor point)
+                if r1_anchor == r2_anchor and c1_anchor == c2_anchor:
+                    continue
+
+                # Translate local movements to global physical coordinates for comparison
+                g_mov1 = self.global_movement(r1_anchor, c1_anchor, local_mov1)
+                g_mov2 = self.global_movement(r2_anchor, c2_anchor, local_mov2)
+
+                if max(r1_anchor, r2_anchor) < min(r1_anchor + h1_cells, r2_anchor + h2_cells):
+                    if not row_compatible(g_mov1, g_mov2):
+                        logger.info(
+                            f"Edge ({i}, {j}) not row compatible.")
                         combined_graph.add_edge(i, j)
-                if c_idx_1 == c_idx_2 and r_idx_1 != r_idx_2:
-                    if not column_compatible(mov1, mov2):
+                if max(c1_anchor, c2_anchor) < min(c1_anchor + w1_cells, c2_anchor + w2_cells):
+                    if not column_compatible(g_mov1, g_mov2):
+                        logger.info(
+                            f"Edge ({i}, {j}) not col compatible.")
                         combined_graph.add_edge(i, j)
-                if r_idx_1 != r_idx_2 and c_idx_1 != c_idx_2:
-                    if not self.diagonal_compatible(tm1, tm2, layer, is_forward_move):
-                        logger.info(f"Edge ({i}, {j}) not diagonal compatible.")
+                tile_mov1_for_diag = TileMovement(
+                    r1_anchor, c1_anchor, local_mov1)
+                tile_mov2_for_diag = TileMovement(
+                    r2_anchor, c2_anchor, local_mov2)
+                if r1_anchor != r2_anchor and c1_anchor != c2_anchor:  # Only for truly diagonal tiles
+                    if not self.diagonal_compatible(tile_mov1_for_diag, tile_mov2_for_diag, layer, is_forward_move):
+                        logger.info(
+                            f"Edge ({i}, {j}) not diagonal compatible.")
                         combined_graph.add_edge(i, j)
 
         return combined_graph, global_move_data
 
-    def global_movement(self, r_idx, c_idx, m: Movement) -> Movement:
-        """ Convert a tile-local movement into a QPU-global movement """
-        y_offset = c_idx * self.config.physical_grid_width
-        x_offset = r_idx * self.config.physical_grid_width
+    def global_movement(self, tile_anchor_r: int, tile_anchor_c: int, m: Movement) -> Movement:
+        """ 
+        Convert a tile-local movement (physical coords within tile) into QPU-global physical coordinates.
+        tile_anchor_r, tile_anchor_c are the grid cell indices of the tile's top-left corner.
+        """
+        x_offset = tile_anchor_c * self.config.physical_cell_width_um
+        y_offset = tile_anchor_r * self.config.physical_cell_height_um
+
         return Movement(m.qubit_index, m.start_x + x_offset, m.end_x + x_offset, m.start_y + y_offset, m.end_y + y_offset)
 
     def diagonal_compatible(self, tm1: TileMovement, tm2: TileMovement, layer: int, is_forward_move: bool) -> bool:
-        """ Check if two movements (from different, diagonal tiles) are compatible
-            with the other ones on the QPU.
-        Returns True if compatible, False if there's a conflict.
+        """ 
+        Check if two movements (from different, diagonal tiles) are compatible with the other ones on the QPU.
+        returns True if compatible, False if there's a conflict.
         """
         epsilon = 1e-9
 
@@ -214,9 +266,10 @@ class Orchestrator:
                     if target_tile is None:
                         continue
 
-                    # Calculate tile's origin in global coordinates (consistent with global_movement)
-                    tile_origin_global_x = r_target * self.config.physical_grid_width
-                    tile_origin_global_y = c_target * self.config.physical_grid_width
+                    # Calculate the target_tile's origin in global physical coordinates
+                    # r_target, c_target are grid cell indices for target_tile's anchor
+                    tile_origin_global_x = c_target * self.config.physical_cell_width_um
+                    tile_origin_global_y = r_target * self.config.physical_cell_height_um
 
                     # Convert global intersection point to local coordinates within this target_tile
                     local_x_in_target = gx - tile_origin_global_x
@@ -403,9 +456,6 @@ class Orchestrator:
                 gate_instrs[(r_idx, c_idx)] = initial_indx
 
         return gate_instrs
-
-    # def parse_setting(self, setting: dict):
-    #     self.config = MultiQConfig.from_config(setting)
 
     def compile(self):
         # gate shceduling and placement are done per-tile with no cross-tile considerations

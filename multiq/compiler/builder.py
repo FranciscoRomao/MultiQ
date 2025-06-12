@@ -3,10 +3,11 @@ from zac.ds.architecture import Architecture
 
 from .tile import Tile
 
-# build (global) instructions for the orchestrator
 
 
 class InstructionBuilder:
+    """ Build global instructions for the orchestrator. """
+
     def write_initial_instruction(self, tile: Tile):
         end_time = 0.0
         tile.result_json["instructions"].clear()
@@ -16,7 +17,7 @@ class InstructionBuilder:
                 "id": 0,
                 "begin_time": 0,
                 "end_time": 0,
-                # (qubit, aod_idx=0, row, col)
+                # format: (qubit, aod_idx=0, row, col)
                 "init_locs": [[i, tile.qubit_mapping[0][i][0], tile.qubit_mapping[0][i][1], tile.qubit_mapping[0][i][2]]
                               for i in range(tile.n_q)]
             }

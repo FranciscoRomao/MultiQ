@@ -420,8 +420,8 @@ class Animator:
                 if tile:
                     if not default_arch_for_empty: default_arch_for_empty = tile.architecture
                     phys_w = tile.architecture.arch_range[1][0] - tile.architecture.arch_range[0][0]
-                    phys_h = tile.architecture.arch_range[1][1] - tile.architecture.arch_range[0][1]
-                    grid_w_span = getattr(tile, 'tile_width', 1) # Assumes tile_width is num grid cells
+                    phys_h = tile.architecture.arch_range[1][1] - tile.architecture.arch_range[0][1] # Physical height of tile's content
+                    grid_w_span = tile.width # Width in grid cells
                     
                     max_phys_width_per_grid_cell = max(max_phys_width_per_grid_cell, phys_w / grid_w_span)
                     max_phys_height_per_grid_cell = max(max_phys_height_per_grid_cell, phys_h) # Assuming height span is 1
@@ -456,7 +456,7 @@ class Animator:
 
                 tile = tiles[r][c]
                 if tile:
-                    tile_grid_width_span = getattr(tile, 'tile_width', 1)
+                    tile_grid_width_span = tile.width
                     ax = fig.add_subplot(gs[r, c : c + tile_grid_width_span])
                     
                     current_tile_arch = tile.architecture

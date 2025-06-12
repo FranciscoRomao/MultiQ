@@ -49,7 +49,8 @@ class Tile(Scheduler_mixin, Placer_mixin, Verifier_mixin, Router_mixin):
         self.reuse_qubit = None
         self.qubit_mapping = []
 
-        self.tile_width = 0
+        self.width = 0 # in number of grid cells!
+        self.height = 1
 
     def prepare_routing(self):
         """ Clear the dependency tracking datastructures for routing. """
@@ -196,7 +197,7 @@ class Tile(Scheduler_mixin, Placer_mixin, Verifier_mixin, Router_mixin):
             arch_json = json.load(f)
             # TODO: design a smarter tile size. Right now it's just the #qubits, making the top row always full.
             arch_json["storage_zones"][0]["slms"][0]["c"] = self.n_q
-            self.tile_width = self.n_q * self.config.physical_grid_width
+            self.width = self.n_q
 
             arch = Architecture(arch_json)
             arch.preprocessing()
