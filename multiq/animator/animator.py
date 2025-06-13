@@ -373,27 +373,30 @@ class Animator:
         matplotlib.rcParams.update({'font.size': font_size})
         plt.rcParams['animation.ffmpeg_path'] = ffmpeg
 
-        self.fig = self.setup_canvas(tiles, scaling_factor, inches_per_micron_calc=PT_MICRON / plt.rcParams['figure.dpi'])
+        self.fig = self.setup_canvas(
+            tiles, scaling_factor, inches_per_micron_calc=PT_MICRON / plt.rcParams['figure.dpi'])
         self.inst_str = ''
 
         # Create the animation classes for the tiles
         # self.axes_map is populated by setup_canvas, mapping (r,c_root) to an Axes object
         # self.anims maps (r,c_root) of a tile to its TileAnimation instance
-        self.anims: dict[tuple[int,int], TileAnimation | None] = {(r,c) : None for r in range(self.grid_rows) for c in range(self.grid_cols)}
+        self.anims: dict[tuple[int, int], TileAnimation | None] = {
+            (r, c): None for r in range(self.grid_rows) for c in range(self.grid_cols)}
         for r, row in enumerate(tiles):
             for c, tile in enumerate(row):
                 if tile:
                     # Use self.axes_map which is populated by the new setup_canvas
                     # (r,c) is the root coordinate of the tile.
-                    self.anims[(r,c)] = TileAnimation(tile.result_json, tile.architecture, self.axes_map[(r,c)])
-
+                    self.anims[(r, c)] = TileAnimation(
+                        tile.result_json, tile.architecture, self.axes_map[(r, c)])
 
         # Use longest tile anim as frame count
         schedules_durations = {}
         for (r_root, c_root), anim_instance in self.anims.items():
             if anim_instance is not None:
-                schedules_durations[(r_root, c_root)] = anim_instance.create_schedule()
-        
+                schedules_durations[(r_root, c_root)
+                                    ] = anim_instance.create_schedule()
+
         n_frames = 0
         if schedules_durations:
             n_frames = max(schedules_durations.values())
@@ -408,7 +411,7 @@ class Animator:
 
     def setup_canvas(self, tiles: list[list[Tile | None]], scaling_factor: int, inches_per_micron_calc: float):
         """set up various objects before actually drawing."""
-        
+
         # Calculate figsize based on representative cell size
         max_phys_width_per_grid_cell = 0
         max_phys_height_per_grid_cell = 0
@@ -418,35 +421,47 @@ class Animator:
             for c_idx in range(self.grid_cols):
                 tile = tiles[r_idx][c_idx]
                 if tile:
-                    if not default_arch_for_empty: default_arch_for_empty = tile.architecture
-                    phys_w = tile.architecture.arch_range[1][0] - tile.architecture.arch_range[0][0]
-                    phys_h = tile.architecture.arch_range[1][1] - tile.architecture.arch_range[0][1] # Physical height of tile's content
-                    grid_w_span = tile.width # Width in grid cells
-                    
-                    max_phys_width_per_grid_cell = max(max_phys_width_per_grid_cell, phys_w / grid_w_span)
-                    max_phys_height_per_grid_cell = max(max_phys_height_per_grid_cell, phys_h) # Assuming height span is 1
+                    if not default_arch_for_empty:
+                        default_arch_for_empty = tile.architecture
+                    phys_w = tile.architecture.arch_range[1][0] - \
+                        tile.architecture.arch_range[0][0]
+                    # Physical height of tile's content
+                    phys_h = tile.architecture.arch_range[1][1] - \
+                        tile.architecture.arch_range[0][1]
+                    grid_w_span = tile.width  # Width in grid cells
 
-        if max_phys_width_per_grid_cell == 0 and default_arch_for_empty: # Grid might be all None
-            max_phys_width_per_grid_cell = default_arch_for_empty.arch_range[1][0] - default_arch_for_empty.arch_range[0][0]
+                    max_phys_width_per_grid_cell = max(
+                        max_phys_width_per_grid_cell, phys_w / grid_w_span)
+                    max_phys_height_per_grid_cell = max(
+                        max_phys_height_per_grid_cell, phys_h)  # Assuming height span is 1
+
+        if max_phys_width_per_grid_cell == 0 and default_arch_for_empty:  # Grid might be all None
+            max_phys_width_per_grid_cell = default_arch_for_empty.arch_range[
+                1][0] - default_arch_for_empty.arch_range[0][0]
         if max_phys_height_per_grid_cell == 0 and default_arch_for_empty:
-            max_phys_height_per_grid_cell = default_arch_for_empty.arch_range[1][1] - default_arch_for_empty.arch_range[0][1]
-        if max_phys_width_per_grid_cell == 0: max_phys_width_per_grid_cell = 50 # Fallback
-        if max_phys_height_per_grid_cell == 0: max_phys_height_per_grid_cell = 50 # Fallback
+            max_phys_height_per_grid_cell = default_arch_for_empty.arch_range[
+                1][1] - default_arch_for_empty.arch_range[0][1]
+        if max_phys_width_per_grid_cell == 0:
+            max_phys_width_per_grid_cell = 50  # Fallback
+        if max_phys_height_per_grid_cell == 0:
+            max_phys_height_per_grid_cell = 50  # Fallback
 
         # Add canvas padding to the representative cell size for figsize calculation
         effective_cell_width_um = max_phys_width_per_grid_cell + 2 * CANVAS_PADDING
         effective_cell_height_um = max_phys_height_per_grid_cell + 2 * CANVAS_PADDING
 
-        total_figure_width_um = self.grid_cols * effective_cell_width_um + max(0, self.grid_cols - 1) * TILE_PADDING
-        total_figure_height_um = self.grid_rows * effective_cell_height_um + max(0, self.grid_rows - 1) * TILE_PADDING
-        
+        total_figure_width_um = self.grid_cols * effective_cell_width_um + \
+            max(0, self.grid_cols - 1) * TILE_PADDING
+        total_figure_height_um = self.grid_rows * effective_cell_height_um + \
+            max(0, self.grid_rows - 1) * TILE_PADDING
+
         fig_width_inches = total_figure_width_um * inches_per_micron_calc
         fig_height_inches = total_figure_height_um * inches_per_micron_calc
 
         fig = plt.figure(figsize=(fig_width_inches, fig_height_inches))
         gs = GridSpec(self.grid_rows, self.grid_cols, figure=fig)
 
-        self.axes_map: dict[tuple[int,int], plt.Axes] = {}
+        self.axes_map: dict[tuple[int, int], plt.Axes] = {}
         processed_cells = set()
 
         for r in range(self.grid_rows):
@@ -457,8 +472,8 @@ class Animator:
                 tile = tiles[r][c]
                 if tile:
                     tile_grid_width_span = tile.width
-                    ax = fig.add_subplot(gs[r, c : c + tile_grid_width_span])
-                    
+                    ax = fig.add_subplot(gs[r, c: c + tile_grid_width_span])
+
                     current_tile_arch = tile.architecture
                     ax.set_xlim([
                         current_tile_arch.arch_range[0][0] - CANVAS_PADDING,
@@ -468,22 +483,41 @@ class Animator:
                         current_tile_arch.arch_range[0][1] - CANVAS_PADDING,
                         current_tile_arch.arch_range[1][1] + CANVAS_PADDING
                     ])
-                    self.axes_map[(r,c)] = ax # Store ax by root coordinate
+                    # Add semi-transparent grid lines to the tile's subplot
+                    ax.grid(True, linestyle=':', alpha=0.4, color='grey')
+                    self.axes_map[(r, c)] = ax  # Store ax by root coordinate
 
                     for k_col_offset in range(tile_grid_width_span):
                         processed_cells.add((r, c + k_col_offset))
-                else: # This is an empty slot not covered by a multi-width tile
+                else:  # This is an empty slot not covered by a multi-width tile
                     ax = fig.add_subplot(gs[r, c])
-                    ax.axis('off') # Make empty slots invisible
+                    ax.axis('off')  # Make empty slots invisible
                     # self.axes_map[(r,c)] = ax # Optionally store if needed
-                    processed_cells.add((r,c))
-                
-                if (r,c) in self.axes_map: # If an axis was created for this root
-                    self.axes_map[(r,c)].set_xticks([])
-                    self.axes_map[(r,c)].set_yticks([])
-                    self.axes_map[(r,c)].set_aspect('equal', adjustable='box')
+                    processed_cells.add((r, c))
 
-        fig.tight_layout(pad=0.5, h_pad=TILE_PADDING * inches_per_micron_calc, w_pad=TILE_PADDING * inches_per_micron_calc)
+                if (r, c) in self.axes_map:  # If an axis was created for this root
+                    self.axes_map[(r, c)].set_xticks([])
+                    self.axes_map[(r, c)].set_yticks([])
+                    self.axes_map[(r, c)].set_aspect('equal', adjustable='box')
+
+        fig.tight_layout(
+            pad=0.5,  # Padding within the rect
+            h_pad=TILE_PADDING * inches_per_micron_calc,
+            w_pad=TILE_PADDING * inches_per_micron_calc,
+            rect=[0.02, 0.02, 0.97, 0.97]
+        )
+
+        border_rect = matplotlib.patches.Rectangle(
+            # (x, y), width, height in figure coordinates
+            (0.01, 0.01), 0.98, 0.98,
+            transform=fig.transFigure,
+            edgecolor='black',
+            linewidth=1.0,
+            fill=False,
+            clip_on=False,
+            zorder=1000
+        )
+        fig.add_artist(border_rect)
         return fig
 
     # Initial frame over all subplots
