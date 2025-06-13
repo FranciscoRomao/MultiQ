@@ -1,7 +1,7 @@
 
 import networkx as nx
 
-from multiq.types.movement import Movement
+from multiq.types import Movement
 
 
 class GraphOperations_mixin:

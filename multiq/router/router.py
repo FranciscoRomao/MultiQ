@@ -3,7 +3,7 @@ import time
 from .graph import GraphOperations_mixin
 from .instruction import Instructions_mixin
 
-from multiq.types.movement import Movement
+from multiq.types import Movement
 
 class Router_mixin(GraphOperations_mixin, Instructions_mixin):
 

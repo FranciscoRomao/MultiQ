@@ -5,7 +5,9 @@ import math
 import networkx as nx
 
 from .tile import Tile
-from multiq.types import Movement, row_compatible, column_compatible
+from .movement import row_compatible, column_compatible, diagonal_compatible, global_movement
+
+from multiq.types import Movement, TileMovement
 from multiq.configuration import MultiQConfig
 
 logger = logging.getLogger("multiq")
@@ -18,21 +20,17 @@ class PlacementOptimiser:
         Args:
             grid_rows (int): Grid rows.
             grid_cols (int): Grid columns.
-            tiles_to_place (list[ZacTile]): The tiles to place. Must not contain any None objects.
+            tiles_to_place (list[Tile]): The tiles to place. Must not contain any None objects.
         """
         self.config = config
         self.grid_cols = config.grid_cols
-        self.grid_rows = config.grid_rows  # Use grid_rows from config
-
-        # Filter out tiles with non-positive width, though _get_tile_grid_width handles 0.
+        self.grid_rows = config.grid_rows
         self.tiles_to_place = tiles_to_place
 
     def _get_tile_width_in_cells(self, tile: Tile | None) -> int:
         if tile is None:
-            return 1  # An empty slot conceptually takes 1 grid column
-        # tile.width is assumed to be set by Orchestrator as number of grid cells.
-        # tile.tile_width was an old attribute, ensure we use tile.width
-        return max(1, tile.width if hasattr(tile, 'width') else 1)
+            return 1          
+        return max(1, tile.width)
 
     def _can_place_tile(self, placement: list[list[Tile | None]], tile: Tile, r_root: int, c_root: int) -> bool:
         """Checks if a tile can be placed at (r_root, c_root) without overlaps."""
@@ -67,8 +65,10 @@ class PlacementOptimiser:
 
     def count_inter_tile_conflicts(
         self,
+        placement,
         # move_graphs: list of (anchor_r, anchor_c, tile_h_cells, tile_w_cells, intra_tile_graph, list_of_local_moves)
-        move_graphs: list[tuple[int, int, int, int, nx.Graph, list[Movement]]]
+        move_graphs: list[tuple[int, int, int, int, nx.Graph, list[Movement]]],
+        layer: int
     ) -> int:
         """
         Counts potential inter-tile movement conflicts based on placement.
@@ -121,13 +121,18 @@ class PlacementOptimiser:
                         current_pair_conflict = True
                 
                 # Check column conflict: Do their column spans (in grid cells) overlap?
-                # Use 'if' not 'elif' in case tiles overlap in both row and column (e.g. same cell for 1x1 tiles)
                 if max(c1_anchor, c2_anchor) < min(c1_anchor + w1_cells, c2_anchor + w2_cells): 
                     if not column_compatible(g_mov1, g_mov2): 
                         current_pair_conflict = True
 
-                if current_pair_conflict:
-                    inter_tile_conflict_count += 1
+                tile_mov1_for_diag = TileMovement(
+                    r1_anchor, c1_anchor, local_mov1)
+                tile_mov2_for_diag = TileMovement(
+                    r2_anchor, c2_anchor, local_mov2)
+                if not diagonal_compatible(self.config, placement, tile_mov1_for_diag, tile_mov2_for_diag, layer, True):
+                    current_pair_conflict = True
+
+                inter_tile_conflict_count += (1 if current_pair_conflict else 0)
 
         return inter_tile_conflict_count
 
@@ -166,8 +171,8 @@ class PlacementOptimiser:
                                     (r_idx, c_idx, tile.height, tile.width, graph, local_moves))
 
             if graphs_for_this_layer:
-                layer_contention = self.count_inter_tile_conflicts(
-                    graphs_for_this_layer)
+                layer_contention = self.count_inter_tile_conflicts(placement,
+                    graphs_for_this_layer, layer_to_evaluate)
                 total_contention_score += float(layer_contention)
 
         return total_contention_score
