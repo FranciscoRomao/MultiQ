@@ -1,7 +1,10 @@
+import logging
+import os
+import json
+
 from zac.ds.architecture import Architecture
 
 import networkx as nx
-import logging
 
 from multiq.configuration import MultiQConfig
 
@@ -426,3 +429,15 @@ class Orchestrator:
             tile.parse_setting(zac_settings)
             tile.load_program(source)
             self.tiles_to_place.append(tile)
+
+            
+    def write_output(self, output_dir: str):
+        """ Write the output of each tile into the results directory """
+        
+        for i, row in enumerate(self.tiles):
+            for j, tile in enumerate(row):
+                if tile:
+                    filename = os.path.basename(tile.source_name)
+                    filename = os.path.splitext(filename)[0] + ".json"
+                    with open(os.path.join(output_dir, filename), "w+") as f:
+                        f.write(json.dumps(tile.result_json))
