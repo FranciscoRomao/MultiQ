@@ -50,6 +50,7 @@ class MultiQ:
         compiler = Orchestrator(self.arch, conf)
         compiler.set_programs(self.tiles)
         compiler.compile()
+        compiler.write_output("./results")
         
         anim = Animator(conf, conf.grid_rows, conf.grid_cols)
         anim.multi_animate(compiler.tiles, "test.mp4")
