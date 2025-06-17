@@ -49,6 +49,10 @@ class MultiQConfig:
     # Animation Settings
     arch_padding = 1
 
+    r1q_time = 12.0 #us. Duration of an entire row 1q application using AoD lasers.
+    storage_zone_rows = 4
+
+
     def __post_init__(self):
         if self.scheduling_strategy not in ["asap", "graph_coloring"]:
              raise ValueError(f"Unknown scheduling_strategy: {self.scheduling_strategy}")

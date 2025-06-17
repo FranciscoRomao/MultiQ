@@ -3,6 +3,8 @@ from zac.ds.architecture import Architecture
 
 from .tile import Tile
 
+from multiq.configuration import MultiQConfig
+
 import logging
 
 logger = logging.getLogger("multiq")
@@ -10,6 +12,8 @@ logger = logging.getLogger("multiq")
 
 class InstructionBuilder:
     """ Build global instructions for the orchestrator. """
+    def __init__(self, config: MultiQConfig):
+        self.config = config
 
     def write_initial_instruction(self, tiles: list[list[Tile | None]]):
         for row_idx, row in enumerate(tiles):
@@ -34,12 +38,11 @@ class InstructionBuilder:
     def row_1q_gate_instruction(self, tiles: list[list[Tile | None]]):
         """ Instead of applying 1q gates serially, apply a whole row at a time using AoD laser. """
 
-        r1q_time = 12.0  # us
-        storage_zone_rows = 4
+        r1q_time = self.config.r1q_time
         end_time = 0.0
 
         # process the gates per tile row so that we can use row-based 1q gate application
-        for tile_row in range(storage_zone_rows):
+        for tile_row in range(self.config.storage_zone_rows):
             pulse_applied = False
             for _, row in enumerate(tiles):
                 for _, tile in enumerate(row):
