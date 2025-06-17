@@ -1,8 +1,10 @@
 """
-This file contains the implementation of the animator class, 
-which allows multiple tiles to be shown side-by-side. It is 
+This file contains the implementation of the animator class,
+which allows multiple tiles to be shown side-by-side. It is
 based upon the animator in ZAC but has been extended and cleaned-up.
 """
+
+import logging
 
 from matplotlib.animation import FFMpegWriter, FuncAnimation
 import matplotlib.pyplot as plt
@@ -34,6 +36,8 @@ SLM_COLOR = 'g'
 QUBIT_COLOR = 'k'
 AOD_COLORS = ['r', 'c', 'm', 'y']  # max 4 aods so far
 AOD_TRANS = 0.7
+
+logger = logging.getLogger("multiq")
 
 
 class TileAnimation:
@@ -127,6 +131,8 @@ class TileAnimation:
 
         # initialize single qubit gates
         self.qubit_1qGate = []
+        self.row_1qGate_rects = []  # holds the rect patches for row 1q gates
+
         return
 
     def update(self, f: int):  # f is the frame
@@ -158,6 +164,10 @@ class TileAnimation:
         # reset 1qGate to trivial
         for gate in self.qubit_1qGate:
             gate.remove()
+        # reset row 1q gates
+        for rect in self.row_1qGate_rects:
+            rect.remove()
+        self.row_1qGate_rects = []
         self.qubit_1qGate = []
         # reset AOD color to trivial
         for aod_id, aod in self.architecture.dict_AOD.items():
@@ -281,14 +291,50 @@ class TileAnimation:
 
     def update_row1qGate(self, inst: dict):
         self.inst_str += f' | {inst["id"]} {inst["type"]} \n elapsed time: {inst["end_time"]:.2f}'
+        row_index = inst["row"]
+        if not inst["locs"]:
+            return
 
-        for g in inst['gates']:
-            q = g['q']
-            x = self.qubit_xs[q]
-            y = self.qubit_ys[q]
-            self.qubit_1qGate.append(self.ax.scatter(
-                x, y, s=300, color=(0.5, 0.5, 0, 0.5)))
+        first_loc = inst["locs"][0] # (q_id, slm_id, r, c)
+        slm_id_for_y = first_loc[1]
+        col_id_for_y = first_loc[3] # FIXME: assuming we have at least this #colums
 
+        y_centre = None
+        row_height = 10 # or some sensible default
+        try:
+            y_centre = self.architecture.exact_SLM_location(slm_id_for_y, row_index, col_id_for_y)[1]
+            # calculate row height based on distance between row centers if possible
+            if slm_id_for_y in self.architecture.dict_SLM:
+                slm_array = self.architecture.dict_SLM[slm_id_for_y]
+                if slm_array.n_r > row_index + 1: # Check if the next row exists
+                     y_center_next_row = self.architecture.exact_SLM_location(slm_id_for_y, row_index + 1, col_id_for_y)[1]
+                     row_height = abs(y_center_next_row - y_centre)
+                elif row_index > 0 and slm_array.n_r > row_index - 1: # Check if the previous row exists
+                     y_center_prev_row = self.architecture.exact_SLM_location(slm_id_for_y, row_index - 1, col_id_for_y)[1]
+                     row_height = abs(y_centre - y_center_prev_row)
+        except (IndexError, KeyError):
+            logger.warning(f"SLM locations not accurate in animator. Can't draw row 1q gate pulse.")
+
+        if y_centre is None:
+             return
+
+        rect_x = self.architecture.arch_range[0][0]
+        rect_y = y_centre - row_height / 2 # Calculate bottom edge y
+        rect_width = self.architecture.arch_range[1][0] - self.architecture.arch_range[0][0] # Full width of tile architecture
+        rect_height = row_height
+
+        # Draw the rectangle
+        rect = matplotlib.patches.Rectangle(
+            (rect_x, rect_y),
+            rect_width,
+            rect_height,
+            linewidth=0, # No border
+            edgecolor='none',
+            facecolor=(0, 1, 0, 0.3) # Green, semi-transparent
+        )
+        self.ax.add_patch(rect)
+        self.row_1qGate_rects.append(rect) # so we know to remove the patch in next frame
+ 
 
     def update_1qGate(self, inst: dict):
         self.inst_str += f' | {inst["id"]} {inst["type"]} \n elapsed time: {inst["end_time"]:.2f}'
