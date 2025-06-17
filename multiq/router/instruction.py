@@ -299,4 +299,20 @@ class Instructions_mixin:
             }
         )
 
+    def write_row1q_gate_instruction(self, row_idx: int, inst_idx: int, result_gate: list, dependency: dict, gate_mapping: list):
+        locs = []
+        for gate in result_gate:
+            locs.append((gate["q"], gate_mapping[gate["q"]][0],
+                        gate_mapping[gate["q"]][1], gate_mapping[gate["q"]][2]))
 
+        self.result_json['instructions'].append(
+            {
+                "type": "row1qGate",
+                "unitary": "u3",
+                "id": inst_idx,
+                "row": row_idx,
+                "locs": locs,
+                "gates": result_gate,
+                "dependency": dependency
+            }
+        )

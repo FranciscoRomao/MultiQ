@@ -299,7 +299,6 @@ class PlacementOptimiser:
                 self._place_tile(new_placement, tile1, r2, c2)
                 tile1.r_coord, tile1.c_coord = r2, c2 # Update tile's own anchor
 
-            # logger.debug(f"Swapped: Tile1 (w:{w1}) at ({r1},{c1}) with Tile2 (w:{w2}) at ({r2},{c2})")
             return new_placement
         else:
             # Swap is not fully valid, return a copy of the original state
