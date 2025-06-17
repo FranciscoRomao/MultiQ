@@ -4,6 +4,7 @@ from zac.verifier.verifier import Verifier_mixin
 from zac.ds.architecture import Architecture
 from scipy.sparse import csr_matrix
 from scipy.sparse.csgraph import maximum_bipartite_matching
+from qiskit.circuit import QuantumCircuit
 
 import qiskit.qasm2 as qasm2
 from qiskit import transpile
@@ -19,7 +20,10 @@ class ZacTile(Scheduler_mixin, Placer_mixin, Verifier_mixin, Router_mixin):
         self.n_g = 0
         self.g_q = []
 
+        self.circuit : QuantumCircuit = None
+        self.source_name = ""
         self.dir = "./result/"
+        self.circuit_file : str = None
         self.architecture = None
         self.result_json = {
             'name': "", 'architecture_spec_path': None, 'instructions': [], "runtime": 0}
@@ -43,6 +47,9 @@ class ZacTile(Scheduler_mixin, Placer_mixin, Verifier_mixin, Router_mixin):
         self.reuse_qubit = None
 
         self.qubit_mapping = []
+
+        self.width = 1 # in number of grid cells!
+        self.height = 1
 
     def prepare_routing(self):
 
@@ -176,5 +183,14 @@ class ZacTile(Scheduler_mixin, Placer_mixin, Verifier_mixin, Router_mixin):
         if "resyn" in setting:
             self.resyn = setting["resyn"]
 
-    def set_architecture(self, arch: Architecture):
-        self.architecture = arch
+    def _set_architecture(self, arch_json: str = 'zac_config/toy_architecture.json'):
+        # just use n_q as the number of cols in the tile for now
+        with open(arch_json, "r") as f:
+            arch_json = json.load(f)
+            arch = Architecture(arch_json)
+            arch.preprocessing()
+            self.architecture = arch
+
+    def calculate_global_pos(self, anchor_pos: tuple[int, int]) -> tuple[int, int]:
+        # transforms the anchor position to its global coord by multiplying it with the tile width
+        pass

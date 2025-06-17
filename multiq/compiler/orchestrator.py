@@ -348,15 +348,14 @@ class Orchestrator:
                 if tile is not None:
                     logger.info(f"Tile ({i},{j}): {tile.result_json["runtime"]} ms")
 
-    def set_programs(self, source_files: list[str]):
-        if len(source_files) > self.grid_rows * self.grid_cols:
+    def set_programs(self, tiles:list[Tile]):
+        if len(tiles) > self.config.grid_rows * self.config.grid_cols:
             logger.warning(
-                f"{len(source_files)} source files provided but grid only has {self.grid_rows * self.grid_cols} spaces.")
+                f"{len(tiles)} tiles provided but grid only has {self.config.grid_rows * self.config.grid_cols} spaces.")
 
         self.tiles_to_place.clear()
 
-        for source in source_files:
-            tile = ZacTile(self.config)
+        for tile in tiles:
             zac_settings = {
                 "routing_strategy": "maximalis",
                 "scheduling": "asap",
@@ -367,7 +366,16 @@ class Orchestrator:
                 "reuse": True
             }
             tile.parse_setting(zac_settings)
-            tile.set_architecture(self.architecture)
-            tile.load_program(source)
+            tile.load_program(tile.circuit_file)
             self.tiles_to_place.append(tile)
-                   
+            
+    def write_output(self, output_dir: str):
+        """ Write the output of each tile into the results directory """
+        
+        for i, row in enumerate(self.tiles):
+            for j, tile in enumerate(row):
+                if tile:
+                    filename = os.path.basename(tile.source_name)
+                    filename = os.path.splitext(filename)[0] + ".json"
+                    with open(os.path.join(output_dir, filename), "w+") as f:
+                        f.write(json.dumps(tile.result_json))

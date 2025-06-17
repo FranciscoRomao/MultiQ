@@ -2,7 +2,7 @@ import logging
 import json
 
 import zac.zac as zac
-
+from multiq.compiler.planner import Planner
 from multiq.compiler.orchestrator import Orchestrator
 from multiq.animator.animator import Animator
 
@@ -39,10 +39,15 @@ class MultiQ:
         return zacc
 
     def set_inputs(self, input_files: list[str]):
-        grid_rows = 2
-        grid_cols = 2
-        compiler = Orchestrator(self.arch, grid_rows, grid_cols)
-        compiler.set_programs(input_files)
+        
+        conf = MultiQConfig()
+
+        self.planner = Planner(conf)
+        self.planner.set_input_circuits(input_files, optimization_level=3)
+        self.tiles = self.planner.set_best_architectures()
+
+        compiler = Orchestrator(self.arch, conf)
+        compiler.set_programs(self.tiles)
         compiler.compile()
         
         anim = Animator(self.arch, grid_rows, grid_cols)

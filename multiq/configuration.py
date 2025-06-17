@@ -2,6 +2,19 @@ from dataclasses import dataclass, field
 
 @dataclass
 class MultiQConfig:
+    # Planner Settings
+    default_architecture: str = "toy_architecture.json"
+    util_weight: float = 0.05
+    perf_weight: float = 0.95
+    entanglement_height = 60 # um
+    qpu_settings = {'width':80,
+                    'height':80,
+                    'zone_separation': 10,
+                    'entanglement_height': 20,
+                    'arch_padding': 5,}
+    tmp_arch_file = 'zac_config/tmp_architecture.json'
+    layer_split_window = 2 # Defines the lookahead window for execution layer splitting in the planner
+
     # Placer Settings
     trivial_placement: bool = False
     dynamic_placement: bool = True
@@ -18,6 +31,11 @@ class MultiQConfig:
     resyn: bool = True
     has_dependency: bool = True
 
+    # QPU configuration
+    grid_cols: int = 1 # Number of grid cells horizontally
+    grid_rows: int = 1  # Number of QPU rows for tiles
+    physical_cell_width_um: float = 10.0  # physical width of one grid_col cell
+    physical_cell_height_um: float = 50.0 # physical height of one grid_row cell
 
     def __post_init__(self):
         if self.scheduling_strategy not in ["asap", "graph_coloring"]:
@@ -33,7 +51,6 @@ class MultiQConfig:
             k: v for k, v in config_dict.items() if k in field_names
         }
         return cls(**filtered_config_dict)
-
 
     @classmethod
     def from_config_file(cls, filepath) -> 'MultiQConfig':

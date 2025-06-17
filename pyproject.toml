@@ -24,3 +24,32 @@ matplotlib = "^3.0"
 pylatexenc = "^2.0"
 zac = {path = "/home/dan/dev/tum/quantum/ZAC"}
 networkx = "^3.4.2"
+
+[tool.pdm]
+distribution = false
+
+[project]
+name = "multiq"
+version = "0.1"
+description = "The description of the package"
+authors = [
+    {name = "FranciscoRomao", email = "francisco.romao@tum.de"},
+    {name = "Dan Vonk", email = "dan@danvonk.com"},
+]
+dependencies = [
+    "qiskit>=2.0.2",
+    "matplotlib<4.0,>=3.0",
+    "pylatexenc<3.0,>=2.0",
+    "pandas==2.2.3",
+    "networkx<4.0.0,>=3.4.2",
+    "mqt-bench>=1.1.9",
+    "zac @ file:///home/romano/Documents/40_Academic/multiq/zac"
+]
+requires-python = "~=3.12.0"
+readme = ["README.md"]
+license = {text = "MIT"}
+keywords = ["quantum", "compilers"]
+
+[project.urls]
+homepage = "https://python-poetry.org"
+repository = "https://github.com/python-poetry/poetry"
