@@ -44,7 +44,7 @@ class MultiQ:
         self.planner.set_input_circuits(input_files, optimization_level=3)
         self.tiles = self.planner.set_best_architectures()
 
-        compiler = Orchestrator(self.arch, conf)
+        compiler = Orchestrator(self.config)
         compiler.set_programs(self.tiles)
         compiler.compile()
         compiler.write_output("./results")

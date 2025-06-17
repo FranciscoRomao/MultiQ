@@ -10,3 +10,5 @@ htmlcov
 .venv/
 .vscode/
 *.mp4
+
+zac_config/tmp_architecture.json

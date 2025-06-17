@@ -8,22 +8,24 @@ class MultiQConfig:
     perf_weight: float = 0.95
     entanglement_height = 60 # um
     qpu_settings = {'width':80,
-                    'height':80,
+                    'height':40,
                     'zone_separation': 10,
                     'entanglement_height': 20,
-                    'arch_padding': 5,}
+                    'arch_padding': 5,
+                    'entanglement_site_separation': [12,10],
+                    'storage_site_separation': [3,3],
+                    'aod_minimum_separation': 2,}
     tmp_arch_file = 'zac_config/tmp_architecture.json'
     layer_split_window = 2 # Defines the lookahead window for execution layer splitting in the planner
 
+    r1q_time = 12.0 #us. Duration of an entire row 1q application using AoD lasers.Add commentMore actions
+    storage_zone_rows = None #This is calculated later in the planner
+
     # Placer Settings
     trivial_placement: bool = False
-    grid_cols:int = 1
-    grid_rows:int = 1
     dynamic_placement: bool = True
     use_window: bool = True
     window_size: int = 1000
-    physical_cell_width_um: float = 10.0  # physical width of one grid_col cell
-    physical_cell_height_um: float = 50.0 # physical height of one grid_row cell
     # Scheduler Settings
     scheduling_strategy: str = "asap"
     # Router Settings
@@ -34,9 +36,14 @@ class MultiQConfig:
     reuse: bool = True
     resyn: bool = True
     has_dependency: bool = True
+    arch_padding: int = 1
+
+    time_rydberg: float = 0.36 # usAdd commentMore actions
+    time_atom_transfer = 15 # us
+    time_1qGate = 0.625 # us
 
     # QPU configuration
-    grid_cols: int = 1 # Number of grid cells horizontally
+    grid_cols: int = 2 # Number of grid cells horizontally
     grid_rows: int = 1  # Number of QPU rows for tiles
     physical_cell_width_um: float = 10.0  # physical width of one grid_col cell
     physical_cell_height_um: float = 50.0 # physical height of one grid_row cell

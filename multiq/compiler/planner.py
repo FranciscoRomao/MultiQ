@@ -246,7 +246,9 @@ class Planner:
             execution_layers = self._split_DAG_into_execution_layers(dag, self.config.layer_split_window)
 
             storage_rows=(self.config.qpu_settings['height'] - self.config.qpu_settings['entanglement_height']) // self.grid_rows // storage_atom_spacing
-            
+
+            tile.config.storage_zone_rows = storage_rows
+        
             largest_entanglement = self._largest_entanglement_op(execution_layers)
             
             minimun_entanglement_width = (ceil(largest_entanglement / per_circuit_entanglement_row_height)-1) * entanglement_pair_spacing + entanglement_atom_spacing
