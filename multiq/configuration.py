@@ -3,9 +3,15 @@ from dataclasses import dataclass
 @dataclass
 class MultiQConfig:
     # Planner Settings
-    default_architecture: str = "default_architecture.json"
-    util_weight: float = 0.05 # This is currently unused, we simply do (1 - perf_weight) for utility
+    default_architecture: str = "toy_architecture.json"
+    util_weight: float = 0.05
     perf_weight: float = 0.95
+    entanglement_height = 60 # um
+    qpu_settings = {'width':80,
+                    'height':80,
+                    'zone_separation': 10,
+                    'entanglement_height': 20,
+                    'arch_padding': 5,}
     tmp_arch_file = 'zac_config/tmp_architecture.json'
     layer_split_window = 2 # Defines the lookahead window for execution layer splitting in the planner
 
@@ -30,28 +36,10 @@ class MultiQConfig:
     has_dependency: bool = True
 
     # QPU configuration
-    time_rydberg: float = 0.36 # us
-    time_atom_transfer = 15 # us
-    time_rydberg = 0.36 # us
-    time_1qGate = 0.625 # us
-    qpu_settings = {
-        'name': 'default_qpu',
-        'height': 100, # um
-        'width': 100, # um
-        #'arch_range': [100, 100], #width, height (um)
-        'entanglement_height': 20, # um
-        'zone_separation': 10,
-        'entanglement_site_separation': [12, 10], # [x, y] separation in um
-        'storage_site_separation': [3,3], # [x, y] separation in um
-        'aod_minimum_separation': 2, # um
-    }
-
-    # Animation Settings
-    arch_padding = 1
-
-    r1q_time = 12.0 #us. Duration of an entire row 1q application using AoD lasers.
-    storage_zone_rows = 4
-
+    grid_cols: int = 1 # Number of grid cells horizontally
+    grid_rows: int = 1  # Number of QPU rows for tiles
+    physical_cell_width_um: float = 10.0  # physical width of one grid_col cell
+    physical_cell_height_um: float = 50.0 # physical height of one grid_row cell
 
     def __post_init__(self):
         if self.scheduling_strategy not in ["asap", "graph_coloring"]:

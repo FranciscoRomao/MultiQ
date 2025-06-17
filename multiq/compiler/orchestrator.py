@@ -438,6 +438,6 @@ class Orchestrator:
             for j, tile in enumerate(row):
                 if tile:
                     filename = os.path.basename(tile.source_name)
-                    filename = os.path.splitext(filename)[0] + f"r{i}_c{j}" + ".json"
+                    filename = os.path.splitext(filename)[0] + ".json"
                     with open(os.path.join(output_dir, filename), "w+") as f:
                         f.write(json.dumps(tile.result_json))

@@ -37,12 +37,14 @@ class MultiQ:
         return zacc
 
     def set_inputs(self, input_files: list[str]):
+        
+        conf = MultiQConfig()
 
-        self.planner = Planner(self.config)
+        self.planner = Planner(conf)
         self.planner.set_input_circuits(input_files, optimization_level=3)
         self.tiles = self.planner.set_best_architectures()
 
-        compiler = Orchestrator(self.config)
+        compiler = Orchestrator(self.arch, conf)
         compiler.set_programs(self.tiles)
         compiler.compile()
         compiler.write_output("./results")
