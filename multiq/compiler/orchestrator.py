@@ -51,8 +51,10 @@ class Orchestrator:
             f"There are {len(self.active_tiles)} active tiles before routing.")
 
         # write_initial_instruction() returns end_time. Global schedule waits till last tile is finished
-        self.global_time = max(
-            [self.instr_builder.write_initial_instruction(t) for t in active_tile_objs])
+        # self.global_time = max(
+        #     [self.instr_builder.write_initial_instruction(t) for t in active_tile_objs])
+
+        self.global_time = self.instr_builder.write_initial_instruction(self.tiles)
 
         layer: int = 0
         while len(self.active_tiles) > 0:
@@ -436,6 +438,6 @@ class Orchestrator:
             for j, tile in enumerate(row):
                 if tile:
                     filename = os.path.basename(tile.source_name)
-                    filename = os.path.splitext(filename)[0] + ".json"
+                    filename = os.path.splitext(filename)[0] + f"r{i}_c{j}" + ".json"
                     with open(os.path.join(output_dir, filename), "w+") as f:
                         f.write(json.dumps(tile.result_json))

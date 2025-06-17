@@ -50,6 +50,7 @@ class Tile(Scheduler_mixin, Placer_mixin, Verifier_mixin, Router_mixin):
         self.gate_scheduling_idx = None
         self.gate_1q_scheduling = None
         self.reuse_qubit = None
+        # format: (qubit_idx, aod_idx=0, row, col)
         self.qubit_mapping = []
 
         self.width = 1 # in number of grid cells!
@@ -71,6 +72,7 @@ class Tile(Scheduler_mixin, Placer_mixin, Verifier_mixin, Router_mixin):
 
         self.g_q = []
         # -1 means no dependency and can be applied at initialisation
+        # format: (gate name, qubit index)
         self.dict_g_1q_parent = {-1: []}
         n_single_qubit_gate = 0
 

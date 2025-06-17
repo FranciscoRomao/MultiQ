@@ -175,6 +175,8 @@ class TileAnimation:
                         self.update_arrangement(true_time, inst)
                     elif inst['type'] == '1qGate':
                         self.update_1qGate(inst)
+                    elif inst["type"] == "row1qGate":
+                        self.update_row1qGate(inst)
                     else:
                         raise ValueError(f"unknown inst type {inst['type']}")
         self.title.set_text(self.inst_str)
@@ -276,6 +278,17 @@ class TileAnimation:
             self.aod_col_plots[aod_id][col_id].set_color(
                 AOD_COLORS[aod_id]
             )
+
+    def update_row1qGate(self, inst: dict):
+        self.inst_str += f' | {inst["id"]} {inst["type"]} \n elapsed time: {inst["end_time"]:.2f}'
+
+        for g in inst['gates']:
+            q = g['q']
+            x = self.qubit_xs[q]
+            y = self.qubit_ys[q]
+            self.qubit_1qGate.append(self.ax.scatter(
+                x, y, s=300, color=(0.5, 0.5, 0, 0.5)))
+
 
     def update_1qGate(self, inst: dict):
         self.inst_str += f' | {inst["id"]} {inst["type"]} \n elapsed time: {inst["end_time"]:.2f}'
@@ -492,7 +505,6 @@ class Animator:
                 else:  # This is an empty slot not covered by a multi-width tile
                     ax = fig.add_subplot(gs[r, c])
                     ax.axis('off')  # Make empty slots invisible
-                    # self.axes_map[(r,c)] = ax # Optionally store if needed
                     processed_cells.add((r, c))
 
                 if (r, c) in self.axes_map:  # If an axis was created for this root
