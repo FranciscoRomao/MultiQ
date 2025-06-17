@@ -24,7 +24,7 @@ class Orchestrator:
         # start with placeholders for the tiles. They are created in set_program()
         self.tiles: list[list[Tile | None]] = [
             [None for _ in range(self.config.grid_cols)] for _ in range(self.config.grid_rows)]
-        self.instr_builder = InstructionBuilder()
+        self.instr_builder = InstructionBuilder(self.config)
         self.tiles_to_place = []
 
         # all operations on all tiles are measured according to this global time

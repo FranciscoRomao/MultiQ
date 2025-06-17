@@ -24,6 +24,10 @@ class MultiQConfig:
     physical_cell_width_um: float = 10.0  # physical width of one grid_col cell
     physical_cell_height_um: float = 50.0 # physical height of one grid_row cell
 
+    r1q_time = 12.0 #us. Duration of an entire row 1q application using AoD lasers.
+    storage_zone_rows = 4
+
+
     def __post_init__(self):
         if self.scheduling_strategy not in ["asap", "graph_coloring"]:
              raise ValueError(f"Unknown scheduling_strategy: {self.scheduling_strategy}")
