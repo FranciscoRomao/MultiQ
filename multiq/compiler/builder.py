@@ -31,47 +31,18 @@ class InstructionBuilder:
 
         return self.row_1q_gate_instruction(tiles)
 
-        # process single-qubit gates
-        # set_qubit_dependency = set()
-        # inst_idx = len(tile.result_json['instructions'])
-        # list_1q_gate = [gate_1q for gate_1q in tile.dict_g_1q_parent[-1]]
-        # result_gate = []
-
-        # for gate_info in list_1q_gate:
-        #     # collect qubit dependency
-        #     set_qubit_dependency.add(tile.qubit_dependency[gate_info[1]])
-        #     tile.qubit_dependency[gate_info[1]] = inst_idx
-        #     result_gate.append({
-        #         "name": gate_info[0],
-        #         "q": gate_info[1]
-        #     })
-
-        # dependency = {"qubit": []}
-        # dependency["qubit"] = list(set_qubit_dependency)
-
-        # if len(result_gate) > 0:
-        #     end_time = tile.architecture.time_1qGate * len(result_gate)
-        #     tile.write_1q_gate_instruction(
-        #         inst_idx, result_gate, dependency, tile.qubit_mapping[0])
-        #     tile.result_json['instructions'][-1]["begin_time"] = 0
-        #     tile.result_json['instructions'][-1]["end_time"] = (
-        #         # due to sequential execution
-        #         end_time
-        #     )
-
-        # return end_time
-
     def row_1q_gate_instruction(self, tiles: list[list[Tile | None]]):
         """ Instead of applying 1q gates serially, apply a whole row at a time using AoD laser. """
 
-        r1q_time = 0.06  # us
+        r1q_time = 12.0  # us
         storage_zone_rows = 4
         end_time = 0.0
 
         # process the gates per tile row so that we can use row-based 1q gate application
         for tile_row in range(storage_zone_rows):
-            for r_idx, row in enumerate(tiles):
-                for c_idx, tile in enumerate(row):
+            pulse_applied = False
+            for _, row in enumerate(tiles):
+                for _, tile in enumerate(row):
                     if not tile:
                         continue
 
@@ -103,10 +74,12 @@ class InstructionBuilder:
 
                     if len(result_gate) > 0:
                         tile.write_row1q_gate_instruction(
-                            inst_idx, tile_row, result_gate, dependency, tile.qubit_mapping[0])
+                            tile_row, inst_idx, result_gate, dependency, tile.qubit_mapping[0])
                         tile.result_json['instructions'][-1]["begin_time"] = end_time
                         tile.result_json['instructions'][-1]["end_time"] = end_time + r1q_time
+                        pulse_applied = True
 
-            end_time += r1q_time
+            if pulse_applied:
+                end_time += r1q_time
 
         return end_time
