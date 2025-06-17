@@ -172,43 +172,57 @@ class Planner:
         
         qpu = self.config.qpu_settings
 
-        with open(f'zac_config/{self.config.default_architecture}') as f:
-            settings = load(f)
+        entanglement_separation = qpu['entanglement_site_separation']
+        storage_separation = qpu['storage_site_separation']
+        padding = self.config.arch_padding
 
-            import pdb
-            pdb.set_trace()
+        ent_x_dimension = (entanglement_cols-1) * entanglement_separation[0] + 2
+        ent_y_dimension = (entanglement_rows-1) * entanglement_separation[1]
 
-            # The separation between atoms inside one pair is still hardcoded into 2
-            entanglement_separation = settings['entanglement_zones'][0]["slms"][0]["site_seperation"]
-            storage_separation = settings['storage_zones'][0]["slms"][0]["site_seperation"]
-            
-            ent_x_dimension = (entanglement_cols-1) * entanglement_separation[0] + 2
-            ent_y_dimension = (entanglement_rows-1) * entanglement_separation[1]
-        
-            settings['entanglement_zones'][0]['dimension'] = [ent_x_dimension, ent_y_dimension]
+        sto_x_dimension = (storage_cols-1) * storage_separation[0]
+        sto_y_dimension = (storage_rows-1) * storage_separation[1]
 
-            sto_x_dimension = (storage_cols-1) * storage_separation[0]
-            sto_y_dimension = (storage_rows-1) * storage_separation[1]
-            
-            settings['storage_zones'][0]["dimension"] = [sto_x_dimension, sto_y_dimension]
+        architecture = {
+            "name": "tile_architecture",
+            "storage_zones": [{
+                "zone_id": 0,
+                "slms": [{
+                    "id": 0,
+                    "site_seperation": qpu['storage_site_separation'],
+                    "r": storage_rows,
+                    "c": storage_cols,
+                    "location": [max(0,((ent_x_dimension - sto_x_dimension) * zone_centering[0])/sum(zone_centering)), 0]}],
+                "offset": [0, 0],
+                "dimension": [sto_x_dimension, sto_y_dimension]}],
+            "entanglement_zones": [{
+                "zone_id": 0,
+                "slms": [{
+                    "id": 1,
+                    "site_seperation": qpu['entanglement_site_separation'],
+                    "r": entanglement_rows,
+                    "c": entanglement_cols,
+                    "location": [max(0,((sto_x_dimension - ent_x_dimension) * zone_centering[0])/sum(zone_centering)), (storage_rows-1)*3+qpu['zone_separation']]},
+                    {"id": 2,
+                     "site_seperation": qpu['entanglement_site_separation'],
+                     "r": entanglement_rows,
+                     "c": entanglement_cols,
+                     "location": [2+max(0,((sto_x_dimension - ent_x_dimension) * zone_centering[0])/sum(zone_centering)), (storage_rows-1)*3+qpu['zone_separation']]}],
+                "offset": [0, 0],
+                "dimension": [ent_x_dimension, ent_y_dimension]}],
+            "aods": [{
+                "id": 0,
+                "site_seperation": qpu['aod_minimum_separation'],
+                "r": 10, #Hardcoded for now, it's not being used
+                "c": 10 #Hardcoded for now, it's not being used
+            }],
+            'arch_range': [[0-padding, 0-padding],
+                           [max((storage_cols-1)*3, (entanglement_cols-1)*12+2+padding),
+                            (storage_rows-1)*3+qpu['zone_separation']+(entanglement_rows-1)*12+2+5+padding]],
+            'rydberg_range': [[[0, (storage_rows-1)*3+qpu['zone_separation']/2],
+                               [(storage_cols-1)*3, (storage_rows-1)*3+qpu['zone_separation']+(entanglement_rows-1)*12+5]]]
+        }
 
-            settings['storage_zones'][0]["slms"][0]["r"] = storage_rows
-            settings['storage_zones'][0]["slms"][0]["c"] = storage_cols
-            settings['storage_zones'][0]["slms"][0]["location"] = [max(0,((ent_x_dimension - sto_x_dimension) * zone_centering[0])/sum(zone_centering)), 0]
-
-            settings['arch_range'][0] = [0,0]
-            settings['arch_range'][1] = [max((storage_cols-1)*3, (entanglement_cols-1)*12+qpu['arch_padding']),(storage_rows-1)*3+qpu['zone_separation']+(entanglement_rows-1)*12]
-
-            settings['entanglement_zones'][0]['slms'][0]['r'] = entanglement_rows
-            settings['entanglement_zones'][0]['slms'][0]['c'] = entanglement_cols
-            settings['entanglement_zones'][0]['slms'][0]['location'] = [max(0,((sto_x_dimension - ent_x_dimension) * zone_centering[0])/sum(zone_centering)), (storage_rows-1)*3+qpu['zone_separation']]
-
-            settings['entanglement_zones'][0]['slms'][1]['r'] = entanglement_rows
-            settings['entanglement_zones'][0]['slms'][1]['c'] = entanglement_cols
-            settings['entanglement_zones'][0]['slms'][1]['location'] = [2+max(0,((sto_x_dimension - ent_x_dimension) * zone_centering[0])/sum(zone_centering)), (storage_rows-1)*3+qpu['zone_separation']]
-        
-            settings['rydberg_range'][0] = [[0,(storage_rows-1)*3+qpu['zone_separation']/2], [(storage_cols-1)*3, (storage_rows-1)*3+qpu['zone_separation']+(entanglement_rows-1)*12+5]]
-            dump(settings, open(self.config.tmp_arch_file, 'w'), indent=1)
+        dump(architecture, open(self.config.tmp_arch_file, 'w'), indent=1)
         
         return self.config.tmp_arch_file
 

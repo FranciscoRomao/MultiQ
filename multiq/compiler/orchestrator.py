@@ -17,8 +17,8 @@ logger = logging.getLogger("multiq")
 
 
 class Orchestrator:
-    def __init__(self, arch: Architecture, config: MultiQConfig):
-        self.architecture = arch
+    def __init__(self, config: MultiQConfig):
+        #self.architecture = arch
         self.config: MultiQConfig = config
 
         # start with placeholders for the tiles. They are created in set_program()
@@ -336,7 +336,7 @@ class Orchestrator:
             rydb_begin_time = tile.get_begin_time(start_idx, dep)
             global_earliest_start = max(global_earliest_start, rydb_begin_time)
 
-        global_end_time = global_earliest_start + self.architecture.time_rydberg
+        global_end_time = global_earliest_start + self.config.time_rydberg
         # update global rydberg busy time
         self.rydberg_end_time = global_end_time
 

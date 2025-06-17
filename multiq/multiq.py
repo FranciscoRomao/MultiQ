@@ -13,10 +13,7 @@ class MultiQ:
     def __init__(self):
         self.print_configuration()
         self.tiles = []
-        with open("zac_config/toy_architecture.json", "r") as f:
-            arch = zac.Architecture(json.load(f))
-            arch.preprocessing()
-            self.arch = arch
+        self.config = MultiQConfig()
 
     def print_configuration(self):
         logger.info("MultiQ config settings goes here...")
@@ -40,19 +37,17 @@ class MultiQ:
         return zacc
 
     def set_inputs(self, input_files: list[str]):
-        
-        conf = MultiQConfig()
 
-        self.planner = Planner(conf)
+        self.planner = Planner(self.config)
         self.planner.set_input_circuits(input_files, optimization_level=3)
         self.tiles = self.planner.set_best_architectures()
 
-        compiler = Orchestrator(self.arch, conf)
+        compiler = Orchestrator(self.config)
         compiler.set_programs(self.tiles)
         compiler.compile()
         compiler.write_output("./results")
         
-        anim = Animator(conf, conf.grid_rows, conf.grid_cols)
+        anim = Animator(self.config, self.config.grid_rows, self.config.grid_cols)
         anim.multi_animate(compiler.tiles, "test.mp4")
 
         
