@@ -1,11 +1,9 @@
 # MultiQ Configuration File
 
 # QPU Settings
-entanglement_height: 60
-storage_height: 20
-storage_width: 20
-qpu_width: 80
-qpu_height: 40
+entanglement_height: 15
+qpu_width: 200
+qpu_height: 80
 zone_separation: 10
 entanglement_site_separation: [12, 10]
 storage_site_separation: [3, 3]
@@ -18,13 +16,16 @@ time_1qGate: 0.625
 r1q_time: 12.0
 
 # multiprograming grid configuration
-grid_cols: 2
+grid_cols: 3
 grid_rows: 1
 
 # Planner Settings
 # weights for layout planning
-util_weight: 0.05 # We dont use this one, we simply do (1 - perf_weight)
-perf_weight: 0.95
+util_weight: 0 # We dont use this one, we simply do (1 - perf_weight)
+perf_weight: 1
+zone_centering: [1,1] # Defines the centering of the entanglement and storage zones,
+                      # 1:1 means the zone overlaps on each side are equal,
+                      # 1:2 would push the smaller zone to the left
 
 # lookahead for splitting circuit into parallel layers
 layer_split_window: 2

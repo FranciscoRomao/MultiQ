@@ -38,8 +38,8 @@ class Planner:
         self.tiles: List[Tile] = []
 
         if sum([config.util_weight, config.perf_weight]) != 1:
-            logging.error("Weights must sum to 1.")
-            raise ValueError("Planner score weights must sum to 1.")
+            logging.warning("Weights must sum to 1.")
+            #raise ValueError("Planner score weights must sum to 1.")
 
     def set_input_circuits(self, input_circuits: list[str], optimization_level: int = 3) -> None:
 
@@ -168,7 +168,7 @@ class Planner:
         #zone_centering: 1:1 means that the entanglement zone is centered on the storage zone,
         # (1:2) means that the left side (difference between x coordinate of
         # entanglement zone and storage zone) is twice as large as the right side  
-        zone_centering = [1,1]
+        zone_centering = self.config.zone_centering
 
         entanglement_separation = self.config.entanglement_site_separation
         storage_separation = self.config.storage_site_separation
@@ -214,7 +214,7 @@ class Planner:
                 "c": 10 #Hardcoded for now, it's not being used
             }],
             'arch_range': [[0-padding, 0-padding],
-                           [max((storage_cols-1)*3, (entanglement_cols-1)*12+2+padding),
+                           [max((storage_cols-1)*3+padding, (entanglement_cols-1)*12+2+padding),
                             (storage_rows-1)*3+self.config.zone_separation+(entanglement_rows-1)*12+2+5+padding]],
             'rydberg_range': [[[0, (storage_rows-1)*3+self.config.zone_separation/2],
                                [(storage_cols-1)*3, (storage_rows-1)*3+self.config.zone_separation+(entanglement_rows-1)*12+5]]]
@@ -232,6 +232,7 @@ class Planner:
         The width of the entanglement zone is defined by the floor of closest it can be to the width of the storage zone
         '''
         for circuit, dag, circuit_file in zip(self.input_circuits, self.input_dags, self.circuit_files):
+
             tile = Tile(self.config)
             logger.info(f"Processing best layout for circuit with #: {circuit.num_qubits} qubits")
 
@@ -239,7 +240,7 @@ class Planner:
             entanglement_atom_spacing = self.config.entanglement_site_separation[0] - entanglement_pair_spacing
             storage_atom_spacing = self.config.storage_site_separation[0] #um
 
-            per_circuit_entanglement_row_height = (self.config.entanglement_height // self.grid_rows) // entanglement_pair_spacing
+            per_circuit_entanglement_row_height = (self.config.entanglement_height // self.grid_rows) // entanglement_pair_spacing + 1
 
             execution_layers = self._split_DAG_into_execution_layers(dag, self.config.layer_split_window)
 
@@ -256,7 +257,7 @@ class Planner:
             best_storage_width = circuit.num_qubits * storage_atom_spacing
 
             # Weighted average of the best and minimum storage width with the weights defined in the configuration
-            selected_storage_width = (best_storage_width * self.perf_weight + minimun_storage_width * (1-self.perf_weight)) // 2
+            selected_storage_width = ceil(best_storage_width * self.perf_weight + minimun_storage_width * (1-self.perf_weight) / 2)
             
             out = self._generate_arch_json(
                 entanglement_rows=per_circuit_entanglement_row_height,

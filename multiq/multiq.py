@@ -13,7 +13,7 @@ class MultiQ:
     def __init__(self):
         self.print_configuration()
         self.tiles = []
-        self.config = MultiQConfig()
+        self.config = MultiQConfig.from_config_file("config.yaml")
 
     def print_configuration(self):
         logger.info("MultiQ config settings goes here...")
@@ -38,9 +38,7 @@ class MultiQ:
 
     def set_inputs(self, input_files: list[str]):
         
-        conf = MultiQConfig().from_config_file("multiq/config.json")
-
-        self.planner = Planner(conf)
+        self.planner = Planner(self.config)
         self.planner.set_input_circuits(input_files, optimization_level=3)
         self.tiles = self.planner.set_best_architectures()
 
