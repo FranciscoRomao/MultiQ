@@ -1,7 +1,10 @@
 from dataclasses import dataclass
 from typing import List, Optional
 import yaml
+import logging
 
+logger = logging.getLogger("multiq")
+                           
 @dataclass
 class MultiQConfig:
     # QPU Settings
@@ -51,6 +54,7 @@ class MultiQConfig:
 
     def __post_init__(self):
         if self.scheduling_strategy not in ["asap", "graph_coloring"]:
+             logging.error(f"Invalid scheduling_strategy: {self.scheduling_strategy}. Must be 'asap' or 'graph_coloring'.")
              raise ValueError(f"Unknown scheduling_strategy: {self.scheduling_strategy}")
 
     @classmethod
@@ -69,15 +73,16 @@ class MultiQConfig:
             with open(filepath, 'r') as f:
                 config_dict = yaml.safe_load(f)
                 if not isinstance(config_dict, dict):
+                    logging.error(f"Invalid configuration format in '{filepath}': Expected a dictionary.")
                     raise ValueError("YAML file content must be a dictionary.")
                 return cls.from_config(config_dict)
         
         except FileNotFoundError:
-            print(f"Warning: Configuration file '{filepath}' not found. Using default values.")
+            logging.warning(f"Configuration file '{filepath}' not found. Using default values.")
             return cls() # Return default config if file not found
         except yaml.YAMLError as e: # Catch YAML-specific parsing errors
-            print(f"Error: Invalid YAML in '{filepath}': {e}")
+            logging.error(f"Error parsing YAML in '{filepath}': {e}")
             raise # Re-raise to indicate a serious configuration error
         except Exception as e:
-            print(f"An unexpected error occurred while loading config from '{filepath}': {e}")
+            logging.error(f"An unexpected error occurred while loading config from '{filepath}': {e}")
             raise
