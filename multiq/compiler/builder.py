@@ -9,7 +9,6 @@ import logging
 
 logger = logging.getLogger("multiq")
 
-
 class InstructionBuilder:
     """ Build global instructions for the orchestrator. """
     def __init__(self, config: MultiQConfig):
@@ -41,8 +40,13 @@ class InstructionBuilder:
         r1q_time = self.config.r1q_time
         end_time = 0.0
 
-        #It is the same for all tiles, so we can just take it from the first tile
-        storage_zone_rows = tiles[0][0].config.storage_zone_rows
+        for i in range(len(tiles)):
+            for j in range(len(tiles[i])):
+                if tiles[i][j] is not None:
+                    #It is the same for all tiles, but if we set more tile spaces (grid_cols x grid_rows)
+                    # than the input circuits we need to find the first non-empty tile to get this information
+                    storage_zone_rows = tiles[i][j].config.storage_zone_rows
+                    break
 
         # process the gates per tile row so that we can use row-based 1q gate application
         for tile_row in range(storage_zone_rows):
