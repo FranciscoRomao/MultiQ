@@ -1,0 +1,58 @@
+# MultiQ Configuration File
+
+# QPU Settings
+entanglement_height: 60
+storage_height: 20
+storage_width: 20
+qpu_width: 80
+qpu_height: 40
+zone_separation: 10
+entanglement_site_separation: [12, 10]
+storage_site_separation: [3, 3]
+aod_minimum_separation: 2
+
+# timing in us (microseconds)
+time_rydberg: 0.36
+time_atom_transfer: 15
+time_1qGate: 0.625
+r1q_time: 12.0
+
+# multiprograming grid configuration
+grid_cols: 2
+grid_rows: 1
+
+# Planner Settings
+# weights for layout planning
+util_weight: 0.05 # We dont use this one, we simply do (1 - perf_weight)
+perf_weight: 0.95
+
+# lookahead for splitting circuit into parallel layers
+layer_split_window: 2
+
+# file path for temporary generation of architecture files
+tmp_arch_file: "zac_config/tmp_architecture.json"
+
+# Animation Settings
+arch_padding: 1 # Padding around individual layouts
+
+# Placement Settings
+dynamic_placement: true
+trivial_placement: false
+storage_zone_rows: null
+use_window: true
+window_size: 1000
+l2: false # Boolean flag
+
+# Final verification settings
+enable_verification: true
+
+# Physical Dimensions (in micrometers)
+
+# Scheduling and Routing Strategies
+physical_cell_height_um: 50.0
+physical_cell_width_um: 10.0
+scheduling_strategy: "asap" # As Soon As Possible
+routing_strategy: "maximalis_sort"
+reuse: true
+resyn: true
+has_dependency: true

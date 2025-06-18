@@ -6,6 +6,7 @@ from zac.verifier.verifier import Verifier_mixin
 from zac.ds.architecture import Architecture
 from scipy.sparse import csr_matrix
 from scipy.sparse.csgraph import maximum_bipartite_matching
+from qiskit.circuit import QuantumCircuit
 
 import qiskit.qasm2 as qasm2
 from qiskit import transpile
@@ -21,8 +22,10 @@ class Tile(Scheduler_mixin, Placer_mixin, Verifier_mixin, Router_mixin):
         self.n_g = 0
         self.g_q = []
 
+        self.circuit : QuantumCircuit = None
         self.source_name = ""
         self.dir = "./result/"
+        self.circuit_file : str = None
         self.architecture = None
 
         # initialise the compiler's instructions output
@@ -50,7 +53,7 @@ class Tile(Scheduler_mixin, Placer_mixin, Verifier_mixin, Router_mixin):
         # format: (qubit_idx, aod_idx=0, row, col)
         self.qubit_mapping = []
 
-        self.width = 0 # in number of grid cells!
+        self.width = 1 # in number of grid cells!
         self.height = 1
 
     def prepare_routing(self):
@@ -193,14 +196,14 @@ class Tile(Scheduler_mixin, Placer_mixin, Verifier_mixin, Router_mixin):
         if "resyn" in setting:
             self.resyn = setting["resyn"]
 
-    def _set_architecture(self):
+    def _set_architecture(self, arch_json: str = 'zac_config/tmp_architecture.json'):
         # just use n_q as the number of cols in the tile for now
-        with open("zac_config/toy_architecture.json", "r") as f:
+        with open(arch_json, "r") as f:
             arch_json = json.load(f)
-            # TODO: design a smarter tile size. Right now it's just the #qubits, making the top row always full.
-            arch_json["storage_zones"][0]["slms"][0]["c"] = self.n_q
-            self.width = self.n_q
-
             arch = Architecture(arch_json)
             arch.preprocessing()
             self.architecture = arch
+
+    def calculate_global_pos(self, anchor_pos: tuple[int, int]) -> tuple[int, int]:
+        # transforms the anchor position to its global coord by multiplying it with the tile width
+        pass

@@ -41,8 +41,11 @@ class InstructionBuilder:
         r1q_time = self.config.r1q_time
         end_time = 0.0
 
+        #It is the same for all tiles, so we can just take it from the first tile
+        storage_zone_rows = tiles[0][0].config.storage_zone_rows
+
         # process the gates per tile row so that we can use row-based 1q gate application
-        for tile_row in range(self.config.storage_zone_rows):
+        for tile_row in range(storage_zone_rows):
             pulse_applied = False
             for _, row in enumerate(tiles):
                 for _, tile in enumerate(row):

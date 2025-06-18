@@ -17,8 +17,8 @@ logger = logging.getLogger("multiq")
 
 
 class Orchestrator:
-    def __init__(self, arch: Architecture, config: MultiQConfig):
-        self.architecture = arch
+    def __init__(self, config: MultiQConfig):
+        #self.architecture = arch
         self.config: MultiQConfig = config
 
         # start with placeholders for the tiles. They are created in set_program()
@@ -338,7 +338,7 @@ class Orchestrator:
             rydb_begin_time = tile.get_begin_time(start_idx, dep)
             global_earliest_start = max(global_earliest_start, rydb_begin_time)
 
-        global_end_time = global_earliest_start + self.architecture.time_rydberg
+        global_end_time = global_earliest_start + self.config.time_rydberg
         # update global rydberg busy time
         self.rydberg_end_time = global_end_time
 
@@ -410,15 +410,14 @@ class Orchestrator:
                     logger.info(
                         f"Tile ({tile.source_name}) at ({i},{j}): {tile.result_json["runtime"]} ms")
 
-    def set_programs(self, source_files: list[str]):
-        if len(source_files) > self.config.grid_rows * self.config.grid_cols:
+    def set_programs(self, tiles:list[Tile]):
+        if len(tiles) > self.config.grid_rows * self.config.grid_cols:
             logger.warning(
-                f"{len(source_files)} source files provided but grid only has {self.config.grid_rows * self.config.grid_cols} spaces.")
+                f"{len(tiles)} tiles provided but grid only has {self.config.grid_rows * self.config.grid_cols} spaces.")
 
         self.tiles_to_place.clear()
 
-        for source in source_files:
-            tile = Tile(self.config)
+        for tile in tiles:
             zac_settings = {
                 "routing_strategy": "maximalis",
                 "scheduling": "asap",
@@ -429,9 +428,8 @@ class Orchestrator:
                 "reuse": True
             }
             tile.parse_setting(zac_settings)
-            tile.load_program(source)
+            tile.load_program(tile.circuit_file)
             self.tiles_to_place.append(tile)
-
             
     def write_output(self, output_dir: str):
         """ Write the output of each tile into the results directory """
@@ -440,6 +438,6 @@ class Orchestrator:
             for j, tile in enumerate(row):
                 if tile:
                     filename = os.path.basename(tile.source_name)
-                    filename = os.path.splitext(filename)[0] + f"r{i}_c{j}" + ".json"
+                    filename = os.path.splitext(filename)[0] + ".json"
                     with open(os.path.join(output_dir, filename), "w+") as f:
                         f.write(json.dumps(tile.result_json))
