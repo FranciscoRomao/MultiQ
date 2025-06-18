@@ -15,6 +15,7 @@ def main():
     argp.add_argument("-d", "--depth", nargs="+", help="Depth of the circuit", required=True, type=int)
     argp.add_argument("-o", "--output", nargs="+", help="Output directory for the generated circuits", required=False, type=str, default=["./circuits/"])
     argp.add_argument("-s", "--seed", nargs="+", help="Random seed for circuit generation", required=False, type=int, default=[(time.time()*1000)])
+    argp.add_argument("-n", "--num", nargs="+", help="Number of circuits to generate per size and depth", required=False, type=int, default=[1])
 
     args = argp.parse_args()
     
@@ -22,8 +23,9 @@ def main():
     depth = int(args.depth[0])
     output = args.output[0]
     seed = int(args.seed[0])
+    ncircuits = int(args.num[0])
 
-    gen_random_NA_circuits(circuit_sizes=[qubits], depths=[depth], output_folder=output, seed=seed, regen=False, ncircuits_per_size=1)
+    gen_random_NA_circuits(circuit_sizes=[qubits], depths=[depth], output_folder=output, seed=seed, regen=False, ncircuits_per_size=ncircuits)
 
 if __name__ == "__main__":
     main()
