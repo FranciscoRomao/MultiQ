@@ -169,11 +169,9 @@ class Planner:
         # (1:2) means that the left side (difference between x coordinate of
         # entanglement zone and storage zone) is twice as large as the right side  
         zone_centering = [1,1]
-        
-        qpu = self.config.qpu_settings
 
-        entanglement_separation = qpu['entanglement_site_separation']
-        storage_separation = qpu['storage_site_separation']
+        entanglement_separation = self.config.entanglement_site_separation
+        storage_separation = self.config.storage_site_separation
         padding = self.config.arch_padding
 
         ent_x_dimension = (entanglement_cols-1) * entanglement_separation[0] + 2
@@ -188,7 +186,7 @@ class Planner:
                 "zone_id": 0,
                 "slms": [{
                     "id": 0,
-                    "site_seperation": qpu['storage_site_separation'],
+                    "site_seperation": self.config.storage_site_separation,
                     "r": storage_rows,
                     "c": storage_cols,
                     "location": [max(0,((ent_x_dimension - sto_x_dimension) * zone_centering[0])/sum(zone_centering)), 0]}],
@@ -198,32 +196,32 @@ class Planner:
                 "zone_id": 0,
                 "slms": [{
                     "id": 1,
-                    "site_seperation": qpu['entanglement_site_separation'],
+                    "site_seperation": self.config.entanglement_site_separation,
                     "r": entanglement_rows,
                     "c": entanglement_cols,
-                    "location": [max(0,((sto_x_dimension - ent_x_dimension) * zone_centering[0])/sum(zone_centering)), (storage_rows-1)*3+qpu['zone_separation']]},
+                    "location": [max(0,((sto_x_dimension - ent_x_dimension) * zone_centering[0])/sum(zone_centering)), (storage_rows-1)*3+self.config.zone_separation]},
                     {"id": 2,
-                     "site_seperation": qpu['entanglement_site_separation'],
+                     "site_seperation": self.config.entanglement_site_separation,
                      "r": entanglement_rows,
                      "c": entanglement_cols,
-                     "location": [2+max(0,((sto_x_dimension - ent_x_dimension) * zone_centering[0])/sum(zone_centering)), (storage_rows-1)*3+qpu['zone_separation']]}],
+                     "location": [2+max(0,((sto_x_dimension - ent_x_dimension) * zone_centering[0])/sum(zone_centering)), (storage_rows-1)*3+self.config.zone_separation]}],
                 "offset": [0, 0],
                 "dimension": [ent_x_dimension, ent_y_dimension]}],
             "aods": [{
                 "id": 0,
-                "site_seperation": qpu['aod_minimum_separation'],
+                "site_seperation": self.config.aod_minimum_separation,
                 "r": 10, #Hardcoded for now, it's not being used
                 "c": 10 #Hardcoded for now, it's not being used
             }],
             'arch_range': [[0-padding, 0-padding],
                            [max((storage_cols-1)*3, (entanglement_cols-1)*12+2+padding),
-                            (storage_rows-1)*3+qpu['zone_separation']+(entanglement_rows-1)*12+2+5+padding]],
-            'rydberg_range': [[[0, (storage_rows-1)*3+qpu['zone_separation']/2],
-                               [(storage_cols-1)*3, (storage_rows-1)*3+qpu['zone_separation']+(entanglement_rows-1)*12+5]]]
+                            (storage_rows-1)*3+self.config.zone_separation+(entanglement_rows-1)*12+2+5+padding]],
+            'rydberg_range': [[[0, (storage_rows-1)*3+self.config.zone_separation/2],
+                               [(storage_cols-1)*3, (storage_rows-1)*3+self.config.zone_separation+(entanglement_rows-1)*12+5]]]
         }
 
         dump(architecture, open(self.config.tmp_arch_file, 'w'), indent=1)
-        
+         
         return self.config.tmp_arch_file
 
     def set_best_architectures(self) -> List[List[Any]]:
@@ -237,15 +235,15 @@ class Planner:
             tile = Tile(self.config)
             logger.info(f"Processing best layout for circuit with #: {circuit.num_qubits} qubits")
 
-            entanglement_pair_spacing = 10 #um
-            entanglement_atom_spacing = 2 #um
-            storage_atom_spacing = 3 #um
+            entanglement_pair_spacing = self.config.entanglement_site_separation[1] #um 
+            entanglement_atom_spacing = self.config.entanglement_site_separation[0] - entanglement_pair_spacing
+            storage_atom_spacing = self.config.storage_site_separation[0] #um
 
-            per_circuit_entanglement_row_height = (self.config.qpu_settings['entanglement_height'] // self.grid_rows) // entanglement_pair_spacing
+            per_circuit_entanglement_row_height = (self.config.entanglement_height // self.grid_rows) // entanglement_pair_spacing
 
             execution_layers = self._split_DAG_into_execution_layers(dag, self.config.layer_split_window)
 
-            storage_rows=(self.config.qpu_settings['height'] - self.config.qpu_settings['entanglement_height']) // self.grid_rows // storage_atom_spacing
+            storage_rows=(self.config.qpu_height - self.config.entanglement_height) // self.grid_rows // storage_atom_spacing
 
             tile.config.storage_zone_rows = storage_rows
         

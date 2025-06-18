@@ -38,7 +38,7 @@ class MultiQ:
 
     def set_inputs(self, input_files: list[str]):
         
-        conf = MultiQConfig()
+        conf = MultiQConfig().from_config_file("multiq/config.json")
 
         self.planner = Planner(conf)
         self.planner.set_input_circuits(input_files, optimization_level=3)
@@ -51,13 +51,3 @@ class MultiQ:
         
         anim = Animator(self.config, self.config.grid_rows, self.config.grid_cols)
         anim.multi_animate(compiler.tiles, "test.mp4")
-
-        
-        
-        
-
-
-
-
-
-
