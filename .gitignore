@@ -12,3 +12,4 @@ htmlcov
 *.mp4
 
 zac_config/tmp_architecture.json
+circuits/*

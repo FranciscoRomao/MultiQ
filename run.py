@@ -17,6 +17,5 @@ def main():
     mq = MultiQ()
     mq.set_inputs(args.input)
 
-
 if __name__ == "__main__":
     main()
