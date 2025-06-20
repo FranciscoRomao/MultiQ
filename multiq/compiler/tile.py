@@ -207,7 +207,3 @@ class Tile(Scheduler_mixin, Placer_mixin, Verifier_mixin, Router_mixin):
             arch = Architecture(arch_json)
             arch.preprocessing()
             self.architecture = arch
-
-    def update_runtime(self, end_time: float):
-        """ Update the runtime stat (safely) to the new end time value. """
-        self.result_json["runtime"] = max(self.result_json["runtime"], end_time)
