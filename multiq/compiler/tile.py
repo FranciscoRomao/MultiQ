@@ -51,7 +51,7 @@ class Tile(Scheduler_mixin, Placer_mixin, Verifier_mixin, Router_mixin):
         self.gate_scheduling_idx = None
         self.gate_1q_scheduling = None
         self.reuse_qubit = None
-        # format: (qubit_idx, aod_idx=0, row, col)
+        # format: qubit_idx |-> (aod_idx=0, row, col)
         self.qubit_mapping = []
 
         self.width = 1 # in number of grid cells!

@@ -42,7 +42,7 @@ class InstructionBuilder:
 
         for i in range(len(tiles)):
             for j in range(len(tiles[i])):
-                if tiles[i][j] is not None:
+                if tiles[i][j]:
                     #It is the same for all tiles, but if we set more tile spaces (grid_cols x grid_rows)
                     # than the input circuits we need to find the first non-empty tile to get this information
                     storage_zone_rows = tiles[i][j].config.storage_zone_rows
@@ -51,16 +51,14 @@ class InstructionBuilder:
         # process the gates per tile row so that we can use row-based 1q gate application
         for tile_row in range(storage_zone_rows):
             pulse_applied = False
-            for _, row in enumerate(tiles):
-                for _, tile in enumerate(row):
+            for i, row in enumerate(tiles):
+                for j, tile in enumerate(row):
                     if not tile:
                         continue
 
-                    qubits_in_row: set[int] = set()
-                    for quidx, map in enumerate(tile.qubit_mapping):
-                        if map:
-                            if map[0][1] == tile_row:
-                                qubits_in_row.add(quidx)
+                    # note: qubit_mapping[layer=0][qubit_idx=i] = (aod_idx, row, col)
+                    row_mapping = [mapping for mapping in tile.qubit_mapping[0] if mapping[1] == tile_row]
+                    qubits_in_row = {idx for idx, mapping in enumerate(tile.qubit_mapping[0]) if mapping[1] == tile_row}
 
                     set_qubit_dependency = set()
                     inst_idx = len(tile.result_json['instructions'])
@@ -84,7 +82,7 @@ class InstructionBuilder:
 
                     if len(result_gate) > 0:
                         tile.write_row1q_gate_instruction(
-                            tile_row, inst_idx, result_gate, dependency, tile.qubit_mapping[0])
+                            tile_row, inst_idx, result_gate, dependency, row_mapping)
                         tile.result_json['instructions'][-1]["begin_time"] = end_time
                         tile.result_json['instructions'][-1]["end_time"] = end_time + r1q_time
                         pulse_applied = True
