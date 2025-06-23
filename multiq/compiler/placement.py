@@ -139,7 +139,7 @@ class PlacementOptimiser:
     def calculate_contention(self, placement: list[list[Tile | None]]) -> float:
         """
         Calculates a contention score for a given placement. Considers all layers of movements.
-        Placement stores tiles at their top-left anchor. Tiles have .width and .height in cells.
+        Placement stores tiles at their top-left anchor.
         """
         total_contention_score = 0.0
         max_layers = 0
@@ -178,58 +178,45 @@ class PlacementOptimiser:
         return total_contention_score
 
     def generate_initial_placement(self) -> list[list[Tile | None]]:
-        """Generates an initial placement (i.e. random fill)."""
+        """
+        Generates an initial placement using a First Fit Decreasing (FFD) heuristic.
+        This is a common and effective approach for bin packing problems.
+        """
         current_placement: list[list[Tile | None]] = [
             [None for _ in range(self.grid_cols)] for _ in range(self.grid_rows)
         ]
 
-        tiles_to_assign = list(self.tiles_to_place)
-        # Also shuffle tiles for more randomness
-        random.shuffle(tiles_to_assign)
+        # Sort tiles in descending order of their width (in grid cells).
+        tiles_to_assign = sorted(
+            self.tiles_to_place,
+            key=lambda t: self._get_tile_width_in_cells(t),
+            reverse=True
+        )
 
         num_actually_placed = 0
-        for tile_to_be_placed in tiles_to_assign:
+        for tile in tiles_to_assign:
             placed_this_tile = False
-
-            # Find all valid root positions for the current tile_to_be_placed
-            # A valid root (r_idx, c_idx) is one where current_placement[r_idx][c_idx] is None,
-            # and the entire span of tile_to_be_placed fits into None cells.
-            possible_valid_starts_for_this_tile = []
+            # Try to place the tile in the first available spot
             for r_idx in range(self.grid_rows):
-                c_idx = 0
-                while c_idx < self.grid_cols:
-                    # If current_placement[r_idx][c_idx] is None, it's a candidate root.
-                    # _can_place_tile will verify if the whole span is also None.
-                    if current_placement[r_idx][c_idx] is None:
-                        if self._can_place_tile(current_placement, tile_to_be_placed, r_idx, c_idx):
-                            possible_valid_starts_for_this_tile.append(
-                                (r_idx, c_idx))
-                        c_idx += 1  # Move to the next column to check as a potential root
-                    else:
-                        # This cell is occupied by an existing tile's root. Skip its entire cell span.
-                        existing_tile_width = self._get_tile_width_in_cells(
-                            current_placement[r_idx][c_idx])
-                        c_idx += existing_tile_width
-
-            random.shuffle(possible_valid_starts_for_this_tile)
-            
-            if possible_valid_starts_for_this_tile:
-                # Pick the first valid shuffled start
-                r_start, c_start = possible_valid_starts_for_this_tile[0]
-                self._place_tile(current_placement,
-                                 tile_to_be_placed, r_start, c_start)
-                placed_this_tile = True
-                tile_to_be_placed.r_coord = r_start # Store anchor in tile
-                tile_to_be_placed.c_coord = c_start
-                num_actually_placed += 1
+                for c_idx in range(self.grid_cols):
+                    if self._can_place_tile(current_placement, tile, r_idx, c_idx):
+                        self._place_tile(current_placement, tile, r_idx, c_idx)
+                        # Store anchor coordinates in the tile object for later reference.
+                        tile.r_coord = r_idx
+                        tile.c_coord = c_idx
+                        placed_this_tile = True
+                        num_actually_placed += 1
+                        break  # Move to the next tile
+                if placed_this_tile:
+                    break  # Move to the next tile
 
             if not placed_this_tile:
                 logger.warning(
-                    f"Could not place tile ({tile_to_be_placed.source_name}, width_cells: {self._get_tile_width_in_cells(tile_to_be_placed)}) in initial random placement.")
+                    f"Could not place tile ({tile.source_name}, width_cells: {self._get_tile_width_in_cells(tile)}).")
 
         if num_actually_placed < len(self.tiles_to_place):
             logger.warning(
-                f"Initial placement: Only placed {num_actually_placed}/{len(self.tiles_to_place)} tiles due to space constraints or ordering.")
+                f"Initial placement: Only placed {num_actually_placed}/{len(self.tiles_to_place)} tiles due to space constraints.")
         return current_placement
 
     def get_neighbour_placement(self, current_placement: list[list[Tile | None]]) -> list[list[Tile | None]]:
