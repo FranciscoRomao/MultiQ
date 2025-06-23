@@ -57,10 +57,14 @@ l2: false # Boolean flag
 enable_verification: true
 
 # Physical Dimensions (in micrometers)
-
-# Scheduling and Routing Strategies
 physical_cell_height_um: 50.0
 physical_cell_width_um: 10.0
+
+# multiprograming grid configuration
+grid_cols: 5
+grid_rows: 2
+
+# Scheduling and Routing Strategies
 scheduling_strategy: "asap" # As Soon As Possible
 routing_strategy: "maximalis_sort"
 reuse: true
