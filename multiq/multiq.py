@@ -17,7 +17,8 @@ class MultiQ:
         self.config = MultiQConfig.from_config_file("config.yaml")
 
     def print_configuration(self):
-        logger.info("MultiQ config settings goes here...")
+        if self.config:
+            logger.info("Using parameters from config file.")
 
     # TODO: remove, unused
     def init_zac(self):
