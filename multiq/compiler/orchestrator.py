@@ -48,10 +48,6 @@ class Orchestrator:
         logger.info(
             f"There are {len(self.active_tiles)} active tiles before routing.")
 
-        # write_initial_instruction() returns end_time. Global schedule waits till last tile is finished
-        # self.global_time = max(
-        #     [self.instr_builder.write_initial_instruction(t) for t in active_tile_objs])
-
         self.global_time = self.instr_builder.write_initial_instruction(self.tiles)
 
         layer: int = 0
@@ -206,13 +202,9 @@ class Orchestrator:
 
                 if max(r1_anchor, r2_anchor) < min(r1_anchor + h1_cells, r2_anchor + h2_cells):
                     if not row_compatible(g_mov1, g_mov2):
-                        logger.info(
-                            f"Edge ({i}, {j}) not row compatible.")
                         combined_graph.add_edge(i, j)
                 if max(c1_anchor, c2_anchor) < min(c1_anchor + w1_cells, c2_anchor + w2_cells):
                     if not column_compatible(g_mov1, g_mov2):
-                        logger.info(
-                            f"Edge ({i}, {j}) not col compatible.")
                         combined_graph.add_edge(i, j)
 
                 if r1_anchor != r2_anchor and c1_anchor != c2_anchor:
@@ -221,8 +213,6 @@ class Orchestrator:
                     tile_mov2_for_diag = TileMovement(
                         r2_anchor, c2_anchor, local_mov2)
                     if not diagonal_compatible(self.config, self.tiles, tile_mov1_for_diag, tile_mov2_for_diag, layer, is_forward_move):
-                        logger.info(
-                            f"Edge ({i}, {j}) not diagonal compatible.")
                         combined_graph.add_edge(i, j)
 
         return combined_graph, global_move_data
