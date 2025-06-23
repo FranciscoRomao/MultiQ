@@ -169,7 +169,7 @@ class Router_mixin(GraphOperations_mixin, Instructions_mixin):
         # we use row-based pick up
         pickup_dict = {}  # key: array and row, value: a list of qubit in the same row
         for q in set_aod_qubit:
-            x, y = self.architecture.exact_SLM_location_tuple(
+            _, y = self.architecture.exact_SLM_location_tuple(
                 initial_mapping[q])
             if y in pickup_dict:
                 pickup_dict[y].append(q)

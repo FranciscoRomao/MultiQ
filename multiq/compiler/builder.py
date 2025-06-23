@@ -1,8 +1,4 @@
-
-from zac.ds.architecture import Architecture
-
 from .tile import Tile
-
 from multiq.configuration import MultiQConfig
 
 import logging
@@ -41,6 +37,7 @@ class InstructionBuilder:
 
     def row_1q_gate_instruction(self, tiles: list[list[Tile | None]], layer: int, begin_time: float):
         """ Instead of applying 1q gates serially, apply a whole row at a time using AoD laser. """
+        print(f"row1q gate instr layer={layer}")
 
         r1q_time = self.config.r1q_time
         end_time = begin_time
@@ -106,4 +103,3 @@ class InstructionBuilder:
                 end_time += r1q_time
 
         return end_time
-

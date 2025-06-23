@@ -31,7 +31,7 @@ class Tile(Scheduler_mixin, Placer_mixin, Verifier_mixin, Router_mixin):
 
         # initialise the compiler's instructions output
         self.result_json = {
-            'name': "", 'architecture_spec_path': None, 'instructions': [], "runtime": 0}
+            'name': "", 'architecture_spec_path': None, 'instructions': [], "runtime": 0.0}
 
         self.runtime_analysis = {}
         self.to_verify = True
