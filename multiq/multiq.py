@@ -12,6 +12,28 @@ class MultiQ:
     def __init__(self):
         self.config = MultiQConfig.from_config_file("config.yaml")
 
+    def print_configuration(self):
+        if self.config:
+            logger.info("Using parameters from config file.")
+
+    # TODO: remove, unused
+    def init_zac(self):
+        zac_settings = {
+            "routing_strategy": "maximalis",
+            "scheduling": "asap",
+            "trivial_placement": False,
+            "dynamic_placement": True,
+            "use_window": True,
+            "window_size": 1000,
+            "reuse": True
+        }
+        
+        zacc = zac.ZAC()
+        zacc.parse_setting(zac_settings)
+        zacc.set_architecture(self.arch)
+
+        return zacc
+
     def set_inputs(self, input_files: list[str]):
         
         self.planner = Planner(self.config)
