@@ -372,7 +372,7 @@ class Orchestrator:
             assert (tile)
             initial_indx = tile.process_2q_gate_layer(
                 layer, tile.qubit_mapping[2 * layer + 1])
-            tile.process_1q_gate_layer(layer, tile.qubit_mapping[2 * layer + 1])
+            #tile.process_1q_gate_layer(layer, tile.qubit_mapping[2 * layer + 1])
 
             if initial_indx:
                 gate_instrs[(r_idx, c_idx)] = initial_indx

@@ -57,9 +57,12 @@ class InstructionBuilder:
                     if not tile:
                         continue
 
-                    # NB: qubit_mapping[layer][qubit_idx=i] = (aod_idx, row, col)
+                    # NB: qubit_mapping[layer][qubit_idx=i] = (aod_idx=0, row, col)
+                    # row_mapping = [
+                    #     mapping for mapping in tile.qubit_mapping[layer] if mapping[1] == tile_row]
                     row_mapping = [
-                        mapping for mapping in tile.qubit_mapping[layer] if mapping[1] == tile_row]
+                        mapping for mapping in tile.qubit_mapping[layer]]
+
                     qubits_in_row = {idx for idx, mapping in enumerate(
                         tile.qubit_mapping[layer]) if mapping[1] == tile_row}
 
