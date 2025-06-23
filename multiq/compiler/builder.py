@@ -41,10 +41,10 @@ class InstructionBuilder:
         r1q_time = self.config.r1q_time
         end_time = begin_time
 
-        for i in range(len(tiles)):
-            for j in range(len(tiles[i])):
-                if tiles[i][j]:
-                    #It is the same for all tiles, but if we set more tile spaces (grid_cols x grid_rows)
+        for _, row in enumerate(tiles):
+            for _, tile in enumerate(row):
+                if tile:
+                    # It is the same for all tiles, but if we set more tile spaces (grid_cols x grid_rows)
                     # than the input circuits we need to find the first non-empty tile to get this information
                     storage_zone_rows = tile.config.storage_zone_rows
                     break
@@ -57,9 +57,11 @@ class InstructionBuilder:
                     if not tile:
                         continue
 
-                    # note: qubit_mapping[layer=0][qubit_idx=i] = (aod_idx, row, col)
-                    row_mapping = [mapping for mapping in tile.qubit_mapping[0] if mapping[1] == tile_row]
-                    qubits_in_row = {idx for idx, mapping in enumerate(tile.qubit_mapping[0]) if mapping[1] == tile_row}
+                    # NB: qubit_mapping[layer][qubit_idx=i] = (aod_idx, row, col)
+                    row_mapping = [
+                        mapping for mapping in tile.qubit_mapping[layer] if mapping[1] == tile_row]
+                    qubits_in_row = {idx for idx, mapping in enumerate(
+                        tile.qubit_mapping[layer]) if mapping[1] == tile_row}
 
                     set_qubit_dependency = set()
                     inst_idx = len(tile.result_json['instructions'])
@@ -97,3 +99,4 @@ class InstructionBuilder:
                 end_time += r1q_time
 
         return end_time
+
