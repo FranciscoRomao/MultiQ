@@ -360,16 +360,20 @@ class Orchestrator:
                     instr["begin_time"] = global_earliest_start
                     instr["end_time"] = global_end_time
                     # update runtime stat
-                    tile.result_json["runtime"] = max(
-                        tile.result_json["runtime"], global_end_time)
+                    tile.update_runtime(global_end_time)
+                if instr["type"] == "row1qGate":
+                    # fill in times for row-wise 1q gate app. This occupies the AoD.
+                    instr["begin_time"] += local_start_time
+                    local_start_time += instr["end_time"]
+                    instr["end_time"] = local_start_time
+                    tile.update_runtime(local_start_time)
                 else:
                     # fill in 1q gates if there are any. These operations don't need to be synchronised.
                     instr["begin_time"] = local_start_time
                     local_end_time = local_start_time + \
                         len(instr["gates"]) * tile.architecture.time_1qGate
                     instr["end_time"] = local_end_time
-                    tile.result_json["runtime"] = max(
-                        tile.result_json["runtime"], local_end_time)
+                    tile.update_runtime(local_end_time)
                     # update local start time
                     local_start_time = local_end_time
 
@@ -380,10 +384,13 @@ class Orchestrator:
             assert (tile)
             initial_indx = tile.process_2q_gate_layer(
                 layer, tile.qubit_mapping[2 * layer + 1])
-            tile.process_1q_gate_layer(layer, tile.qubit_mapping[2 * layer + 1])
+            #tile.process_1q_gate_layer(layer, tile.qubit_mapping[2 * layer + 1])
 
             if initial_indx:
                 gate_instrs[(r_idx, c_idx)] = initial_indx
+
+        self.instr_builder.row_1q_gate_instruction(
+            self.tiles, layer, 0.0) # start time is assigned later
 
         return gate_instrs
 
