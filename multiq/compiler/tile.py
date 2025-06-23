@@ -55,6 +55,9 @@ class Tile(Scheduler_mixin, Placer_mixin, Verifier_mixin, Router_mixin):
 
         self.width = 1 # in number of grid cells!
         self.height = 1
+        # (r,c) coordinates of the tile's anchor on the QPU grid, set during placement
+        self.r_coord = -1
+        self.c_coord = -1
 
     def prepare_routing(self):
         """ Clear the dependency tracking datastructures for routing. """

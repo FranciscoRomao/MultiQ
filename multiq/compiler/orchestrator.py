@@ -2,8 +2,6 @@ import logging
 import os
 import json
 
-from zac.ds.architecture import Architecture
-
 import networkx as nx
 
 from multiq.configuration import MultiQConfig
