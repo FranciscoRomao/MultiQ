@@ -10,11 +10,8 @@ logger = logging.getLogger("multiq")
 
 class MultiQ:
     def __init__(self):
+        self.tiles = []
         self.config = MultiQConfig.from_config_file("config.yaml")
-
-    def print_configuration(self):
-        if self.config:
-            logger.info("Using parameters from config file.")
 
     # TODO: remove, unused
     def init_zac(self):
