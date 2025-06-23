@@ -61,17 +61,25 @@ class InstructionBuilder:
                     if not tile:
                         continue
 
-                    # NB: qubit_mapping[layer][qubit_idx=i] = (aod_idx, row, col)
+                    # NB: qubit_mapping[layer][qubit_idx=i] = (aod_idx=0, row, col)
+                    # row_mapping = [
+                    #     mapping for mapping in tile.qubit_mapping[layer] if mapping[1] == tile_row]
                     row_mapping = [
-                        mapping for mapping in tile.qubit_mapping[layer] if mapping[1] == tile_row]
+                        mapping for mapping in tile.qubit_mapping[layer]]
+
                     qubits_in_row = {idx for idx, mapping in enumerate(
                         tile.qubit_mapping[layer]) if mapping[1] == tile_row}
 
                     set_qubit_dependency = set()
                     inst_idx = len(tile.result_json['instructions'])
 
-                    list_1q_gate = [
-                        gate_1q for gate_1q in tile.dict_g_1q_parent[-1] if gate_1q[1] in qubits_in_row]
+                    list_1q_gate = []
+                    if layer == 0:
+                        list_1q_gate = [
+                            gate_1q for gate_1q in tile.dict_g_1q_parent[-1] if gate_1q[1] in qubits_in_row]
+                    else:
+                        list_1q_gate = filter(
+                            lambda g: g[1] in qubits_in_row, tile.gate_1q_scheduling[layer])
 
                     result_gate = []
                     for gate_info in list_1q_gate:
