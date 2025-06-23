@@ -101,21 +101,14 @@ class Router_mixin(GraphOperations_mixin, Instructions_mixin):
 
         return begin_time
 
-    def process_gate_layer(self, layer: int, gate_mapping: list):
+    def process_2q_gate_layer(self, layer: int, gate_mapping: list) -> int:
         """
         generate a layer for gate execution
         """
-
-        # print("process gate layer")
         list_gate_idx = self.gate_scheduling_idx[layer]
-        # print("list_gate_idx:", list_gate_idx)
-        # print("gate_mapping:", gate_mapping)
-        # print("gate scheduling", self.gate_scheduling)
-
         initial_instr_idx = len(self.result_json['instructions'])
 
         list_gate = self.gate_scheduling[layer]
-        list_1q_gate = self.gate_1q_scheduling[layer]
         dict_gate_zone = dict()
         for i in range(len(list_gate)):
             slm_idx = gate_mapping[list_gate[i][0]][0]
@@ -143,6 +136,12 @@ class Router_mixin(GraphOperations_mixin, Instructions_mixin):
             self.write_gate_instruction(
                 inst_idx, rydberg_idx, result_gate, dependency)
 
+        return initial_instr_idx
+
+    def process_1q_gate_layer(self, layer: int, gate_mapping: list):
+        
+        list_1q_gate = self.gate_1q_scheduling[layer]
+
         # process single-qubit gates
         inst_idx = len(self.result_json['instructions'])
         result_gate = []
@@ -161,8 +160,6 @@ class Router_mixin(GraphOperations_mixin, Instructions_mixin):
         if len(result_gate) > 0:
             self.write_1q_gate_instruction(
                 inst_idx, result_gate, dependency, gate_mapping)
-
-        return initial_instr_idx
 
     def process_movement_layer(self, set_aod_qubit: set, initial_mapping: list, final_mapping: list):
         """

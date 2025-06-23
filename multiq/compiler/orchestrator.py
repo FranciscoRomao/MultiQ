@@ -378,8 +378,10 @@ class Orchestrator:
         for (r_idx, c_idx) in self.active_tiles:
             tile = self.tiles[r_idx][c_idx]
             assert (tile)
-            initial_indx = tile.process_gate_layer(
+            initial_indx = tile.process_2q_gate_layer(
                 layer, tile.qubit_mapping[2 * layer + 1])
+            tile.process_1q_gate_layer(layer, tile.qubit_mapping[2 * layer + 1])
+
             if initial_indx:
                 gate_instrs[(r_idx, c_idx)] = initial_indx
 

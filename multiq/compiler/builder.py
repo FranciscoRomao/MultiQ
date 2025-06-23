@@ -9,8 +9,10 @@ import logging
 
 logger = logging.getLogger("multiq")
 
+
 class InstructionBuilder:
     """ Build global instructions for the orchestrator. """
+
     def __init__(self, config: MultiQConfig):
         self.config = config
 
@@ -32,20 +34,23 @@ class InstructionBuilder:
                 }
                 )
 
-        return self.row_1q_gate_instruction(tiles)
+        return self.row_1q_init_gates(tiles)
 
-    def row_1q_gate_instruction(self, tiles: list[list[Tile | None]]):
+    def row_1q_init_gates(self, tiles: list[list[Tile | None]]):
+        return self.row_1q_gate_instruction(tiles, layer=0, begin_time=0.0)
+
+    def row_1q_gate_instruction(self, tiles: list[list[Tile | None]], layer: int, begin_time: float):
         """ Instead of applying 1q gates serially, apply a whole row at a time using AoD laser. """
 
         r1q_time = self.config.r1q_time
-        end_time = 0.0
+        end_time = begin_time
 
-        for i in range(len(tiles)):
-            for j in range(len(tiles[i])):
-                if tiles[i][j]:
-                    #It is the same for all tiles, but if we set more tile spaces (grid_cols x grid_rows)
+        for _, row in enumerate(tiles):
+            for _, tile in enumerate(row):
+                if tile:
+                    # It is the same for all tiles, but if we set more tile spaces (grid_cols x grid_rows)
                     # than the input circuits we need to find the first non-empty tile to get this information
-                    storage_zone_rows = tiles[i][j].config.storage_zone_rows
+                    storage_zone_rows = tile.config.storage_zone_rows
                     break
 
         # process the gates per tile row so that we can use row-based 1q gate application
@@ -56,9 +61,11 @@ class InstructionBuilder:
                     if not tile:
                         continue
 
-                    # note: qubit_mapping[layer=0][qubit_idx=i] = (aod_idx, row, col)
-                    row_mapping = [mapping for mapping in tile.qubit_mapping[0] if mapping[1] == tile_row]
-                    qubits_in_row = {idx for idx, mapping in enumerate(tile.qubit_mapping[0]) if mapping[1] == tile_row}
+                    # NB: qubit_mapping[layer][qubit_idx=i] = (aod_idx, row, col)
+                    row_mapping = [
+                        mapping for mapping in tile.qubit_mapping[layer] if mapping[1] == tile_row]
+                    qubits_in_row = {idx for idx, mapping in enumerate(
+                        tile.qubit_mapping[layer]) if mapping[1] == tile_row}
 
                     set_qubit_dependency = set()
                     inst_idx = len(tile.result_json['instructions'])
@@ -91,3 +98,4 @@ class InstructionBuilder:
                 end_time += r1q_time
 
         return end_time
+
