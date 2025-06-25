@@ -4,7 +4,7 @@ from multiq.compiler.planner import Planner
 from multiq.compiler.orchestrator import Orchestrator
 from multiq.animator.animator import Animator
 from multiq.configuration import MultiQConfig
-from multiq.compiler.compatiblity_selector import CircuitSASelector
+from multiq.compiler.scheduler import CircuitSASelector
 
 logger = logging.getLogger("multiq")
 
