@@ -44,7 +44,7 @@ arch_padding: 0 # Padding around individual layouts
 # Placement Settings
 dynamic_placement: true
 trivial_placement: false
-#storage_zone_rows: null
+storage_zone_rows: null
 use_window: true
 window_size: 1000
 l2: false # Boolean flag
