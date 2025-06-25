@@ -23,7 +23,7 @@ class MultiQ:
         # There is a bug on the selector where the cost starts to be negative at some point,
         # although it should not be possible it doesnt seem to affect the results.
         # There is no time now to fix it, I will leave it for later.
-        self.bins = self.selector.select(tiles=self.tiles)
+        self.bins = self.selector.select(tiles)
         
         logger.info("Bundled tiles:")
         for i, result in enumerate(self.bins):

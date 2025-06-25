@@ -272,6 +272,7 @@ class Planner:
             tile._set_architecture(out)
             tile.circuit_file = circuit_file
             tile.circuit = circuit
+            tile.best_nlayers = len(execution_layers)
             self.tiles.append(tile)
 
         return self.tiles
