@@ -1,9 +1,9 @@
 # MultiQ Configuration File
 
 # QPU Settings
-entanglement_height: 15
-qpu_width: 200
-qpu_height: 80
+entanglement_height: 12
+qpu_width: 60
+qpu_height: 50
 zone_separation: 10
 entanglement_site_separation: [12, 10]
 storage_site_separation: [3, 3]
@@ -16,8 +16,8 @@ time_1qGate: 0.625
 r1q_time: 12.0
 
 # multiprograming grid configuration
-grid_cols: 3
-grid_rows: 1
+grid_cols: 0
+grid_rows: 2 # This will be usually set to 2 unless the user forces it to 1
 
 # Planner Settings
 # weights for layout planning
@@ -30,16 +30,25 @@ zone_centering: [1,1] # Defines the centering of the entanglement and storage zo
 # lookahead for splitting circuit into parallel layers
 layer_split_window: 2
 
+# Circuit SA Scheduler
+perf_weight_selector: 0.9 # Performance weight for scheduling
+util_weight_selector: 0.1 # Utilization weight for scheduling
+initial_temperature: 250.0 # Initial temperature for simulated annealing
+cooling_rate: 0.8 # Cooling factor for simulated annealing
+final_temperature: 0.5 # Final temperature for simulated annealing
+max_iterations_per_temp: 10 # Number of iterations per temperature in simulated annealing
+max_iterations: 1000 # Maximum number of iterations for the scheduler
+
 # file path for temporary generation of architecture files
 tmp_arch_file: "zac_config/tmp_architecture.json"
 
 # Animation Settings
-arch_padding: 1 # Padding around individual layouts
+arch_padding: 0 # Padding around individual layouts
 
 # Placement Settings
 dynamic_placement: true
 trivial_placement: false
-storage_zone_rows: null
+#storage_zone_rows: null
 use_window: true
 window_size: 1000
 l2: false # Boolean flag

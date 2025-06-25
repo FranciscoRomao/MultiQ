@@ -27,6 +27,7 @@ class Tile(Scheduler_mixin, Placer_mixin, Verifier_mixin, Router_mixin):
         self.dir = "./result/"
         self.circuit_file : str = None
         self.architecture = None
+        self.best_nlayers: int = 0
 
         # initialise the compiler's instructions output
         self.result_json = {

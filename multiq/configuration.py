@@ -29,6 +29,16 @@ class MultiQConfig:
     storage_zone_rows: int# = None #This is calculated later in the planner
     zone_centering: list[int]# = True # If True, the planner will center the zones in the grid_row
 
+    # Scheduler 
+    perf_weight_selector: float# = 0.95 # Weight for performance in the circuit compatibility selector
+    util_weight_selector: float# = 0.05 # Weight for utility in the circuit
+    # SA parameters
+    initial_temperature: float # Initial temperature for simulated annealing
+    final_temperature: float # Final temperature for simulated annealing
+    cooling_rate: float # Cooling rate for simulated annealing
+    max_iterations: int # Maximum number of iterations for simulated annealing
+    max_iterations_per_temp: int # Maximum iterations per temperature for simulated annealing
+
     # Placer Settings
     dynamic_placement: bool# = True
     trivial_placement: bool# = False
