@@ -41,9 +41,6 @@ class CircuitSASelector:
 
         self.bin_counter = 0
         
-        # Initialize commutation checker
-        self.checker = CommutationChecker()
-        
     def select(self, 
                tiles: List[Tile], 
                seed: Optional[int] = None) -> List[QuantumCircuit]:

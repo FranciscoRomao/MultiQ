@@ -436,5 +436,9 @@ class Orchestrator:
                 if tile:
                     filename = os.path.basename(tile.source_name)
                     filename = os.path.splitext(filename)[0] + ".json"
+                    # Check is if the output directory exists, if not create it
+                    if not os.path.exists(output_dir):
+                        os.makedirs(output_dir)
+                        
                     with open(os.path.join(output_dir, filename), "w+") as f:
                         f.write(json.dumps(tile.result_json))
