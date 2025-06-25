@@ -13,3 +13,4 @@ htmlcov
 
 zac_config/tmp_architecture.json
 circuits/*
+pdm.lock

@@ -28,13 +28,13 @@ class Planner:
     input_layers: list[list[Any]] = []  # For each input circuit this stores the list of execution layers
     circuit_files: list[str] = []  # List of input circuit file names
 
-    def __init__(self, config:MultiQConfig, grid_rows: int = 1, grid_cols: int = 2): 
+    def __init__(self, config:MultiQConfig): 
         
         self.config = config
         self.util_weight = config.util_weight
         self.perf_weight = config.perf_weight
-        self.grid_cols = grid_cols
-        self.grid_rows = grid_rows
+        self.grid_rows = config.grid_rows
+        #self.grid_cols = config.grid_cols
         self.tiles: List[Tile] = []
 
         if sum([config.util_weight, config.perf_weight]) != 1:
@@ -175,7 +175,10 @@ class Planner:
         padding = self.config.arch_padding
 
         ent_x_dimension = (entanglement_cols-1) * entanglement_separation[0] + 2
-        ent_y_dimension = (entanglement_rows-1) * entanglement_separation[1]
+
+        # If there is only one row, the entanglement zone height would be calculated as 0, 
+        # in that we set to one has the size minimum size just to contain one row of atoms
+        ent_y_dimension = (entanglement_rows-1) * entanglement_separation[1] if entanglement_rows > 1 else 1
 
         sto_x_dimension = (storage_cols-1) * storage_separation[0]
         sto_y_dimension = (storage_rows-1) * storage_separation[1]
@@ -214,14 +217,14 @@ class Planner:
                 "c": 10 #Hardcoded for now, it's not being used
             }],
             'arch_range': [[0-padding, 0-padding],
-                           [max((storage_cols-1)*3+padding, (entanglement_cols-1)*12+2+padding),
-                            (storage_rows-1)*3+self.config.zone_separation+(entanglement_rows-1)*12+2+5+padding]],
-            'rydberg_range': [[[0, (storage_rows-1)*3+self.config.zone_separation/2],
-                               [(storage_cols-1)*3, (storage_rows-1)*3+self.config.zone_separation+(entanglement_rows-1)*12+5]]]
+                           [max(sto_x_dimension+padding, ent_x_dimension+padding),
+                            sto_y_dimension+self.config.zone_separation+ent_y_dimension+padding]],
+            'rydberg_range': [[[0, sto_y_dimension+self.config.zone_separation/2],
+                               [sto_x_dimension, sto_x_dimension+self.config.zone_separation+ent_y_dimension]]]
         }
 
         dump(architecture, open(self.config.tmp_arch_file, 'w'), indent=1)
-         
+        
         return self.config.tmp_arch_file
 
     def set_best_architectures(self) -> List[List[Any]]:
@@ -268,6 +271,7 @@ class Planner:
             
             tile._set_architecture(out)
             tile.circuit_file = circuit_file
+            tile.circuit = circuit
             self.tiles.append(tile)
 
         return self.tiles
