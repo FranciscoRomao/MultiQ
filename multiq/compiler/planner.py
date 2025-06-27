@@ -47,8 +47,7 @@ class Planner:
 
         for i in input_circuits:
             circuit = QuantumCircuit.from_qasm_file(i)
-            circuit = transpile(circuit, basis_gates=[
-                                'cz', 'rz', 'ry', 'rx'], optimization_level=optimization_level)
+            circuit = transpile(circuit, basis_gates=['cz', 'u3'], optimization_level=optimization_level)
             dag = circuit_to_dag(circuit)
             self.circuit_files.append(i)
             self.input_circuits.append(circuit)
@@ -178,10 +177,8 @@ class Planner:
 
         entanglement_separation = self.config.entanglement_site_separation
         storage_separation = self.config.storage_site_separation
-        padding = self.config.arch_padding
 
-        ent_x_dimension = (entanglement_cols-1) * \
-            entanglement_separation[0] + 2
+        ent_x_dimension = (entanglement_cols-1) * entanglement_separation[1] + (entanglement_separation[0] - entanglement_separation[1])
 
         # If there is only one row, the entanglement zone height would be calculated as 0,
         # in that we set to one has the size minimum size just to contain one row of atoms
@@ -190,6 +187,12 @@ class Planner:
 
         sto_x_dimension = (storage_cols-1) * storage_separation[0]
         sto_y_dimension = (storage_rows-1) * storage_separation[1]
+
+        # Padding ensures that the architecture is padded by half of the necessary separation to avoid crosstalk with other layouts
+        arch_width = max(sto_x_dimension, ent_x_dimension)
+        min_ent_padding = 0 if arch_width - ent_x_dimension - entanglement_separation[1]/2 >= 0 else abs(arch_width - ent_x_dimension - entanglement_separation[1]/2)
+        min_sto_padding = 0 if arch_width - sto_x_dimension - storage_separation[0]/2 >= 0 else abs(arch_width - sto_x_dimension - storage_separation[0]/2)
+        padding = max(min_ent_padding, min_sto_padding)
 
         architecture = {
             "name": "tile_architecture",
@@ -202,7 +205,7 @@ class Planner:
                     "c": storage_cols,
                     "location": [max(0, ((ent_x_dimension - sto_x_dimension) * zone_centering[0])/sum(zone_centering)), 0]}],
                 "offset": [0, 0],
-                "dimension": [sto_x_dimension, sto_y_dimension]}],
+                "dimension": [sto_x_dimension, sto_y_dimension]}], # Min padding on both sides
             "entanglement_zones": [{
                 "zone_id": 0,
                 "slms": [{
@@ -215,34 +218,27 @@ class Planner:
                      "site_seperation": self.config.entanglement_site_separation,
                      "r": entanglement_rows,
                      "c": entanglement_cols,
-                     "location": [2+max(0, ((sto_x_dimension - ent_x_dimension) * zone_centering[0])/sum(zone_centering)), (storage_rows-1)*3+self.config.zone_separation]}],
+                     "location": [(entanglement_separation[0]-entanglement_separation[1])+max(0,((sto_x_dimension - ent_x_dimension) * zone_centering[0])/sum(zone_centering)), (storage_rows-1)*3+self.config.zone_separation]}],
                 "offset": [0, 0],
-                "dimension": [ent_x_dimension, ent_y_dimension]}],
+                "dimension": [ent_x_dimension, ent_y_dimension]}], # Min padding on both sides
             "aods": [{
                 "id": i,
                 "site_seperation": self.config.aod_minimum_separation,
-                "r": 10,  # Hardcoded for now, it's not being used
-                "c": 10  # Hardcoded for now, it's not being used
-            } for i in range(self.config.num_aods)
-            # {
-            #     "id": 1,
-            #     "site_seperation": self.config.aod_minimum_separation,
-            #     "r": 10,  # Hardcoded for now, it's not being used
-            #     "c": 10  # Hardcoded for now, it's not being used
-            # }
-            ],
-            'arch_range': [[0-padding, 0-padding],
+                "r": 10, #Hardcoded for now, it's not being used
+                "c": 10 #Hardcoded for now, it's not being used
+            }],
+            'arch_range': [[0-padding, 0-1],
                            [max(sto_x_dimension+padding, ent_x_dimension+padding),
-                            sto_y_dimension+self.config.zone_separation+ent_y_dimension+padding]],
+                            sto_y_dimension+self.config.zone_separation+ent_y_dimension+entanglement_separation[1]/2]],
             'rydberg_range': [[[0, sto_y_dimension+self.config.zone_separation/2],
-                               [sto_x_dimension, sto_x_dimension+self.config.zone_separation+ent_y_dimension]]]
+                               [ent_x_dimension, sto_y_dimension+self.config.zone_separation+ent_y_dimension]]]
         }
 
         dump(architecture, open(self.config.tmp_arch_file, 'w'), indent=1)
 
         return self.config.tmp_arch_file
 
-    def set_best_architectures(self) -> List[List[Any]]:
+    def set_best_architectures(self) -> List[Tile]:
         '''
         Simple version of the best_layouts function.
         It assumes that max fidelity relates to have a width equal to the number of qubits in the circuit.
@@ -271,29 +267,24 @@ class Planner:
                             self.config.entanglement_height) // self.grid_rows // storage_atom_spacing
 
             tile.config.storage_zone_rows = storage_rows
-
-            largest_entanglement = self._largest_entanglement_op(
-                execution_layers)
-
-            minimun_entanglement_width = (ceil(
-                largest_entanglement / per_circuit_entanglement_row_height)-1) * entanglement_pair_spacing + entanglement_atom_spacing
-
-            minimun_storage_width = max(minimun_entanglement_width, (ceil(
-                circuit.num_qubits / storage_rows)-1) * storage_atom_spacing)
-
-            best_storage_width = circuit.num_qubits * storage_atom_spacing
+        
+            largest_entanglement = self._largest_entanglement_op(execution_layers)
+            
+            minimun_entanglement_width = (ceil(largest_entanglement / per_circuit_entanglement_row_height)-1) * entanglement_pair_spacing + entanglement_atom_spacing
+            
+            minimun_storage_width = (ceil(circuit.num_qubits / storage_rows)-1) * storage_atom_spacing
+            
+            best_storage_width = max(minimun_entanglement_width, (circuit.num_qubits-1) * storage_atom_spacing)
 
             # Weighted average of the best and minimum storage width with the weights defined in the configuration
-            selected_storage_width = ceil(
-                best_storage_width * self.perf_weight + minimun_storage_width * (1-self.perf_weight) / 2)
-
+            selected_storage_width = ceil(best_storage_width * self.perf_weight + minimun_storage_width * (1-self.perf_weight) / 2)
+            
+            # The cols have one added because you have one less spacing for a given number of cols
             out = self._generate_arch_json(
                 entanglement_rows=per_circuit_entanglement_row_height,
-                entanglement_cols=int((selected_storage_width+entanglement_pair_spacing) // (
-                    entanglement_atom_spacing+entanglement_pair_spacing)),
+                entanglement_cols=((selected_storage_width-2) // entanglement_pair_spacing)+1,
                 storage_rows=storage_rows,
-                storage_cols=int(selected_storage_width //
-                                 storage_atom_spacing)
+                storage_cols=(selected_storage_width // storage_atom_spacing)+1
             )
 
             tile._set_architecture(out)
