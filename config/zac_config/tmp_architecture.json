@@ -1,0 +1,102 @@
+{
+ "name": "tile_architecture",
+ "storage_zones": [
+  {
+   "zone_id": 0,
+   "slms": [
+    {
+     "id": 0,
+     "site_seperation": [
+      3,
+      3
+     ],
+     "r": 6,
+     "c": 8,
+     "location": [
+      0.5,
+      0
+     ]
+    }
+   ],
+   "offset": [
+    0,
+    0
+   ],
+   "dimension": [
+    21,
+    15
+   ]
+  }
+ ],
+ "entanglement_zones": [
+  {
+   "zone_id": 0,
+   "slms": [
+    {
+     "id": 1,
+     "site_seperation": [
+      12,
+      10
+     ],
+     "r": 1,
+     "c": 3,
+     "location": [
+      0,
+      25
+     ]
+    },
+    {
+     "id": 2,
+     "site_seperation": [
+      12,
+      10
+     ],
+     "r": 1,
+     "c": 3,
+     "location": [
+      2,
+      25
+     ]
+    }
+   ],
+   "offset": [
+    0,
+    0
+   ],
+   "dimension": [
+    22,
+    1
+   ]
+  }
+ ],
+ "aods": [
+  {
+   "id": 0,
+   "site_seperation": 2,
+   "r": 10,
+   "c": 10
+  }
+ ],
+ "arch_range": [
+  [
+   -5.0,
+   -1
+  ],
+  [
+   27.0,
+   31.0
+  ]
+ ],
+ "rydberg_range": [
+  [
+   [
+    0,
+    20.0
+   ],
+   [
+    22,
+    26
+   ]
+  ]
+ ]
+}
