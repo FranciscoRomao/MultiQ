@@ -1,17 +1,13 @@
 import random
 import math
 import copy
-from typing import List, Optional, Tuple, Dict, Any, Callable
+from typing import List, Optional
 from qiskit import QuantumCircuit
 from qiskit.dagcircuit import DAGCircuit
-from qiskit.dagcircuit.dagnode import DAGOpNode, DAGInNode, DAGOutNode
-from qiskit.circuit import CommutationChecker, CircuitInstruction
-from multiq.compiler.planner import Planner, MultiQConfig, Tile
-from qiskit.converters import circuit_to_dag, dag_to_circuit
-from qiskit import transpile
-from mqt import qcec
+from qiskit.dagcircuit.dagnode import DAGInNode, DAGOutNode
+from multiq.compiler.planner import MultiQConfig, Tile
+from qiskit.converters import circuit_to_dag
 import logging
-import os
 
 logger = logging.getLogger("multiq")
 
@@ -43,7 +39,7 @@ class CircuitSASelector:
         
     def select(self, 
                tiles: List[Tile], 
-               seed: Optional[int] = None) -> List[QuantumCircuit]:
+               seed: Optional[int] = None) -> List[List[Tile]]:
 
         self.tiles = tiles
         self.merge_circuits = merge_circuits
@@ -65,7 +61,7 @@ class CircuitSASelector:
         for i in range(self.bin_counter):
             self.bin_costs.append(self._evaluate_bin_cost(i))
 
-        current_cost = sum(self.bin_costs)
+        current_cost = float(sum(self.bin_costs))
 
         #self._create_new_bin()
 
@@ -211,7 +207,7 @@ class CircuitSASelector:
         
         return best_positions
     
-    def _convert_tile_idx_to_tile(self) -> Tile:
+    def _convert_tile_idx_to_tile(self) -> List[List[Tile]]:
         """Converts the last positions list with tile indices to a list of tile objects."""
 
         if not self.positions:
@@ -315,7 +311,7 @@ class CircuitSASelector:
         
         return False  # Tile did not fit in any row of the bin
     
-    def _simple_bin_fit_check(self, tile_idx: int, bin_idx: int, insert:False) -> bool:
+    def _simple_bin_fit_check(self, tile_idx: int, bin_idx: int, insert: bool = False) -> bool:
         """
         Check if a tile can fit in a specific bin and place it if possible.
         Returns True if fitted, False otherwise.
@@ -456,7 +452,7 @@ class CircuitSASelector:
             # self._revert_last_move()
             return None
     
-    def _circuit_move(self) -> List[int]:
+    def _circuit_move(self) -> List[int] | None:
         """
         Move a random circuit from one bin to another.
         Returns list of affected bin indices.
@@ -495,7 +491,7 @@ class CircuitSASelector:
         # Restore bin state if placement failed
         self.positions[from_bin][from_row].append(tile_idx)
         
-    def _circuit_swap(self) -> List[int]:
+    def _circuit_swap(self) -> List[int] | None:
         """
         Swap positions of two random circuits.
         If valid returns list of affected bin indices.
