@@ -77,7 +77,8 @@ class InstructionBuilder:
                         tile.qubit_dependency[gate_info[1]] = inst_idx
                         result_gate.append({
                             "name": gate_info[0],
-                            "q": gate_info[1]
+                            "q": gate_info[1],
+                            "params": gate_info[2] if len(gate_info) > 2 else []
                         })
 
                     dependency = {"qubit": []}
