@@ -26,7 +26,7 @@ class Tile(Scheduler_mixin, Placer_mixin, Verifier_mixin, Router_mixin):
         self.source_name = ""
         self.dir = "./result/"
         self.circuit_file : str = None
-        self.architecture = None
+        self.architecture: Architecture = None
         self.best_nlayers: int = 0
 
         # initialise the compiler's instructions output
@@ -121,7 +121,7 @@ class Tile(Scheduler_mixin, Placer_mixin, Verifier_mixin, Router_mixin):
                 if list_qubit_last_2q_gate[q0] not in self.dict_g_1q_parent:
                     self.dict_g_1q_parent[list_qubit_last_2q_gate[q0]] = []
                 self.dict_g_1q_parent[list_qubit_last_2q_gate[q0]].append(
-                    (ins.operation.name, q0))
+                    (ins.operation.name, q0, ins.operation.params))
                 n_single_qubit_gate += 1
 
         self.n_g = len(self.g_q)

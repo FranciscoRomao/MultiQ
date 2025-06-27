@@ -5,6 +5,7 @@ from multiq.compiler.orchestrator import Orchestrator
 from multiq.animator.animator import Animator
 from multiq.configuration import MultiQConfig
 from multiq.compiler.scheduler import CircuitSASelector
+from multiq.checker import Checker
 
 logger = logging.getLogger("multiq")
 
@@ -36,10 +37,25 @@ class MultiQ:
             compiler.set_programs(bin)
             compiler.compile()
             compiler.write_output(f"./results_bin{idx}")
+
+            checker = Checker(self.config)
+
+            for tile in bin:
+                translated_circuit = checker.translate_ZAIR_to_circuit(tile.result_json['instructions'], tile.n_q)
+                equivalence = checker.check_equivalence(tile.circuit, translated_circuit)
+
+                tile.circuit.draw(output='mpl', filename=f"original_circuit.png")
+                translated_circuit.draw(output='mpl', filename=f"translated_circuit.png")
+
+                if not equivalence:
+                    logger.error(f"Tile {tile.source_name} is not equivalent after compilation!")
+                    logger.error(f"Skipping animation and exiting.")
+                    #raise ValueError(f"Tile {tile.source_name} is not equivalent after compilation!")
+                else:
+                    logger.info(f"Tile {tile.source_name} is equivalent after compilation.")
         
             anim = Animator(self.config, self.config.grid_rows, self.config.grid_cols)
             anim.multi_animate(compiler.tiles, f"test_bin{idx}.mp4")
-
 '''
 paths = [
     "circuits/random0_8.qasm",

@@ -24,7 +24,7 @@ zone_centering: [1,1] # Defines the centering of the entanglement and storage zo
                       # 1:2 would push the smaller zone to the left
 
 # lookahead for splitting circuit into parallel layers
-layer_split_window: 2
+layer_split_window: 10
 
 # Circuit SA Scheduler
 perf_weight_selector: 0.9 # Performance weight for scheduling
