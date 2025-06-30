@@ -53,6 +53,8 @@ class MultiQConfig:
     reuse: bool# = True
     resyn: bool# = True
     
+    no_row1q_gates: bool
+    
     # Router Settings
     routing_strategy: str# = "maximalis_sort"
     has_dependency: bool# = True

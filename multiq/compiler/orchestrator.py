@@ -14,9 +14,10 @@ from .movement import Movement, row_compatible, column_compatible, diagonal_comp
 
 logger = logging.getLogger("multiq")
 
+
 class Orchestrator:
     def __init__(self, config: MultiQConfig):
-        #self.architecture = arch
+        # self.architecture = arch
         self.config: MultiQConfig = config
 
         # start with placeholders for the tiles. They are created in set_program()
@@ -52,7 +53,8 @@ class Orchestrator:
         logger.info(
             f"There are {len(self.active_tiles)} active tiles before routing.")
 
-        self.global_time = self.instr_builder.write_initial_instruction(self.tiles)
+        self.global_time = self.instr_builder.write_initial_instruction(
+            self.tiles)
 
         layer: int = 0
         while len(self.active_tiles) > 0:
@@ -201,8 +203,10 @@ class Orchestrator:
                     continue
 
                 # Translate local movements to global physical coordinates for comparison
-                g_mov1 = global_movement(self.config, r1_anchor, c1_anchor, local_mov1)
-                g_mov2 = global_movement(self.config, r2_anchor, c2_anchor, local_mov2)
+                g_mov1 = global_movement(
+                    self.config, r1_anchor, c1_anchor, local_mov1)
+                g_mov2 = global_movement(
+                    self.config, r2_anchor, c2_anchor, local_mov2)
 
                 if max(r1_anchor, r2_anchor) < min(r1_anchor + h1_cells, r2_anchor + h2_cells):
                     if not row_compatible(g_mov1, g_mov2):
@@ -289,7 +293,7 @@ class Orchestrator:
             instr = tile.result_json["instructions"][idx]
             time_st_i = tile.get_begin_time(idx, instr["dependency"])
             start_times.append(time_st_i)
-            
+
         # get first available aod
         aod_end, aod_id = heapq.heappop(self.aod_end_times)
         global_start_time = max(max(start_times), aod_end)
@@ -360,10 +364,14 @@ class Orchestrator:
                     # update runtime stat
                     tile.update_runtime(global_end_time)
                 if instr["type"] == "row1qGate":
+                    aod_begin, aod_id = heapq.heappop(self.aod_end_times)
+
                     # fill in times for row-wise 1q gate app. This occupies the AoD.
-                    instr["begin_time"] += local_start_time
+                    instr["begin_time"] += max(local_start_time, aod_begin)
                     local_start_time += instr["end_time"]
                     instr["end_time"] = local_start_time
+
+                    heapq.heappush(self.aod_end_times, (local_start_time, aod_id))
                     tile.update_runtime(local_start_time)
                 else:
                     # fill in 1q gates if there are any. These operations don't need to be synchronised.
@@ -382,13 +390,16 @@ class Orchestrator:
             assert (tile)
             initial_indx = tile.process_2q_gate_layer(
                 layer, tile.qubit_mapping[2 * layer + 1])
-            #tile.process_1q_gate_layer(layer, tile.qubit_mapping[2 * layer + 1])
+            if self.config.no_row1q_gates:
+                tile.process_1q_gate_layer(
+                    layer, tile.qubit_mapping[2 * layer + 1])
 
             if initial_indx:
                 gate_instrs[(r_idx, c_idx)] = initial_indx
 
-        self.instr_builder.row_1q_gate_instruction(
-            self.tiles, layer, 0.0) # start time is assigned later
+        if not self.config.no_row1q_gates:
+            self.instr_builder.row_1q_gate_instruction(
+                self.tiles, layer, 0.0)  # start time is assigned later in rydberg_assignment
 
         return gate_instrs
 
@@ -417,7 +428,7 @@ class Orchestrator:
                     logger.info(
                         f"Tile ({tile.source_name}) at ({i},{j}): {tile.result_json["runtime"]} ms")
 
-    def set_programs(self, tiles:list[Tile]):
+    def set_programs(self, tiles: list[Tile]):
         if len(tiles) > self.config.grid_rows * self.config.grid_cols:
             logger.warning(
                 f"{len(tiles)} tiles provided but grid only has {self.config.grid_rows * self.config.grid_cols} spaces.")
@@ -437,10 +448,10 @@ class Orchestrator:
             tile.parse_setting(zac_settings)
             tile.load_program(tile.circuit_file)
             self.tiles_to_place.append(tile)
-            
+
     def write_output(self, output_dir: str):
         """ Write the output of each tile into the results directory """
-        
+
         for i, row in enumerate(self.tiles):
             for j, tile in enumerate(row):
                 if tile:
@@ -449,6 +460,6 @@ class Orchestrator:
                     # Check is if the output directory exists, if not create it
                     if not os.path.exists(output_dir):
                         os.makedirs(output_dir)
-                        
+
                     with open(os.path.join(output_dir, filename), "w+") as f:
                         f.write(json.dumps(tile.result_json))
