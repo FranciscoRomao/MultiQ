@@ -1,6 +1,7 @@
 import logging
 import os
 import json
+import heapq
 
 import networkx as nx
 
@@ -12,7 +13,6 @@ from .placement import PlacementOptimiser
 from .movement import Movement, row_compatible, column_compatible, diagonal_compatible, TileMovement, global_movement
 
 logger = logging.getLogger("multiq")
-
 
 class Orchestrator:
     def __init__(self, config: MultiQConfig):
@@ -28,6 +28,10 @@ class Orchestrator:
         # all operations on all tiles are measured according to this global time
         self.global_time = 0.0
         self.aod_end_time = 0.0  # finish time of currently executing instruction on AoD
+
+        self.aod_end_times = [(0.0, i) for i in range(self.config.num_aods)]
+        self.aod_dependency = [0 for _ in range(self.config.num_aods)]
+
         self.rydberg_end_time = 0.0  # finish time of the current/last rydberg operation
 
         # currently active tiles. Should never refer to "None" tiles
@@ -277,6 +281,7 @@ class Orchestrator:
                 durations[(r_idx, c_idx)].append(
                     (tile.get_duration(instr), idx))
 
+        # make sure all our dependencies have finished first
         start_times = []
         for (r_idx, c_idx), idx in instr_start_indices.items():
             tile = self.tiles[r_idx][c_idx]
@@ -284,8 +289,10 @@ class Orchestrator:
             instr = tile.result_json["instructions"][idx]
             time_st_i = tile.get_begin_time(idx, instr["dependency"])
             start_times.append(time_st_i)
-
-        global_start_time = max(max(start_times), self.aod_end_time)
+            
+        # get first available aod
+        aod_end, aod_id = heapq.heappop(self.aod_end_times)
+        global_start_time = max(max(start_times), aod_end)
 
         for (r_idx, c_idx) in self.active_tiles:
             tile = self.tiles[r_idx][c_idx]
@@ -297,10 +304,12 @@ class Orchestrator:
                 begin_time = global_start_time
                 end_time = global_start_time + duration
 
-                instr["dependency"]["aod"] = -1
+                instr["dependency"]["aod"] = self.aod_dependency[aod_id]
+                self.aod_dependency[aod_id] = idx
+
                 instr["begin_time"] = begin_time
                 instr["end_time"] = end_time
-                instr["aod_id"] = 0
+                instr["aod_id"] = aod_id
 
                 # add begin_time offset to the sub-intructions
                 for detail_inst in instr["insts"]:
@@ -311,7 +320,8 @@ class Orchestrator:
                 tile.result_json["runtime"] = max(
                     tile.result_json["runtime"], end_time)
 
-                self.aod_end_time = max(self.aod_end_time, end_time)
+                # self.aod_end_time = max(self.aod_end_time, end_time)
+                heapq.heappush(self.aod_end_times, (end_time, aod_id))
 
     def rydberg_assignment(self, ryd_instr_start_indices: dict[tuple[int, int], int]):
         global_earliest_start = 0.0

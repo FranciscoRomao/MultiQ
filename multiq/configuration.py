@@ -1,5 +1,4 @@
 from dataclasses import dataclass
-from typing import List, Optional
 import yaml
 import logging
 
@@ -57,6 +56,7 @@ class MultiQConfig:
     # Router Settings
     routing_strategy: str# = "maximalis_sort"
     has_dependency: bool# = True
+    num_aods: int
 
     # Animator Settings
     r1q_time: float# = 12.0 #us. Duration of an entire row 1q application using AoD lasers.Add commentMore actions
