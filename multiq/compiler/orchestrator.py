@@ -372,6 +372,7 @@ class Orchestrator:
                     instr["end_time"] = local_start_time
 
                     heapq.heappush(self.aod_end_times, (local_start_time, aod_id))
+                    self.aod_dependency[aod_id] = idx
                     tile.update_runtime(local_start_time)
                 else:
                     # fill in 1q gates if there are any. These operations don't need to be synchronised.
