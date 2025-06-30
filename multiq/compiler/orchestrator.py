@@ -64,7 +64,7 @@ class Orchestrator:
         graphs_data_for_combine: list[tuple[int, int,
                                             int, int, nx.Graph, list[Movement]]] = []
 
-        for (r_idx, c_idx) in self.active_tiles:
+        for (r_idx, c_idx) in list(self.active_tiles):
             # (r_idx, c_idx) are the anchor coordinates of the tile
             tile = self.tiles[r_idx][c_idx]
             assert (tile is not None)
