@@ -5,7 +5,7 @@
 groups = ["default"]
 strategy = ["inherit_metadata"]
 lock_version = "4.5.0"
-content_hash = "sha256:ca4132d4f9e210e859cca59e26fa646b6c2de923d1a2e3f06d83da140c6cca83"
+content_hash = "sha256:c9914c02fa7439dd25818bca4c0544a748ea3af1c0a0d722547375a78f125228"
 
 [[metadata.targets]]
 requires_python = "~=3.12.0"
@@ -815,6 +815,15 @@ files = [
     {file = "numpy-2.2.6-cp312-cp312-win_amd64.whl", hash = "sha256:c1f9540be57940698ed329904db803cf7a402f3fc200bfe599334c9bd84a40b2"},
     {file = "numpy-2.2.6.tar.gz", hash = "sha256:e29554e2bef54a90aa5cc07da6ce955accb83f21ab5de01a62c8478897b264fd"},
 ]
+
+[[package]]
+name = "pachinqo"
+version = "0.0.0"
+git = "https://github.com/positivetechnologylab/PachinQo"
+revision = "3be11c61f1d9fd8ff7229cc631f943b87ce75cc2"
+summary = ""
+groups = ["default"]
+marker = "python_full_version ~= \"3.12.0\""
 
 [[package]]
 name = "packaging"

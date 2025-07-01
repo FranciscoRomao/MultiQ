@@ -14,7 +14,8 @@ dependencies = [
     "pandas==2.2.3",
     "networkx<4.0.0,>=3.4.2",
     "mqt-bench>=1.1.9",
-    "zac@git+https://github.com/danvonk/ZAC.git ",
+    "zac@git+https://github.com/danvonk/ZAC.git",
+    "pachinqo@git+https://github.com/positivetechnologylab/PachinQo",
     "pyyaml>=6.0.2",
     "mqt-qcec>=3.0.0"
 ]
@@ -26,4 +27,3 @@ keywords = ["quantum", "compilers"]
 
 [tool.pdm]
 distribution = false
-package

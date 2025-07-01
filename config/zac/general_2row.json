@@ -1,0 +1,18 @@
+{
+    "qasm_list": [],
+    "zac_setting": [{
+        "arch_spec": "config/zac/general_arch_2row.json",
+        "dependency": true,
+        "dir": "results/zac/",
+        "routing_strategy": "maximalis_sort",
+        "trivial_placement": false,
+        "dynamic_placement": true,
+        "use_window": true,
+        "debug": false,
+        "window_size": 1000,
+        "reuse": true,
+        "use_verifier": true
+    }],
+    "simulation": true,
+    "animation": true
+}
