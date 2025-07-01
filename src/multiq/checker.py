@@ -60,7 +60,6 @@ class Checker:
                 logger.error(f"Unknown instruction type: {op}")
                 raise ValueError(f"Unknown instruction type: {op}")
 
-
         return circuit
 
     def check_equivalence(self, circuit0: QuantumCircuit, circuit1: QuantumCircuit) -> bool:
