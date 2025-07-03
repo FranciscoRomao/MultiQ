@@ -81,7 +81,7 @@ class Tile(Scheduler_mixin, Placer_mixin, Verifier_mixin, Router_mixin):
         n_single_qubit_gate = 0
 
         cz_circuit = qasm2.load(source_file)
-        cz_circuit = transpile(cz_circuit, basis_gates=["cz", "id", "u2", "u1", "u3"],
+        cz_circuit = transpile(cz_circuit, basis_gates=["cz", "u3"],
                                optimization_level=3,
                                seed_transpiler=0)
 
@@ -200,7 +200,7 @@ class Tile(Scheduler_mixin, Placer_mixin, Verifier_mixin, Router_mixin):
         if "resyn" in setting:
             self.resyn = setting["resyn"]
 
-    def _set_architecture(self, arch_json: str = 'config/zac_config/tmp_architecture.json'):
+    def _set_architecture(self, arch_json: str = 'config/zac/tmp_architecture.json'):
         # just use n_q as the number of cols in the tile for now
         with open(arch_json, "r") as f:
             arch_json = json.load(f)

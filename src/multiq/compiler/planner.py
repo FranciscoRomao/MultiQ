@@ -48,6 +48,8 @@ class Planner:
         for i in input_circuits:
             circuit = QuantumCircuit.from_qasm_file(i)
             circuit = transpile(circuit, basis_gates=['cz', 'u3'], optimization_level=optimization_level)
+            circuit.remove_final_measurements()
+            circuit = self.remove_barriers(circuit)
             dag = circuit_to_dag(circuit)
             self.circuit_files.append(i)
             self.input_circuits.append(circuit)
@@ -64,14 +66,24 @@ class Planner:
             return copy.deepcopy(array[0:len(array)])
         else:
             return copy.deepcopy(array[0:end_index])
+        
+    def remove_barriers(self, circuit: QuantumCircuit) -> QuantumCircuit:
+        """
+        Removes barriers from the circuit.
+        """
+        for gate in circuit.data:
+            if gate[0].name == 'barrier':
+                circuit.data.remove(gate)
+        return circuit
 
     def _split_DAG_into_execution_layers(self, dag: DAGCircuit, window_size) -> list[Any]:
         removed_nodes = []
         layers = []
         dag_layers = [i for i in dag.multigraph_layers()]
+        layers_to_remove = []
 
         # Remove DAGInNode and DAGOutNode from the layers
-        for layer in dag_layers:
+        for layer_idx, layer in enumerate(dag_layers):
             indexes_to_remove = []
             for index, node in enumerate(layer):
                 if isinstance(node, DAGInNode):
@@ -84,7 +96,10 @@ class Planner:
                 layer.pop(index)
 
             if len(layer) == 0:
-                dag_layers.remove(layer)
+                layers_to_remove.append(layer_idx)
+        
+        for layer in reversed(layers_to_remove):
+            dag_layers.pop(layer)
 
         # removed_nodes.extend(dag_layers[0]) # Add input nodes to removed nodes
         index = 0

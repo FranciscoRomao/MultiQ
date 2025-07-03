@@ -36,7 +36,7 @@ max_iterations_per_temp: 10 # Number of iterations per temperature in simulated 
 max_iterations: 1000 # Maximum number of iterations for the scheduler
 
 # file path for temporary generation of architecture files
-tmp_arch_file: "config/zac_config/tmp_architecture.json"
+tmp_arch_file: "config/zac/tmp_architecture.json"
 
 # Animation Settings
 arch_padding: 0 # Padding around individual layouts

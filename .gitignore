@@ -11,7 +11,7 @@ htmlcov
 .vscode/
 *.mp4
 
-zac_config/tmp_architecture.json
+config/zac/tmp_architecture.json
 circuits/*
 pdm.lock
 
