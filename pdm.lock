@@ -5,7 +5,7 @@
 groups = ["default"]
 strategy = ["inherit_metadata"]
 lock_version = "4.5.0"
-content_hash = "sha256:4bbb8296d8ebc172181fd83a5b2f3b6037f533e1f73db3b0a88e9a0113d5a328"
+content_hash = "sha256:b52a3e2466fa5ed2cbc22a130288fe8df18c14ea22173f21b2a0f20e594857b9"
 
 [[metadata.targets]]
 requires_python = ">=3.12.0"
@@ -301,6 +301,41 @@ files = [
 ]
 
 [[package]]
+name = "mqt-qmap"
+version = "3.1.3"
+requires_python = ">=3.9"
+summary = "A tool for Quantum Circuit Mapping"
+groups = ["default"]
+dependencies = [
+    "importlib-resources>=5.0; python_version < \"3.10\"",
+    "mqt-core>=3.0.0",
+    "qiskit[qasm3-import]>=1.0.0",
+    "rustworkx[all]>=0.16.0",
+    "typing-extensions>=4.6; python_version < \"3.10\"",
+]
+files = [
+    {file = "mqt_qmap-3.1.3-cp312-cp312-macosx_11_0_arm64.whl", hash = "sha256:2101c8308eec0ec21fe76a7968b0c462f0e6773cc1a62897b107c352de500166"},
+    {file = "mqt_qmap-3.1.3-cp312-cp312-macosx_11_0_x86_64.whl", hash = "sha256:6ce6f964aaf7deed75d39ac24d09a5f40fd3852eb47d77eab3c58d53e6e9ce1f"},
+    {file = "mqt_qmap-3.1.3-cp312-cp312-manylinux_2_28_aarch64.whl", hash = "sha256:14fb17a0c967dea832103e6135fd92d54646441b0e78ebdc22fa6bd4fdeaf5ff"},
+    {file = "mqt_qmap-3.1.3-cp312-cp312-manylinux_2_28_x86_64.whl", hash = "sha256:4a2e1385e20b5d85c3202041d44f0d209337793e7ba44f5d1ccec544d2af8a2c"},
+    {file = "mqt_qmap-3.1.3-cp312-cp312-win_amd64.whl", hash = "sha256:c916ce22dc54dbe3130cf99d14d16ae418891482b705581d3082c5f924e6fd8c"},
+    {file = "mqt_qmap-3.1.3-cp312-cp312-win_arm64.whl", hash = "sha256:36074097a18661c2af9259fe2594d3aba7ff20c5652b21913f7cb400350c6e1f"},
+    {file = "mqt_qmap-3.1.3-cp313-cp313-macosx_11_0_arm64.whl", hash = "sha256:5faa6e509fcb421032ee33cea220b41335b18bcfd18fd0f7070fca851f10b239"},
+    {file = "mqt_qmap-3.1.3-cp313-cp313-macosx_11_0_x86_64.whl", hash = "sha256:dfd6f89751ef6cc3ddf4056d42704107122bbd8c4949f06a02914e73814a805f"},
+    {file = "mqt_qmap-3.1.3-cp313-cp313-manylinux_2_28_aarch64.whl", hash = "sha256:908dfe47a872239308172197f1b6350812e8d4a7d8733fa095290843c0494d04"},
+    {file = "mqt_qmap-3.1.3-cp313-cp313-manylinux_2_28_x86_64.whl", hash = "sha256:b50b98c1d6a9ba95ebba6e0d78ee67ffc8f59fef790094b27dab6f818f53dabc"},
+    {file = "mqt_qmap-3.1.3-cp313-cp313-win_amd64.whl", hash = "sha256:c156bdee155118511369329a99e68b93c75d425a6dd2efaf11ae5d1b4b29c9da"},
+    {file = "mqt_qmap-3.1.3-cp313-cp313-win_arm64.whl", hash = "sha256:04d80782a4358c579bb112261f8e1b8539785c0b1dd30cd1769fc46931017ba5"},
+    {file = "mqt_qmap-3.1.3-cp313-cp313t-macosx_11_0_arm64.whl", hash = "sha256:258ea511bc9b4e0b69fc304b38f139ba86e77626a100962203ef94610163c6f9"},
+    {file = "mqt_qmap-3.1.3-cp313-cp313t-macosx_11_0_x86_64.whl", hash = "sha256:ad7dba0ba620d93dbade6b2b6243869e0157bb7153e7e6d17c69b330b1cb48e4"},
+    {file = "mqt_qmap-3.1.3-cp313-cp313t-manylinux_2_28_aarch64.whl", hash = "sha256:4e691b18759ec9f4fb4ddc29502a958d35f91380e38c90270afa0214124da2be"},
+    {file = "mqt_qmap-3.1.3-cp313-cp313t-manylinux_2_28_x86_64.whl", hash = "sha256:28b28b84f9033d9aad99de528f847ce9c72abe23c3bb69efd1dd1f8b7da166d7"},
+    {file = "mqt_qmap-3.1.3-cp313-cp313t-win_amd64.whl", hash = "sha256:465067735a417ed6a628994efd17d94011ce9c7f6f5dfbefff67ec13d38e3fdd"},
+    {file = "mqt_qmap-3.1.3-cp313-cp313t-win_arm64.whl", hash = "sha256:c961f923b35fb91e4b4806bae520304d24916659010d24fbed14146c04885fcc"},
+    {file = "mqt_qmap-3.1.3.tar.gz", hash = "sha256:d960e98f9d4aad843016ade34ae4a06cf950e8a0336ee1ff01938a40e5964da0"},
+]
+
+[[package]]
 name = "networkx"
 version = "3.5"
 requires_python = ">=3.11"
@@ -383,11 +418,12 @@ files = [
 [[package]]
 name = "pachinqo"
 version = "0.0.0"
-git = "https://github.com/positivetechnologylab/PachinQo"
-revision = "3be11c61f1d9fd8ff7229cc631f943b87ce75cc2"
+url = "https://github.com/positivetechnologylab/PachinQo/archive/refs/tags/Paper.tar.gz"
 summary = ""
 groups = ["default"]
-marker = "python_full_version ~= \"3.12.0\""
+files = [
+    {file = "Paper.tar.gz", hash = "sha256:d59ef0b005bcd52ec70527be7ac1ec6a27e1f5037f9d80803a203536b4910d91"},
+]
 
 [[package]]
 name = "packaging"
@@ -651,6 +687,32 @@ summary = "A python graph library implemented in Rust"
 groups = ["default"]
 dependencies = [
     "numpy<3,>=1.16.0",
+]
+files = [
+    {file = "rustworkx-0.16.0-cp39-abi3-macosx_10_12_x86_64.whl", hash = "sha256:476a6c67b0142acd941691943750cc6737a48372304489969c2b62d30aaf4c27"},
+    {file = "rustworkx-0.16.0-cp39-abi3-macosx_11_0_arm64.whl", hash = "sha256:bef2ef42870f806af93979b457e240f6dfa4f867ca33965c620f3a804409ed3a"},
+    {file = "rustworkx-0.16.0-cp39-abi3-manylinux_2_12_i686.manylinux2010_i686.manylinux_2_17_i686.manylinux2014_i686.whl", hash = "sha256:0db3a73bf68b3e66c08322a2fc95d3aa663d037d9b4e49c3509da4898d3529cc"},
+    {file = "rustworkx-0.16.0-cp39-abi3-manylinux_2_17_aarch64.manylinux2014_aarch64.whl", hash = "sha256:4f12a13d7486234fa2a84746d5e41f436bf9df43548043e7a232f48804ff8c61"},
+    {file = "rustworkx-0.16.0-cp39-abi3-manylinux_2_17_s390x.manylinux2014_s390x.whl", hash = "sha256:89efd5c3a4653ddacc55ca39f28b261d43deec7d678f8f8fc6b76b5087f1dfea"},
+    {file = "rustworkx-0.16.0-cp39-abi3-manylinux_2_17_x86_64.manylinux2014_x86_64.whl", hash = "sha256:ec0c12aac8c54910ace20ac6ada4b890cd39f95f69100514715f8ad7af9041e4"},
+    {file = "rustworkx-0.16.0-cp39-abi3-musllinux_1_2_aarch64.whl", hash = "sha256:d650e39fc1a1534335f7517358ebfc3478bb235428463cfcd7c5750d50377b33"},
+    {file = "rustworkx-0.16.0-cp39-abi3-musllinux_1_2_x86_64.whl", hash = "sha256:293180b83509ee9bff4c3af7ccc1024f6528d61b65d0cb7320bd31924f10cb71"},
+    {file = "rustworkx-0.16.0-cp39-abi3-win32.whl", hash = "sha256:040c4368729cf502f756a3b0ff5f1c6915fc389f74dcc6afc6c3833688c97c01"},
+    {file = "rustworkx-0.16.0-cp39-abi3-win_amd64.whl", hash = "sha256:905df608843c32fa45ac023687769fe13056edf7584474c801d5c50705d76e9b"},
+    {file = "rustworkx-0.16.0.tar.gz", hash = "sha256:9f0dcb83f38d5ca2c3a683eb9b6951c8aec3262fbfe5141946a7ee5ba37e0bb6"},
+]
+
+[[package]]
+name = "rustworkx"
+version = "0.16.0"
+extras = ["all"]
+requires_python = ">=3.9"
+summary = "A python graph library implemented in Rust"
+groups = ["default"]
+dependencies = [
+    "matplotlib>=3.0",
+    "pillow>=5.4",
+    "rustworkx==0.16.0",
 ]
 files = [
     {file = "rustworkx-0.16.0-cp39-abi3-macosx_10_12_x86_64.whl", hash = "sha256:476a6c67b0142acd941691943750cc6737a48372304489969c2b62d30aaf4c27"},

@@ -285,6 +285,8 @@ class Planner:
 
             # Weighted average of the best and minimum storage width with the weights defined in the configuration
             selected_storage_width = ceil(best_storage_width * self.perf_weight + minimun_storage_width * (1-self.perf_weight) / 2)
+
+            logger.info(f'Best storage width: {best_storage_width}, selected storage width: {selected_storage_width}, minimun entanglement width: {minimun_entanglement_width}')
             
             # The cols have one added because you have one less spacing for a given number of cols
             out = self._generate_arch_json(
