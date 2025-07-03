@@ -13,6 +13,6 @@
         "reuse": true,
         "use_verifier": true
     }],
-    "simulation": false,
-    "animation": true
+    "simulation": true,
+    "animation": false
 }

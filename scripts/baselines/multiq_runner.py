@@ -9,8 +9,11 @@ import pdb
 import logging
 import pandas as pd
 import random
+import logging
+import argparse
+from multiq.multiq import MultiQ
 
-logger = logging.getLogger("evaluation.zac_runner")
+#logger = logging.getLogger("evaluation.zac_runner")
 
 def save_circuit(circuit, filename):
     qasm_str = dumps(circuit)
@@ -18,120 +21,44 @@ def save_circuit(circuit, filename):
     with open(filename, "w") as f:
         f.write(qasm_str)
 
-def merge_circuits(circuits: list):
-    assert len(circuits) >= 1, "At least one circuit is required to merge."
+def run_multiq_planner_eval():
 
-    if len(circuits) == 1:
-        return circuits[0]
+    perf_weights = [0.2, 0.4, 0.6, 0.8, 1.0]
 
-    new_circuit: QuantumCircuit = circuits[0].copy()
+    benchmark_set = open("data/benchmark_list.txt").read().splitlines()
 
-    for i in range(1, len(circuits)):
-        circuit2 = circuits[i]
-        new_circuit_copy = new_circuit.copy()
-        
-        # Create a new quantum circuit with enough qubits and classical bits
-        total_qubits = new_circuit.num_qubits + circuit2.num_qubits
-        total_clbits = new_circuit.num_clbits + circuit2.num_clbits
+    for weight in perf_weights:
+        for bench in benchmark_set:
 
-        new_circuit = QuantumCircuit(total_qubits, total_clbits)
+            mq = MultiQ()
+            mq.config.perf_weight = weight
+            mq.set_inputs([bench])
 
-        # Map circuit1's qubits and clbits into the new circuit
-        new_circuit.compose(
-            new_circuit_copy,
-            qubits=range(new_circuit_copy.num_qubits),
-            clbits=range(new_circuit_copy.num_clbits),
-            inplace=True
-        )
+            #results = 
 
-        # Map circuit2's qubits and clbits into the new circuit
-        new_circuit.compose(
-            circuit2,
-            qubits=range(new_circuit_copy.num_qubits, total_qubits),
-            clbits=range(new_circuit_copy.num_clbits, total_clbits),
-            inplace=True
-        )
-    
-    return new_circuit
+'''
+def run_multiq_bundler_eval():
 
-def run_zac(benchmark_set, settings_file):
+    logger = logging.getLogger("multiq")
 
-    with open(settings_file, 'r') as f:
-        exp_spec = json.load(f)
+    logging.basicConfig(format='%(levelname)s: %(message)s', level=logging.INFO)
 
-    dict_arch = dict()
-    list_zac_setting = exp_spec["zac_setting"]
-    to_run_simulation = exp_spec["simulation"]
+    perf_weights = [0.2, 0.4, 0.6, 0.8, 1.0]
 
-    info = {'nqubits': []}
+    bundler_configs = [
 
-    zac_compiler = None
 
-    for benchmark in benchmark_set:
-        print("==============================================")
-        print("Compile circuit {}".format(benchmark))
+    benchmark_set = open("data/benchmark_list.txt").read().splitlines()
 
-        filename = os.path.join(os.path.dirname(__file__), '../../data/benchmarks/', benchmark)
-        #filename = benchmark.split('/')[-1]
-        #filename = filename.split('.')[0]
+    for weight in perf_weights:
+        for bench in benchmark_set:
 
-        for zac_setting in list_zac_setting:
-            if zac_setting["arch_spec"] in dict_arch:
-                (arch, spec) = dict_arch[zac_setting["arch_spec"]]
-            else:
-                with open(zac_setting["arch_spec"], 'r') as f:
-                    spec = json.load(f)
-                arch = Architecture(spec)
-                arch.preprocessing() 
-                dict_arch[zac_setting["arch_spec"]] = (arch, spec)
-            zac_setting["name"] = filename
-            zac_compiler = ZAC()
-            zac_compiler.parse_setting(zac_setting)
-            zac_compiler.set_architecture_spec_path(zac_setting["arch_spec"])
-            zac_compiler.set_architecture(arch)
-            zac_compiler.set_program(filename)
-            # construct directory for result and time profiling
-            directory = zac_compiler.dir+"code"
-            if not os.path.exists(directory):
-                os.makedirs(directory)
-            directory = zac_compiler.dir+"time"
-            if not os.path.exists(directory):
-                os.makedirs(directory)
-            code_dict = zac_compiler.solve(save_file=False)
-            code_file = os.path.join(os.path.dirname(__file__), '../../results/zac/code', f'{benchmark.split('.')[0].split('/')[-1]}.json')
-            with open(code_file, 'w') as f:
-                json.dump(code_dict, f)
-
-            tmp = os.path.join(os.path.dirname(__file__), '../../results/zac/time', f'{benchmark.split('.')[0].split('/')[-1]}.json')
-            with open(tmp, 'w') as f:  
-                json.dump(zac_compiler.runtime_analysis, f, indent = 2)
-            
-            if to_run_simulation:
-                # set arch fidelity 
-                # run simulation
-                simulator = Simulator()
-                simulator.set_arch_spec(spec)
-                simulator.parse(code_file)
-                fidelity_result = simulator.simulate()
-                # continue
-                # construct directory for fidelity result
-                directory = zac_compiler.dir+"fidelity"
-                if not os.path.exists(directory):
-                    os.makedirs(directory)
-                tmp = os.path.join(os.path.dirname(__file__), '../../results/zac/fidelity', f'{benchmark.split('.')[0].split('/')[-1]}.json')
-                with open(tmp, 'w') as f:  
-                    json.dump(fidelity_result, f, indent = 2)
-
-            if exp_spec["animation"]:
-                # construct directory for fidelity animation
-                directory = zac_compiler.dir+"animation"
-                if not os.path.exists(directory):
-                    os.makedirs(directory)
-                tmp =  os.path.join(os.path.dirname(__file__), '../../results/zac/animation', f'{benchmark.split('.')[0].split('/')[-1]}.mp4')
-                zac_compiler.animate(code_dict, output=tmp)
-    return info
-
-def run_zac_single_benchmarks():
+            mq = MultiQ()
+            mq.config.perf_weight = weight
+            mq.set_inputs(args.input)
+'''
+'''
+def run_multiq_single_benchmarks():
     """
     Main function to run the ZAC compiler on a set of benchmarks.
     """
@@ -183,6 +110,7 @@ def run_zac_single_benchmarks():
     else:
         data.to_csv(results_file, mode='a', header=False, index=False)   
 
+'''
 '''
     # Running merged benchmarks
     benchmark_set = open("data/benchmark_list.txt").read().splitlines()

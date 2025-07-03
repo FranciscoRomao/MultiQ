@@ -2,17 +2,23 @@ import pdb
 import yaml
 import numpy as np
 import os
+import pdb
 import pandas as pd
 import csv
 from qiskit import transpile, QuantumCircuit
-from atomique.compilers.FPQAC.fpqac_generic_compiler import FPQACGenericCompiler
-from atomique.benchmarks.benchmark_set import BenchmarkSets
-from atomique.hyperparams import HyperParamSets
-from atomique.utils import count_1q_2q_gates, get_n2q_interation_stats
-from tools.gen_benchmarks import gen_single_benchmarks, gen_joint_benchmarks, save_circuit, gen_random_circuits
-from pachinqo.framework.grid import Grid
+from qiskit.qasm2 import dumps
+#from mqt.qmap.na.zoned import  
 
-'''
+# In PachinQo's source code it is called "framework"
+from framework.grid import Grid
+
+
+def save_circuit(circuit, filename):
+    qasm_str = dumps(circuit)
+
+    with open(filename, "w") as f:
+        f.write(qasm_str)
+
 def compute_fidelity(returned_values,cir_qubits):
     layers  = returned_values[0]
     total_move_distance = returned_values[1]
@@ -52,85 +58,92 @@ def compute_fidelity(returned_values,cir_qubits):
     total_fidelity = gate_1q_fidelity*gate_2q_fidelity*total_transfer_fidelity*total_decoherence_fidelity
 
     return total_fidelity, total_transfer_fidelity, total_decoherence_fidelity, gate_1q_fidelity, gate_2q_fidelity, total_shuttling_time, total_execution_time, total_transfer_fidelity
-'''
-'''
-circuit_sizes = [10, 25, 50, 100, 150, 200, 250]
-#circuit_sizes = [8]
-#benchmarks = ["ghz", "wstate", "dj", "grover-noancilla"]
-#benchmarks = ["ghz", "wstate", "dj"]
-circuits_per_size = 10
-benchmark_sets = []
 
-print("Generating single benchmarks...")
-benchmark_sets = gen_random_circuits(circuit_sizes, regen=False, ncircuits_per_size=circuits_per_size)
-#benchmark_sets += gen_single_benchmarks(circuit_sizes, benchmarks, regen=True)
 
-dir = "benchmarks/circuits/random/"
-
-print("Generating joint benchmarks...")
-np.random.seed(42)
-benchgroups = np.random.choice([f"random{j}-10" for j in range(circuits_per_size)], (circuits_per_size, 2))
-benchmark_sets += gen_joint_benchmarks(benchgroups, [[10]*2]*circuits_per_size, folder=dir)
-
-for index,i in enumerate(circuit_sizes[2:]):
-    np.random.seed(42)
-    benchgroups = np.random.choice([f"random{j}-{i}" for j in range(circuits_per_size)], (circuits_per_size, 2*(index+1)))
-    benchmark_sets += gen_joint_benchmarks(benchgroups, [[25]*2*(index+1)]*circuits_per_size, folder=dir)
-
-data = pd.DataFrame(columns=['benchmark',
-                             'nqubits',
-                             'total_fidelity',
-                             'compilation_time',
-                             'total_1q_fidelity',
-                             'total_2q_fidelity',
-                             'total_coherence_fidelity',
-                             'total_transfer_fidelity',
-                             'cir_shuttling_time',
-                             'execution_time'])
-
-for algo in benchmark_sets:
-    name = 'benchmarks/transpiled/' + algo.split('/')[-1].split('.')[0] + "_transpiled.qasm"
-    nqubits = sum(int(i) for  i in algo.split('/')[-1].split('-')[1].split('.')[0].split('_'))
-    if not os.path.exists(f"benchmarks/transpiled/{algo.split('/')[-1].split('.')[0]}_transpiled.qasm"):
-        transpiled_circuit = QuantumCircuit.from_qasm_file(algo)
-        transpiled_circuit = transpile(transpiled_circuit, optimization_level=0, basis_gates=['u3', 'cz'])
-        transpiled_circuit.remove_final_measurements()
-        print(f"Saving {name}...")
-        save_circuit(transpiled_circuit, name)
+def transpile_all_benchmarks(benchmark_set) -> list:
+    """
+    Transpile all benchmarks in the benchmark set.
+    """
+    # Load the benchmark set
+    dir = "data/benchmarks/"
+    transpiled_set = []
     
-    print(f"Running {name}...")
-    #Two caches 
-    #zone_specs = [
-    #    {'type': 'StorageZone', 'bottom_left_x': 90, 'bottom_left_y': 0, 'width': 190, 'height': 50},
-    #    {'type': 'EntanglementZone', 'bottom_left_x': 90, 'bottom_left_y': 60, 'width': 190, 'height': 130, 'col_size': 4},
-    #    {'type': 'ReadoutZone', 'bottom_left_x': 0, 'bottom_left_y': 60, 'width': 80, 'height': 130},
-    #    {'type': 'StorageZone', 'bottom_left_x': 290, 'bottom_left_y': 60, 'width': 80, 'height':130}
-    #]
-    #One cache
+    for algo in benchmark_set:
+        file_path = os.path.join(os.path.dirname(__file__), "../../data/benchmarks/", algo)
+        name = os.path.join(os.path.dirname(__file__), "../../data/benchmarks/transpiled/", algo.split('/')[-1].split('.')[0] + "_transpiled.qasm")
+        transpiled_set.append(name)
+        if not os.path.exists(name):
+            transpiled_circuit = QuantumCircuit.from_qasm_file(file_path)
+            transpiled_circuit = transpile(transpiled_circuit, optimization_level=3, basis_gates=['u3', 'cz'])
+            transpiled_circuit.remove_final_measurements()
+            print(f"Saving {name}...")
+            save_circuit(transpiled_circuit, name)
+
+    return transpiled_set
+
+
+def run_pachiqo_single_benchmarks():
+    """
+    Run single benchmarks using PachinQo.
+    """
+    # Load the benchmark set
+    benchmark_set = open("data/benchmark_list.txt").read().splitlines()
+    settings_file = os.path.join(os.path.dirname(__file__), "../../config/pachinqo/general.json")
+    
+    dir = "data/benchmarks/"
+    
+    # Print the results
+    data = pd.DataFrame(columns=['benchmark',
+                                 'nqubits',
+                                 'total_fidelity',
+                                 'compilation_time',
+                                 'total_1q_fidelity',
+                                 'total_2q_fidelity',
+                                 'total_coherence_fidelity',
+                                 'total_transfer_fidelity',
+                                 'cir_shuttling_time',
+                                 'execution_time'])
+    
+    benchmark_set = transpile_all_benchmarks(benchmark_set)
+    
+    #for algo in benchmark_set:
+        #file_path = os.path.join(os.path.dirname(__file__), "../../data/benchmark/", algo)
+        #name = 'benchmarks/transpiled/' + algo.split('/')[-1].split('.')[0] + "_transpiled.qasm"
+        #nqubits = sum(int(i) for  i in algo.split('/')[-1].split('-')[1].split('.')[0].split('_"))
+
     zone_specs = [
-        {'type': 'StorageZone', 'bottom_left_x': 90, 'bottom_left_y': 0, 'width': 190, 'height': 50},
-        {'type': 'EntanglementZone', 'bottom_left_x': 90, 'bottom_left_y': 60, 'width': 190, 'height': 130, 'col_size': 4},
-        {'type': 'ReadoutZone', 'bottom_left_x': 0, 'bottom_left_y': 60, 'width': 80, 'height': 130},
-        {'type': 'ReadoutZone', 'bottom_left_x': 290, 'bottom_left_y': 60, 'width': 80, 'height':130}
+            {'type': 'StorageZone', 'bottom_left_x': 0, 'bottom_left_y': 0, 'width': 230, 'height': 100},
+            {'type': 'EntanglementZone', 'bottom_left_x': 62, 'bottom_left_y': 120, 'width': 100, 'height': 35, 'col_size': 4},
+            {'type': 'ReadoutZone', 'bottom_left_x': 0, 'bottom_left_y': 120, 'width': 42, 'height': 35},
+            {'type': 'ReadoutZone', 'bottom_left_x': 182, 'bottom_left_y': 120, 'width': 42, 'height':35}
     ]
-    grid = Grid(zone_specs, 0, name, num_atoms=250)
-    ret_vals = grid.return_vals()
 
-    total_fidelity, total_transfer_fidelity, total_coherence_fidelity, total_1q_fidelity, total_2q_fidelity, cir_shuttling_time, execution_time, total_transfer_fidelity = compute_fidelity(ret_vals, nqubits)
+    for algo in benchmark_set:
+        print(f"Running {algo}...")
+        
+        grid = Grid(zone_specs, 0, algo, num_atoms=150)
 
-    data.loc[len(data)] = [algo.split('/')[-1].split('-')[0],
-                            nqubits,
-                            total_fidelity,
-                            ret_vals[3],
-                            total_1q_fidelity,
-                            total_2q_fidelity,
-                            total_coherence_fidelity,
-                            total_transfer_fidelity,
-                            cir_shuttling_time,
-                            execution_time]
+        #grid.print_grid_by_atoms()
 
-if not os.path.isfile(f"results/pachinqo_results.csv"):
-    data.to_csv(f"results/pachinqo_results.csv", index=False)
-else:
-    data.to_csv(f"results/pachinqo_results.csv", mode='a', header=False, index=False)
-'''
+        ret_vals = grid.return_vals()
+
+        circ = QuantumCircuit.from_qasm_file(algo)
+        nqubits = len(circ.qubits)
+
+        total_fidelity, total_transfer_fidelity, total_coherence_fidelity, total_1q_fidelity, total_2q_fidelity, cir_shuttling_time, execution_time, total_transfer_fidelity = compute_fidelity(ret_vals, nqubits)
+
+        data.loc[len(data)] = [algo.split('/')[-1].split('-')[0],
+                               nqubits,
+                               total_fidelity,
+                               ret_vals[3],
+                               total_1q_fidelity,
+                               total_2q_fidelity,
+                               total_coherence_fidelity,
+                               total_transfer_fidelity,
+                               cir_shuttling_time,
+                               execution_time]
+
+    if not os.path.isfile(f"results/pachinqo_results.csv"):
+        data.to_csv(f"results/pachinqo_results.csv", index=False)
+    else:
+        data.to_csv(f"results/pachinqo_results.csv", mode='a', header=False, index=False)
