@@ -51,7 +51,7 @@ class InstructionBuilder:
             pulse_applied = False
             for i, row in enumerate(tiles):
                 for j, tile in enumerate(row):
-                    if not tile:
+                    if not tile or layer >= len(tile.gate_1q_scheduling):
                         continue
 
                     # NB: qubit_mapping[layer][qubit_idx=i] = (aod_idx=0, row, col)
