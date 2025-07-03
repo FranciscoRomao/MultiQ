@@ -14,3 +14,7 @@ htmlcov
 zac_config/tmp_architecture.json
 circuits/*
 .pdm-python
+baselines/atomique/
+data/benchmarks/
+results
+organize
