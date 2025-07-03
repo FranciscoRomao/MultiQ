@@ -66,3 +66,6 @@ routing_strategy: "maximalis_sort"
 reuse: true
 resyn: true
 has_dependency: true
+
+num_aods: 2
+no_row1q_gates: false

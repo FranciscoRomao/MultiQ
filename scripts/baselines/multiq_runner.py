@@ -27,6 +27,8 @@ def run_multiq_planner_eval():
 
     benchmark_set = open("data/benchmark_list.txt").read().splitlines()
 
+    benchmark_set = [os.path.join(os.path.dirname(__file__), "../../data/benchmarks", bench) for bench in benchmark_set]
+
     for weight in perf_weights:
         for bench in benchmark_set:
 
