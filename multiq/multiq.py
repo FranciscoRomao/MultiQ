@@ -11,7 +11,7 @@ logger = logging.getLogger("multiq")
 
 class MultiQ:
     def __init__(self):
-        self.config = MultiQConfig.from_config_file("config.yaml")
+        self.config = MultiQConfig.from_config_file("config/config.yaml")
 
     def set_inputs(self, input_files: list[str]):
         

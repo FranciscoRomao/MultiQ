@@ -1,6 +1,7 @@
 import logging
 import os
 import json
+import heapq
 
 import networkx as nx
 
@@ -16,7 +17,7 @@ logger = logging.getLogger("multiq")
 
 class Orchestrator:
     def __init__(self, config: MultiQConfig):
-        #self.architecture = arch
+        # self.architecture = arch
         self.config: MultiQConfig = config
 
         # start with placeholders for the tiles. They are created in set_program()
@@ -28,6 +29,10 @@ class Orchestrator:
         # all operations on all tiles are measured according to this global time
         self.global_time = 0.0
         self.aod_end_time = 0.0  # finish time of currently executing instruction on AoD
+
+        self.aod_end_times = [(0.0, i) for i in range(self.config.num_aods)]
+        self.aod_dependency = [0 for _ in range(self.config.num_aods)]
+
         self.rydberg_end_time = 0.0  # finish time of the current/last rydberg operation
 
         # currently active tiles. Should never refer to "None" tiles
@@ -48,7 +53,8 @@ class Orchestrator:
         logger.info(
             f"There are {len(self.active_tiles)} active tiles before routing.")
 
-        self.global_time = self.instr_builder.write_initial_instruction(self.tiles)
+        self.global_time = self.instr_builder.write_initial_instruction(
+            self.tiles)
 
         layer: int = 0
         while len(self.active_tiles) > 0:
@@ -64,7 +70,7 @@ class Orchestrator:
         graphs_data_for_combine: list[tuple[int, int,
                                             int, int, nx.Graph, list[Movement]]] = []
 
-        for (r_idx, c_idx) in self.active_tiles:
+        for (r_idx, c_idx) in list(self.active_tiles):
             # (r_idx, c_idx) are the anchor coordinates of the tile
             tile = self.tiles[r_idx][c_idx]
             assert (tile is not None)
@@ -197,8 +203,10 @@ class Orchestrator:
                     continue
 
                 # Translate local movements to global physical coordinates for comparison
-                g_mov1 = global_movement(self.config, r1_anchor, c1_anchor, local_mov1)
-                g_mov2 = global_movement(self.config, r2_anchor, c2_anchor, local_mov2)
+                g_mov1 = global_movement(
+                    self.config, r1_anchor, c1_anchor, local_mov1)
+                g_mov2 = global_movement(
+                    self.config, r2_anchor, c2_anchor, local_mov2)
 
                 if max(r1_anchor, r2_anchor) < min(r1_anchor + h1_cells, r2_anchor + h2_cells):
                     if not row_compatible(g_mov1, g_mov2):
@@ -277,6 +285,7 @@ class Orchestrator:
                 durations[(r_idx, c_idx)].append(
                     (tile.get_duration(instr), idx))
 
+        # make sure all our dependencies have finished first
         start_times = []
         for (r_idx, c_idx), idx in instr_start_indices.items():
             tile = self.tiles[r_idx][c_idx]
@@ -285,7 +294,9 @@ class Orchestrator:
             time_st_i = tile.get_begin_time(idx, instr["dependency"])
             start_times.append(time_st_i)
 
-        global_start_time = max(max(start_times), self.aod_end_time)
+        # get first available aod
+        aod_end, aod_id = heapq.heappop(self.aod_end_times)
+        global_start_time = max(max(start_times), aod_end)
 
         for (r_idx, c_idx) in self.active_tiles:
             tile = self.tiles[r_idx][c_idx]
@@ -297,10 +308,12 @@ class Orchestrator:
                 begin_time = global_start_time
                 end_time = global_start_time + duration
 
-                instr["dependency"]["aod"] = -1
+                instr["dependency"]["aod"] = self.aod_dependency[aod_id]
+                self.aod_dependency[aod_id] = idx
+
                 instr["begin_time"] = begin_time
                 instr["end_time"] = end_time
-                instr["aod_id"] = 0
+                instr["aod_id"] = aod_id
 
                 # add begin_time offset to the sub-intructions
                 for detail_inst in instr["insts"]:
@@ -311,7 +324,8 @@ class Orchestrator:
                 tile.result_json["runtime"] = max(
                     tile.result_json["runtime"], end_time)
 
-                self.aod_end_time = max(self.aod_end_time, end_time)
+                # self.aod_end_time = max(self.aod_end_time, end_time)
+                heapq.heappush(self.aod_end_times, (end_time, aod_id))
 
     def rydberg_assignment(self, ryd_instr_start_indices: dict[tuple[int, int], int]):
         global_earliest_start = 0.0
@@ -350,10 +364,15 @@ class Orchestrator:
                     # update runtime stat
                     tile.update_runtime(global_end_time)
                 if instr["type"] == "row1qGate":
+                    aod_begin, aod_id = heapq.heappop(self.aod_end_times)
+
                     # fill in times for row-wise 1q gate app. This occupies the AoD.
-                    instr["begin_time"] += local_start_time
+                    instr["begin_time"] += max(local_start_time, aod_begin)
                     local_start_time += instr["end_time"]
                     instr["end_time"] = local_start_time
+
+                    heapq.heappush(self.aod_end_times, (local_start_time, aod_id))
+                    self.aod_dependency[aod_id] = idx
                     tile.update_runtime(local_start_time)
                 else:
                     # fill in 1q gates if there are any. These operations don't need to be synchronised.
@@ -372,13 +391,16 @@ class Orchestrator:
             assert (tile)
             initial_indx = tile.process_2q_gate_layer(
                 layer, tile.qubit_mapping[2 * layer + 1])
-            #tile.process_1q_gate_layer(layer, tile.qubit_mapping[2 * layer + 1])
+            if self.config.no_row1q_gates:
+                tile.process_1q_gate_layer(
+                    layer, tile.qubit_mapping[2 * layer + 1])
 
             if initial_indx:
                 gate_instrs[(r_idx, c_idx)] = initial_indx
 
-        self.instr_builder.row_1q_gate_instruction(
-            self.tiles, layer, 0.0) # start time is assigned later
+        if not self.config.no_row1q_gates:
+            self.instr_builder.row_1q_gate_instruction(
+                self.tiles, layer, 0.0)  # start time is assigned later in rydberg_assignment
 
         return gate_instrs
 
@@ -407,7 +429,7 @@ class Orchestrator:
                     logger.info(
                         f"Tile ({tile.source_name}) at ({i},{j}): {tile.result_json["runtime"]} ms")
 
-    def set_programs(self, tiles:list[Tile]):
+    def set_programs(self, tiles: list[Tile]):
         if len(tiles) > self.config.grid_rows * self.config.grid_cols:
             logger.warning(
                 f"{len(tiles)} tiles provided but grid only has {self.config.grid_rows * self.config.grid_cols} spaces.")
@@ -427,10 +449,10 @@ class Orchestrator:
             tile.parse_setting(zac_settings)
             tile.load_program(tile.circuit_file)
             self.tiles_to_place.append(tile)
-            
+
     def write_output(self, output_dir: str):
         """ Write the output of each tile into the results directory """
-        
+
         for i, row in enumerate(self.tiles):
             for j, tile in enumerate(row):
                 if tile:
@@ -439,6 +461,6 @@ class Orchestrator:
                     # Check is if the output directory exists, if not create it
                     if not os.path.exists(output_dir):
                         os.makedirs(output_dir)
-                        
+
                     with open(os.path.join(output_dir, filename), "w+") as f:
                         f.write(json.dumps(tile.result_json))
