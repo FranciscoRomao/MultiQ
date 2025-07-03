@@ -200,7 +200,7 @@ class Tile(Scheduler_mixin, Placer_mixin, Verifier_mixin, Router_mixin):
         if "resyn" in setting:
             self.resyn = setting["resyn"]
 
-    def _set_architecture(self, arch_json: str = 'zac_config/tmp_architecture.json'):
+    def _set_architecture(self, arch_json: str = 'config/zac/tmp_architecture.json'):
         # just use n_q as the number of cols in the tile for now
         with open(arch_json, "r") as f:
             arch_json = json.load(f)

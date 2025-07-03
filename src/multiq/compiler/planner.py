@@ -224,9 +224,16 @@ class Planner:
             "aods": [{
                 "id": i,
                 "site_seperation": self.config.aod_minimum_separation,
-                "r": 10, #Hardcoded for now, it's not being used
-                "c": 10 #Hardcoded for now, it's not being used
-            }],
+                "r": 10,  # Hardcoded for now, it's not being used
+                "c": 10  # Hardcoded for now, it's not being used
+            } for i in range(self.config.num_aods)
+            # {
+            #     "id": 1,
+            #     "site_seperation": self.config.aod_minimum_separation,
+            #     "r": 10,  # Hardcoded for now, it's not being used
+            #     "c": 10  # Hardcoded for now, it's not being used
+            # }
+            ],
             'arch_range': [[0-padding, 0-1],
                            [max(sto_x_dimension+padding, ent_x_dimension+padding),
                             sto_y_dimension+self.config.zone_separation+ent_y_dimension+entanglement_separation[1]/2]],
