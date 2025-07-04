@@ -1,0 +1,14 @@
+QASMBench/cat/cat_n35.qasm
+QASMBench/dnn/dnn_n51.qasm
+QASMBench/ising/ising_n42.qasm
+QASMBench/knn/knn_n31.qasm
+QASMBench/qft/qft/qft_n18.qasm
+QASMBench/qft/qft/qft_n29.qasm
+QASMBench/qugan/qugan_n39.qasm
+QASMBench/qugan/qugan_n71.qasm
+QASMBench/swap_test/swap_test_n25.qasm
+QASMBench/wstate/wstate_n27.qasm
+QASMBench/bv/bv_n14.qasm
+QASMBench/bv/bv_n19.qasm
+QASMBench/bv/bv_n30.qasm
+QASMBench/bv/bv_n70.qasm

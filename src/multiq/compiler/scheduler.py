@@ -80,7 +80,7 @@ class CircuitSASelector:
         acceptance_history = []
         
         logger.info(f"Starting layout bin packing with SA")
-        logger.info("-" * 50)
+        logger.debug("-" * 50)
         logger.debug(f"Initial temperature: {temperature}")
         logger.debug(f"Initial cost: {current_cost}")
         logger.debug(f"Number of bins: {self.bin_counter}")
@@ -144,7 +144,7 @@ class CircuitSASelector:
                     if current_cost < best_cost:
                         best_positions = copy.deepcopy(self.positions)
                         best_cost = current_cost
-                        logger.info(f"New best solution at iteration {iteration}: cost = {best_cost:.3f} (Δ = {delta_cost:.3f})")
+                        logger.debug(f"New best solution at iteration {iteration}: cost = {best_cost:.3f} (Δ = {delta_cost:.3f})")
                 else:
                     # Reject: revert changes
                     logger.debug(f"-------Iteration {iteration}: Rejecting neighbor with Δ = {delta_cost:.3f}, acceptance prob = {acceptance_prob:.3f}")

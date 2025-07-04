@@ -51,7 +51,7 @@ class InstructionBuilder:
             pulse_applied = False
             for i, row in enumerate(tiles):
                 for j, tile in enumerate(row):
-                    if not tile or layer >= len(tile.gate_1q_scheduling):
+                    if not tile:
                         continue
 
                     # NB: qubit_mapping[layer][qubit_idx=i] = (aod_idx=0, row, col)
@@ -78,7 +78,7 @@ class InstructionBuilder:
                         result_gate.append({
                             "name": gate_info[0],
                             "q": gate_info[1],
-                            "params": gate_info[2] if len(gate_info) > 2 else []
+                            "params": gate_info[2] if len(gate_info) > 2 else None
                         })
 
                     dependency = {"qubit": []}
@@ -143,7 +143,7 @@ class InstructionBuilder:
                         result_gate.append({
                             "name": gate_info[0],
                             "q": gate_info[1],
-                            "params": gate_info[2] if len(gate_info) > 2 else []
+                            "params": gate_info[2] if len(gate_info) > 2 else None
                         })
 
                     dependency = {"qubit": []}

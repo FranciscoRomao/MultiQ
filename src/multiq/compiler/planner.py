@@ -23,14 +23,13 @@ logger = logging.getLogger("multiq")
 
 
 class Planner:
-
-    input_circuits: list[QuantumCircuit] = []
-    input_dags: list[DAGCircuit] = []
-    # For each input circuit this stores the list of execution layers
-    input_layers: list[list[Any]] = []
-    circuit_files: list[str] = []  # List of input circuit file names
-
     def __init__(self, config: MultiQConfig):
+
+        self.input_circuits: list[QuantumCircuit] = []
+        self.input_dags: list[DAGCircuit] = []
+        # For each input circuit this stores the list of execution layers
+        self.input_layers: list[list[Any]] = []
+        self.circuit_files: list[str] = []  # List of input circuit file names
 
         self.config = config
         self.util_weight = config.util_weight
@@ -273,7 +272,6 @@ class Planner:
             logger.info(
                 f"Processing best layout for circuit with #: {circuit.num_qubits} qubits")
 
-            # um
             entanglement_pair_spacing = self.config.entanglement_site_separation[1]
             entanglement_atom_spacing = self.config.entanglement_site_separation[
                 0] - entanglement_pair_spacing
@@ -289,7 +287,7 @@ class Planner:
                             self.config.entanglement_height) // self.grid_rows // storage_atom_spacing
 
             tile.config.storage_zone_rows = storage_rows
-        
+
             largest_entanglement = self._largest_entanglement_op(execution_layers)
             
             minimun_entanglement_width = (ceil(largest_entanglement / per_circuit_entanglement_row_height)-1) * entanglement_pair_spacing + entanglement_atom_spacing
@@ -301,7 +299,7 @@ class Planner:
             # Weighted average of the best and minimum storage width with the weights defined in the configuration
             selected_storage_width = ceil(best_storage_width * self.perf_weight + minimun_storage_width * (1-self.perf_weight) / 2)
 
-            logger.info(f'Best storage width: {best_storage_width}, selected storage width: {selected_storage_width}, minimun entanglement width: {minimun_entanglement_width}')
+            tile.config.storage_zone_cols = (selected_storage_width // storage_atom_spacing) + 1
             
             # The cols have one added because you have one less spacing for a given number of cols
             out = self._generate_arch_json(
@@ -310,6 +308,8 @@ class Planner:
                 storage_rows=storage_rows,
                 storage_cols=(selected_storage_width // storage_atom_spacing)+1
             )
+
+            logger.info(f'Best storage width: {(best_storage_width // storage_atom_spacing)+1}, selected storage width: {(selected_storage_width // storage_atom_spacing)+1}, minimun entanglement width: {((selected_storage_width-2) // entanglement_pair_spacing)+1}')
 
             tile._set_architecture(out)
             tile.circuit_file = circuit_file

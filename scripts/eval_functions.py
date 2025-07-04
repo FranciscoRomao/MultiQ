@@ -4,8 +4,8 @@ import yaml
 import numpy as np
 import pandas as pd
 import warnings
-from plotting import bar_plot, line_plot
-from plotting import utils, defaults
+from plot import bar_plot, line_plot
+from plot import utils, defaults
 import seaborn as sns
 import matplotlib.pyplot as plt
 
@@ -14,7 +14,7 @@ warnings.simplefilter(action='ignore', category=RuntimeWarning)
 warnings.simplefilter(action='ignore', category=FutureWarning)
 
 def plot_shuttling_times_vs_utilization_zac(ax, title):
-    data_zac = pd.read_csv("results/zac_results.csv")
+    data_zac = pd.read_csv("organize/zac_results.csv")
 
     qpu_size_zac = 250
     data_zac['qpu_utilization'] = [int(data_zac.iloc[i]['nqubits']*100/qpu_size_zac) for i in range(len(data_zac))]
@@ -70,7 +70,7 @@ def plot_shuttling_times_vs_utilization_zac(ax, title):
                              ylabel='Shuttling time [ms]')
     
 def plot_shuttling_times_vs_utilization_pachinqo(ax, title):
-    data_pachinqo = pd.read_csv("results/pachinqo_results.csv")
+    data_pachinqo = pd.read_csv("organize/pachinqo_results.csv")
 
     qpu_size_zac = 250
     data_pachinqo['qpu_utilization'] = [int(data_pachinqo.iloc[i]['nqubits']*100/qpu_size_zac) for i in range(len(data_pachinqo))]
@@ -125,7 +125,7 @@ def plot_shuttling_times_vs_utilization_pachinqo(ax, title):
     ax.grid(True)
 
 def plot_shuttling_execution_times_vs_utilization_atomique(ax):
-    data_atomique = pd.read_csv("results/atomique_results.csv")
+    data_atomique = pd.read_csv("organize/atomique_results.csv")
 
     qpu_size_atomique = 250
     data_atomique['qpu_utilization'] = [int(data_atomique.iloc[i]['nqubits']*100/qpu_size_atomique) for i in range(len(data_atomique))]
@@ -182,7 +182,7 @@ def plot_shuttling_execution_times_vs_utilization_atomique(ax):
                              ylabel='Shuttling time [ms]')
     
 def plot_compilation_time_vs_utilization_atomique(ax):
-    data_atomique = pd.read_csv("results/atomique_results.csv")
+    data_atomique = pd.read_csv("organize/atomique_results.csv")
 
     qpu_size_atomique = 250
     data_atomique['qpu_utilization'] = [int(data_atomique.iloc[i]['nqubits']*100/qpu_size_atomique) for i in range(len(data_atomique))]
@@ -229,7 +229,7 @@ def plot_compilation_time_vs_utilization_atomique(ax):
                              ylabel='Compilation time [s]')
 
 def plot_compilation_time_vs_utilization_zac(ax):
-    data_zac = pd.read_csv("results/zac_results.csv")
+    data_zac = pd.read_csv("organize/zac_results.csv")
 
     qpu_size_zac = 250
     data_zac['qpu_utilization'] = [int(data_zac.iloc[i]['nqubits']*100/qpu_size_zac) for i in range(len(data_zac))]
@@ -276,7 +276,7 @@ def plot_compilation_time_vs_utilization_zac(ax):
                              ylabel='Compilation time [s]')  
     
 def plot_fidelity_vs_utilization_zac(ax):
-    data_zac = pd.read_csv("results/zac_results.csv")
+    data_zac = pd.read_csv("organize/zac_results.csv")
 
     qpu_size_zac = 250
     data_zac['qpu_utilization'] = [int(data_zac.iloc[i]['nqubits']*100/qpu_size_zac) for i in range(len(data_zac))]
@@ -325,8 +325,8 @@ def plot_fidelity_vs_utilization_zac(ax):
                              ylim=(0,0.95))
 
 def plot_fidelity_vs_circuit_size_average(ax, title):
-    data_zac = pd.read_csv("results/zac_results.csv")
-    data_pachinqo = pd.read_csv("results/pachinqo_results.csv")
+    data_zac = pd.read_csv("organize/zac_results.csv")
+    data_pachinqo = pd.read_csv("organize/pachinqo_results.csv")
 
     df = pd.DataFrame(columns=['nqubits', 'total_fidelity'])
 
@@ -400,8 +400,8 @@ def plot_initialization_time_vs_qpu_size(ax, title):
     return ax
 
 def plot_execution_time_vs_circuit_size_zac_pachinqo(ax, title):
-    data_zac = pd.read_csv("results/zac_results.csv")
-    data_pachinqo = pd.read_csv("results/pachinqo_results.csv")
+    data_zac = pd.read_csv("organize/zac_results.csv")
+    data_pachinqo = pd.read_csv("organize/pachinqo_results.csv")
 
     df = pd.DataFrame(columns=['nqubits', 'execution_time', 'compiler'])
 
@@ -436,9 +436,9 @@ def plot_execution_time_vs_circuit_size_zac_pachinqo(ax, title):
                              ylabel='Execution time [ms]',)
 
 def plot_execution_time_vs_circuit_size_zac_pachinqo_atomique(ax, title):
-    data_zac = pd.read_csv("results/zac_results.csv")
-    data_pachinqo = pd.read_csv("results/pachinqo_results.csv")
-    data_atomique = pd.read_csv("results/atomique_results.csv")
+    data_zac = pd.read_csv("organize/zac_results.csv")
+    data_pachinqo = pd.read_csv("organize/pachinqo_results.csv")
+    data_atomique = pd.read_csv("organize/atomique_results.csv")
 
     df = pd.DataFrame(columns=['nqubits', 'execution_time', 'compiler'])
 
@@ -508,8 +508,8 @@ def plot_execution_time_vs_circuit_size_zac_pachinqo_atomique(ax, title):
     sns.set_style("whitegrid")
 
 def plot_fidelity_vs_circuit_size_zac_pachinqo(ax, title):
-    data_zac = pd.read_csv("results/zac_results.csv")
-    data_pachinqo = pd.read_csv("results/pachinqo_results.csv")
+    data_zac = pd.read_csv("organize/zac_results.csv")
+    data_pachinqo = pd.read_csv("organize/pachinqo_results.csv")
 
     df = pd.DataFrame(columns=['nqubits', 'total_fidelity', 'compiler'])
 
@@ -544,9 +544,9 @@ def plot_fidelity_vs_circuit_size_zac_pachinqo(ax, title):
                              ylabel='Fidelity [%]',)
 
 def plot_fidelity_vs_circuit_size_zac_pachinqo_atomique(ax, title):
-    data_zac = pd.read_csv("results/zac_results.csv")
-    data_pachinqo = pd.read_csv("results/pachinqo_results.csv")
-    data_atomique = pd.read_csv("results/atomique_results.csv")
+    data_zac = pd.read_csv("organize/zac_results.csv")
+    data_pachinqo = pd.read_csv("organize/pachinqo_results.csv")
+    data_atomique = pd.read_csv("organize/atomique_results.csv")
 
     df = pd.DataFrame(columns=['nqubits', 'total_fidelity', 'compiler'])
 
@@ -612,8 +612,8 @@ def plot_fidelity_vs_circuit_size_zac_pachinqo_atomique(ax, title):
     ax.annotate('170-qubit circuit \n 0.08 fidelity', xy=(3.375, 0.12), xytext=(3.65, 0.4), horizontalalignment='center', arrowprops=dict(color='black'))
 
 def plot_execution_time_vs_circuit_size_average(ax, title):
-    data_zac = pd.read_csv("results/zac_results.csv")
-    data_pachinqo = pd.read_csv("results/pachinqo_results.csv")
+    data_zac = pd.read_csv("organize/zac_results.csv")
+    data_pachinqo = pd.read_csv("organize/pachinqo_results.csv")
 
     df = pd.DataFrame(columns=['nqubits', 'execution_time'])
 
@@ -645,7 +645,7 @@ def plot_execution_time_vs_circuit_size_average(ax, title):
                              ylabel='Execution time [ms]',)
 
 def plot_fidelity_vs_utilization_pachinqo(ax):
-    data_pachinqo = pd.read_csv("results/pachinqo_results.csv")
+    data_pachinqo = pd.read_csv("organize/pachinqo_results.csv")
 
     qpu_size_zac = 250
     data_pachinqo['qpu_utilization'] = [int(data_pachinqo.iloc[i]['nqubits']*100/qpu_size_zac) for i in range(len(data_pachinqo))]
@@ -696,7 +696,7 @@ def plot_fidelity_vs_utilization_pachinqo(ax):
     
 def plot_fidelity_vs_utilization_atomique(ax):
 
-    data_atomique = pd.read_csv("results/atomique_results.csv")
+    data_atomique = pd.read_csv("organize/atomique_results.csv")
 
     qpu_size_atomique = 250
     data_atomique['qpu_utilization'] = [int(data_atomique.iloc[i]['nqubits']*100/qpu_size_atomique) for i in range(len(data_atomique))]
@@ -745,8 +745,8 @@ def plot_fidelity_vs_utilization_atomique(ax):
                              ylim=(0,1))
 
 def plot_compilation_time_vs_fidelity_pareto(ax):
-    data_zac = pd.read_csv("results/zac_results.csv")
-    data_atomique = pd.read_csv("results/atomique_results.csv")
+    data_zac = pd.read_csv("organize/zac_results.csv")
+    data_atomique = pd.read_csv("organize/atomique_results.csv")
 
     data_zac['type'] = ['Grouped' if len(data_zac.iloc[i]['benchmark'].split('_')) > 1 else 'Sequential' for i in range(len(data_zac))]
     data_zac['grouped_circuits'] = [len(data_zac.iloc[i]['benchmark'].split('_')) for i in range(len(data_zac))]
@@ -841,7 +841,43 @@ def plot_compilation_time_vs_fidelity_scatter_plot(ax, title):
     return legend_handles, legend_labels
 
 def plot_fidelity_shuttling_times_vs_layout_width_zac(ax, title):
-    data_zac = pd.read_csv("results/preeval_layouts/zac_results.csv")
+    data_zac = pd.read_csv("organize/preeval_layouts/zac_results.csv")
+
+    for i in range(len(data_zac)):
+        data_zac.at[i, 'relative_fidelity'] = float(data_zac.iloc[i]['total_fidelity']) / float(data_zac[data_zac['ratio']=='1_1'][data_zac['nqubits']==data_zac.iloc[i]['nqubits']][data_zac['benchmark']==data_zac.iloc[i]['benchmark']]['total_fidelity'])
+
+    data_zac.sort_values(by='relative_fidelity', inplace=True)
+
+    # Plot the grouped data
+    out = bar_plot.grouped_barplot(data=data_zac,
+                                   ax=ax,
+                                   xcol='nqubits',
+                                   ycol='relative_fidelity',
+                                   grouping_column='ratio',
+                                   title=title,
+                                   title_loc='left',
+                                   linewidth=1.75,
+                                   higher_lower_is_better='higher',
+                                   higher_lower_is_better_loc=(0.7, 1.02),
+                                   xlabel='Circuit size (#qubits)',
+                                   legend=False,
+                                   legend_loc=(0.5, -0.4),
+                                   ylabel='Fidelity (relative to ratio 1:1)',)
+    
+    #handles = out.get_children()
+    
+    ax.legend(bbox_to_anchor=(0.01, 1), ncol=1, fontsize=12, frameon=True, labels=['Ratio 1:4', 'Ratio 1:1', 'Ratio 4:1'], title='Layout ratio (width:height)', title_fontsize=12, loc='upper left')
+
+    ax.grid(True)
+
+    #return handles
+
+    #ax.set_title(title, fontweight='bold', loc='left')
+    #ax.set_xlabel('Layout Width')
+    #sax.set_ylabel('Shuttling Time [ms]')
+
+def plot_fidelity_shuttling_times_vs_layout_width_zac(ax, title):
+    data_zac = pd.read_csv("organize/preeval_layouts/zac_results.csv")
 
     for i in range(len(data_zac)):
         data_zac.at[i, 'relative_fidelity'] = float(data_zac.iloc[i]['total_fidelity']) / float(data_zac[data_zac['ratio']=='1_1'][data_zac['nqubits']==data_zac.iloc[i]['nqubits']][data_zac['benchmark']==data_zac.iloc[i]['benchmark']]['total_fidelity'])

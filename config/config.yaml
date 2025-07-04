@@ -1,19 +1,24 @@
 # MultiQ Configuration File
 
 # QPU Settings
-entanglement_height: 12
-qpu_width: 60
-qpu_height: 50
-zone_separation: 10
+entanglement_height: 35
+qpu_width: 230
+qpu_height: 155
+zone_separation: 20
 entanglement_site_separation: [12, 10]
 storage_site_separation: [3, 3]
 aod_minimum_separation: 2
 
 # timing in us (microseconds)
-time_rydberg: 0.36
 time_atom_transfer: 15
-time_1qGate: 0.625
-r1q_time: 12.0
+time_1qGate: 52 # Check this, this information is repeated in the config file
+r1q_time: 12
+fidelity_2q_gate: 0.995
+fidelity_1q_gate: 0.9997
+fidelity_atom_transfer: 0.999
+time_coherence: 1.5e6 # us
+time_rydberg: 0.36 # us
+time_1q_gate: 52 # us
 
 # Planner Settings
 # weights for layout planning
@@ -40,17 +45,20 @@ tmp_arch_file: "config/zac/tmp_architecture.json"
 
 # Animation Settings
 arch_padding: 0 # Padding around individual layouts
+animation: false # Enable or disable animation generation
 
 # Placement Settings
 dynamic_placement: true
 trivial_placement: false
 storage_zone_rows: null
+storage_zone_cols: null
 use_window: true
 window_size: 1000
 l2: false # Boolean flag
 
 # Final verification settings
 enable_verification: true
+multiq_check: false # Enable MultiQ check for final verification
 
 # Physical Dimensions (in micrometers)
 physical_cell_height_um: 50.0
@@ -66,5 +74,7 @@ routing_strategy: "maximalis_sort"
 reuse: true
 resyn: true
 has_dependency: true
-num_aods: 2
+num_aods: 1
 no_row1q_gates: False
+
+results_dir: "results/multiq" # Directory to store results

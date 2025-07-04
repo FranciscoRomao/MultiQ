@@ -450,8 +450,10 @@ class Orchestrator:
             tile.load_program(tile.circuit_file)
             self.tiles_to_place.append(tile)
 
-    def write_output(self, output_dir: str):
+    def write_output(self, output_dir: str) -> list[str]:
         """ Write the output of each tile into the results directory """
+
+        output_files = []
 
         for i, row in enumerate(self.tiles):
             for j, tile in enumerate(row):
@@ -464,3 +466,7 @@ class Orchestrator:
 
                     with open(os.path.join(output_dir, filename), "w+") as f:
                         f.write(json.dumps(tile.result_json))
+
+                    output_files.append(os.path.join(output_dir, filename))
+
+        return output_files

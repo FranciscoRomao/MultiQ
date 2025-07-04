@@ -80,7 +80,8 @@ class Tile(Scheduler_mixin, Placer_mixin, Verifier_mixin, Router_mixin):
         self.dict_g_1q_parent = {-1: []}
         n_single_qubit_gate = 0
 
-        cz_circuit = qasm2.load(source_file)
+        #cz_circuit = qasm2.load(source_file)
+        cz_circuit = QuantumCircuit.from_qasm_file(source_file)
         cz_circuit = transpile(cz_circuit, basis_gates=["cz", "u3"],
                                optimization_level=3,
                                seed_transpiler=0)

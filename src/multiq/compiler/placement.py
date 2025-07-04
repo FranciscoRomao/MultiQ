@@ -297,7 +297,7 @@ class PlacementOptimiser:
         """
 
         if not self.tiles_to_place:
-            logger.info("No tiles provided to PlacementOptimiser.")
+            logger.warning("No tiles provided to PlacementOptimiser.")
             return [[None for _ in range(self.grid_cols)] for _ in range(self.grid_rows)]
 
         current_placement = self.generate_initial_placement()
@@ -336,7 +336,7 @@ class PlacementOptimiser:
             temp *= cooling_rate
             if i > 0 and i % (iterations // 20) == 0:
                 # log progress periodically
-                logger.info(
+                logger.debug(
                     f"Placement optimiser iteration {i}: Temp={temp:.4f}, current contention={current_contention:.2f}, best contention={best_contention:.2f}")
 
         logger.info(

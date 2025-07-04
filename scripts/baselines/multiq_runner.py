@@ -13,7 +13,7 @@ import logging
 import argparse
 from multiq.multiq import MultiQ
 
-#logger = logging.getLogger("evaluation.zac_runner")
+logger = logging.getLogger("multiq.evaluation.multiq_runner")
 
 def save_circuit(circuit, filename):
     qasm_str = dumps(circuit)
@@ -25,18 +25,48 @@ def run_multiq_planner_eval():
 
     perf_weights = [0.2, 0.4, 0.6, 0.8, 1.0]
 
-    benchmark_set = open("data/benchmark_list.txt").read().splitlines()
+    benchmark_set = open("data/compiler_eval_bench_list.txt").read().splitlines()
 
     benchmark_set = [os.path.join(os.path.dirname(__file__), "../../data/benchmarks", bench) for bench in benchmark_set]
 
+    data = pd.DataFrame(columns=['benchmark',
+                                 'perf_weight',
+                                 'storage_zone_cols',
+                                 'nqubits',
+                                 'total_fidelity',
+                                 'total_1q_gate_fidelity',
+                                 'total_2q_gate_fidelity',
+                                 'total_coherence_fidelity',
+                                 'total_2q_on_idle',
+                                 'total_transfer_fidelity',
+                                 'total_duration'])
+
     for weight in perf_weights:
         for bench in benchmark_set:
-
+            
+            logger.info(f"Running MultiQ with weight {weight} on benchmark {bench}")
             mq = MultiQ()
             mq.config.perf_weight = weight
-            mq.set_inputs([bench])
+            output_files = mq.set_inputs([bench])
 
-            #results = 
+            stats = pd.read_json(output_files[0][0], typ='series')
+
+            circ = QuantumCircuit().from_qasm_file(bench)
+
+            data.loc[len(data)] = [bench.split('/')[-1],
+                                   weight,
+                                   mq.bins[0][0].config.storage_zone_cols,
+                                   circ.num_qubits,
+                                   stats['cir_fidelity'],
+                                   stats['cir_fidelity_1q_gate'],
+                                   stats['cir_fidelity_2q_gate'],
+                                   stats['cir_fidelity_coherence'],
+                                   stats['cir_fidelity_2q_gate_for_idle'],
+                                   stats['cir_fidelity_atom_transfer'],
+                                   stats['cir_duration']]
+
+    results_file = os.path.join(os.path.dirname(__file__), '../../results/multiq/planner_results.csv')
+    data.to_csv(results_file, mode='a', header=True, index=False)
 
 '''
 def run_multiq_bundler_eval():
