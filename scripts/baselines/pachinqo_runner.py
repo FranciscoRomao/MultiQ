@@ -7,6 +7,8 @@ import pandas as pd
 import csv
 from qiskit import transpile, QuantumCircuit
 from qiskit.qasm2 import dumps
+import logging
+import random
 #from mqt.qmap.na.zoned import  
 
 # In PachinQo's source code it is called "framework"
@@ -81,9 +83,71 @@ def transpile_all_benchmarks(benchmark_set) -> list:
 
     return transpiled_set
 
-
-def run_pachiqo_single_benchmarks():
+def run_pachiqo_single_benchmarks(benchmark, settings_file, output_file="results/pachinqo_results.csv", transpiled_dir="data/benchmarks/transpiled/"):
     """
+    Run single benchmarks using PachinQo.
+    """
+    
+    # Print the results
+    data = pd.DataFrame(columns=['benchmark',
+                                 'nqubits',
+                                 'total_fidelity',
+                                 'compilation_time',
+                                 'total_1q_fidelity',
+                                 'total_2q_fidelity',
+                                 'total_coherence_fidelity',
+                                 'total_transfer_fidelity',
+                                 'cir_shuttling_time',
+                                 'execution_time'])
+    
+    transpiled_benchmark = transpile_all_benchmarks(benchmark)[0]
+    
+    #for algo in benchmark_set:
+        #file_path = os.path.join(os.path.dirname(__file__), "../../data/benchmark/", algo)
+        #name = 'benchmarks/transpiled/' + algo.split('/')[-1].split('.')[0] + "_transpiled.qasm"
+        #nqubits = sum(int(i) for  i in algo.split('/')[-1].split('-')[1].split('.')[0].split('_"))
+
+    zone_specs = [
+            {'type': 'StorageZone', 'bottom_left_x': 0, 'bottom_left_y': 0, 'width': 230, 'height': 100},
+            {'type': 'EntanglementZone', 'bottom_left_x': 62, 'bottom_left_y': 120, 'width': 100, 'height': 35, 'col_size': 4},
+            {'type': 'ReadoutZone', 'bottom_left_x': 0, 'bottom_left_y': 120, 'width': 42, 'height': 35},
+            {'type': 'ReadoutZone', 'bottom_left_x': 182, 'bottom_left_y': 120, 'width': 42, 'height':35}
+    ]
+
+    print(f"Running {transpiled_benchmark}...")
+        
+    grid = Grid(zone_specs, 0, transpiled_benchmark, num_atoms=150)
+
+    #grid.print_grid_by_atoms()
+
+    ret_vals = grid.return_vals()
+
+    circ = QuantumCircuit.from_qasm_file(transpiled_benchmark)
+    
+    nqubits = len(circ.qubits)
+
+    total_fidelity, total_transfer_fidelity, total_coherence_fidelity, total_1q_fidelity, total_2q_fidelity, cir_shuttling_time, execution_time, total_transfer_fidelity = compute_fidelity(ret_vals, nqubits)
+
+    data.loc[len(data)] = [transpiled_benchmark.split('/')[-1].split('-')[0],
+                           nqubits,
+                           total_fidelity,
+                           ret_vals[3],
+                           total_1q_fidelity,
+                           total_2q_fidelity,
+                           total_coherence_fidelity,
+                           total_transfer_fidelity,
+                           cir_shuttling_time,
+                           execution_time]
+
+    if not os.path.isfile(output_file):
+        data.to_csv(output_file, index=False)
+    else:
+        data.to_csv(output_file, mode='a', header=False, index=False)
+
+def run_pachinqo_merged_benchmarks():
+
+    '''
+        """
     Run single benchmarks using PachinQo.
     """
     # Load the benchmark set
@@ -147,3 +211,79 @@ def run_pachiqo_single_benchmarks():
         data.to_csv(f"results/pachinqo_results.csv", index=False)
     else:
         data.to_csv(f"results/pachinqo_results.csv", mode='a', header=False, index=False)
+    '''
+
+    logger = logging.getLogger("zac.evaluation")
+    random.seed(42)
+
+    logging.basicConfig(format='%(levelname)s: %(message)s', level=logging.INFO)
+
+    set_sizes = [5, 6, 7, 8, 9, 10]
+    perf_weights = [0.2, 0.4, 0.6, 0.8, 1.0]
+
+    benchmark_set = open("data/bundler_eval_bench_list.txt").read().splitlines()
+
+    benchmark_set = [os.path.join(os.path.dirname(__file__), "../../data/benchmarks", bench) for bench in benchmark_set]
+
+    benchmark_sets = [random.sample(benchmark_set, size) for size in set_sizes]
+
+    bench=''
+
+    merged_bench_files = []
+
+    for benchmark_set in benchmark_sets:
+        
+        circuits = [QuantumCircuit.from_qasm_file(bench) for bench in benchmark_set]
+        merged_circuit = merge_circuits(circuits)
+
+        bench = '-'.join([os.path.basename(b).split('.')[0] for b in benchmark_set])
+        merged_bench_files.append(bench)
+
+        save_circuit(merged_circuit, os.path.join(os.path.dirname(__file__), '../../data/benchmarks/merged', f'{bench}.qasm'))
+        
+    print(f"Runnig ZAC for benchmark set: {bench}")
+    
+    settings_file = os.path.join(os.path.dirname(__file__), "../../config/zac/general.json")
+
+    # Run the ZAC compiler
+    info = run_zac(benchmark_set, settings_file)
+    
+    # Print the results
+    logger.info("ZAC Compilation Info:", info)
+
+    data = pd.DataFrame(columns=['benchmark',
+                             'nqubits',
+                             'total_fidelity',
+                             'total_coherence_fidelity',
+                             'total_transfer_fidelity',
+                             'total_2q_on_idle',
+                             'n_bench'])
+    
+    results_file:str = ''
+    
+    for i, bench in enumerate(merged_bench_files):
+
+        print(f"Processing benchmark: {bench}")
+
+        fid_file = os.path.join(os.path.dirname(__file__), '../../results/zac/fidelity', f'{bench}.json')
+        time_file = os.path.join(os.path.dirname(__file__), '../../results/zac/time', f'{bench}.json')
+
+        fid_res = pd.read_json(fid_file, typ='series')
+        time_res = pd.read_json(time_file, typ='series')
+
+        circuit = QuantumCircuit.from_qasm_file(os.path.join(os.path.dirname(__file__), '../../data/benchmarks/merged', f'{bench}.qasm'))
+
+        data.loc[len(data)] = [bench.split('.')[0],
+                               circuit.num_qubits,
+                               fid_res['cir_fidelity'],
+                               fid_res['cir_fidelity_coherence'],
+                               fid_res['cir_fidelity_atom_transfer'],
+                               fid_res['cir_fidelity_2q_gate_for_idle'],
+                               1]
+    
+        results_file = os.path.join(os.path.dirname(__file__), '../../results/zac/compiled_results.csv')
+
+    if not os.path.isfile(results_file):
+        data.to_csv(results_file, index=False)
+    else:
+        data.to_csv(results_file, mode='a', header=False, index=False)

@@ -4,8 +4,8 @@ import yaml
 import numpy as np
 import pandas as pd
 import warnings
-from plot import bar_plot, line_plot
-from plot import utils, defaults
+from plotting import bar_plot, line_plot
+from plotting import utils, defaults
 import seaborn as sns
 import matplotlib.pyplot as plt
 
@@ -876,38 +876,190 @@ def plot_fidelity_shuttling_times_vs_layout_width_zac(ax, title):
     #ax.set_xlabel('Layout Width')
     #sax.set_ylabel('Shuttling Time [ms]')
 
-def plot_fidelity_shuttling_times_vs_layout_width_zac(ax, title):
-    data_zac = pd.read_csv("organize/preeval_layouts/zac_results.csv")
 
-    for i in range(len(data_zac)):
-        data_zac.at[i, 'relative_fidelity'] = float(data_zac.iloc[i]['total_fidelity']) / float(data_zac[data_zac['ratio']=='1_1'][data_zac['nqubits']==data_zac.iloc[i]['nqubits']][data_zac['benchmark']==data_zac.iloc[i]['benchmark']]['total_fidelity'])
+def plot_planner_eval_fidelity_multiq(ax, title):
+    data = pd.read_csv("results/multiq/planner_results.csv")
 
-    data_zac.sort_values(by='relative_fidelity', inplace=True)
+    #data_zac['benchmark'] = ['Grouped' if len(data_zac.iloc[i]['benchmark'].split('_')) > 1 else 'Sequential' for i in range(len(data_zac))]
+    #data_zac['qpu_utilization'] = [int(data_zac.iloc[i]['nqubits']*100/qpu_size_zac) for i in range(len(data_zac))]
+    #data_zac['grouped_circuits'] = [len(data_zac.iloc[i]['benchmark'].split('_')) for i in range(len(data_zac))]
 
-    # Plot the grouped data
-    out = bar_plot.grouped_barplot(data=data_zac,
-                                   ax=ax,
-                                   xcol='nqubits',
-                                   ycol='relative_fidelity',
-                                   grouping_column='ratio',
-                                   title=title,
-                                   title_loc='left',
-                                   linewidth=1.75,
-                                   higher_lower_is_better='higher',
-                                   higher_lower_is_better_loc=(0.7, 1.02),
-                                   xlabel='Circuit size (#qubits)',
-                                   legend=False,
-                                   legend_loc=(0.5, -0.4),
-                                   ylabel='Fidelity (relative to ratio 1:1)',)
-    
-    #handles = out.get_children()
-    
-    ax.legend(bbox_to_anchor=(0.01, 1), ncol=1, fontsize=12, frameon=True, labels=['Ratio 1:4', 'Ratio 1:1', 'Ratio 4:1'], title='Layout ratio (width:height)', title_fontsize=12, loc='upper left')
+    #for i in range(len(data_zac)):
+    #    if data_zac.iloc[i]['type'] == 'Sequential':
+    #        data_zac.at[i, 'updated_shuttling_time'] = data_zac.iloc[i]['cir_shuttling_time']
+    #        #data_zac.at[i, 'updated_execution_time'] = data_zac.iloc[i]['execution_time']
+    #    else:
+    #        grouped_benchmarks = data_zac.iloc[i]['benchmark'].split('_')
+#
+    #        solo_shuttling_times = []
+    #        solo_exec_times = []
+#
+    #        for j in grouped_benchmarks:
+    #            solo_shuttling_times.append(float(data_zac[data_zac['benchmark'] == j][data_zac['nqubits'] == data_zac.iloc[i]['nqubits']//len(grouped_benchmarks)]['cir_shuttling_time'].mean()))
+    #            #solo_exec_times.append(float(data_zac[data_zac['benchmark'] == j][data_zac['nqubits'] == data_zac.iloc[i]['nqubits']//len(grouped_benchmarks)]['execution_time'].mean()))
+#
+    #        data_zac.at[i, 'updated_shuttling_time'] = data_zac.iloc[i]['cir_shuttling_time']
+    #        #data_zac.at[i, 'updated_execution_time'] = data_zac.iloc[i]['execution_time']
+#
+    #        #add row to data_zac copy of this one with uptated fidelity as g1_2q_mov_trans_avg
+    #        data_zac.loc[len(data_zac)] = data_zac.iloc[i]
+    #        data_zac.at[len(data_zac)-1, 'updated_shuttling_time'] = max(solo_shuttling_times)
+    #        #data_zac.at[len(data_zac)-1, 'updated_execution_time'] = max(solo_exec_times)
+    #        data_zac.at[len(data_zac)-1, 'type'] = 'Grouped Independent'
+
+    #data_zac = data_zac[data_zac['nqubits'] != 25]
+    #data_zac = data_zac[data_zac['nqubits'] != 20]
+    #data_zac = data_zac[data_zac['nqubits'] != 10]
+
+    data['benchmark'] = [i.split('.')[0] for i in data['benchmark']]
+    data['decoherence_error'] = [(1 - float(i))*100 for i in data['total_coherence_fidelity']]
+
+    data = data[data['benchmark'] != 'ghz_n40']
+    data = data[data['benchmark'] != 'cat_n35']
 
     ax.grid(True)
 
-    #return handles
+    bar_plot.grouped_barplot(data,
+                             ax=ax,
+                             grouping_column='perf_weight',
+                             xcol='benchmark',
+                             ycol='decoherence_error',
+                             title=title,
+                             title_loc='left',
+                             errorbar=None,
+                             linewidth=1.75,
+                             legend_ncol=5,
+                             higher_lower_is_better='higher',
+                             higher_lower_is_better_loc=(0.73, 1),
+                             xlabel='Benchmarks',
+                             legend=False,
+                             legend_loc=(0.5, -0.3),
+                             ylabel='Decoherence Error [%]')
+    
+def plot_planner_eval_utilization_multiq(ax, title):
+    data = pd.read_csv("results/multiq/planner_results.csv")
 
-    #ax.set_title(title, fontweight='bold', loc='left')
-    #ax.set_xlabel('Layout Width')
-    #sax.set_ylabel('Shuttling Time [ms]')
+    #data_zac['benchmark'] = ['Grouped' if len(data_zac.iloc[i]['benchmark'].split('_')) > 1 else 'Sequential' for i in range(len(data_zac))]
+    #data_zac['qpu_utilization'] = [int(data_zac.iloc[i]['nqubits']*100/qpu_size_zac) for i in range(len(data_zac))]
+    #data_zac['grouped_circuits'] = [len(data_zac.iloc[i]['benchmark'].split('_')) for i in range(len(data_zac))]
+
+    #for i in range(len(data_zac)):
+    #    if data_zac.iloc[i]['type'] == 'Sequential':
+    #        data_zac.at[i, 'updated_shuttling_time'] = data_zac.iloc[i]['cir_shuttling_time']
+    #        #data_zac.at[i, 'updated_execution_time'] = data_zac.iloc[i]['execution_time']
+    #    else:
+    #        grouped_benchmarks = data_zac.iloc[i]['benchmark'].split('_')
+#
+    #        solo_shuttling_times = []
+    #        solo_exec_times = []
+#
+    #        for j in grouped_benchmarks:
+    #            solo_shuttling_times.append(float(data_zac[data_zac['benchmark'] == j][data_zac['nqubits'] == data_zac.iloc[i]['nqubits']//len(grouped_benchmarks)]['cir_shuttling_time'].mean()))
+    #            #solo_exec_times.append(float(data_zac[data_zac['benchmark'] == j][data_zac['nqubits'] == data_zac.iloc[i]['nqubits']//len(grouped_benchmarks)]['execution_time'].mean()))
+#
+    #        data_zac.at[i, 'updated_shuttling_time'] = data_zac.iloc[i]['cir_shuttling_time']
+    #        #data_zac.at[i, 'updated_execution_time'] = data_zac.iloc[i]['execution_time']
+#
+    #        #add row to data_zac copy of this one with uptated fidelity as g1_2q_mov_trans_avg
+    #        data_zac.loc[len(data_zac)] = data_zac.iloc[i]
+    #        data_zac.at[len(data_zac)-1, 'updated_shuttling_time'] = max(solo_shuttling_times)
+    #        #data_zac.at[len(data_zac)-1, 'updated_execution_time'] = max(solo_exec_times)
+    #        data_zac.at[len(data_zac)-1, 'type'] = 'Grouped Independent'
+
+    #data_zac = data_zac[data_zac['nqubits'] != 25]
+    #data_zac = data_zac[data_zac['nqubits'] != 20]
+    #data_zac = data_zac[data_zac['nqubits'] != 10]
+
+    qpu_width = 230 #um
+    storage_cols_separation = 3 #um
+
+    data['benchmark'] = [i.split('.')[0] for i in data['benchmark']]
+    data['decoherence_error'] = [(1 - float(i))*100 for i in data['total_coherence_fidelity']]
+    data['utilization'] = [(i-1)*3*100/qpu_width for i in data['storage_zone_cols']]  # Assuming 250 is the max width
+
+    data = data[data['benchmark'] != 'ghz_n40']
+    data = data[data['benchmark'] != 'cat_n35']
+
+    ax.grid(True)
+
+    bar_plot.grouped_barplot(data,
+                             ax=ax,
+                             grouping_column='perf_weight',
+                             xcol='benchmark',
+                             ycol='utilization',
+                             title=title,
+                             title_loc='left',
+                             errorbar=None,
+                             linewidth=1.75,
+                             legend_ncol=5,
+                             higher_lower_is_better='higher',
+                             higher_lower_is_better_loc=(0.73, 1),
+                             xlabel='Benchmarks',
+                             legend=False,
+                             legend_loc=(0.5, -0.3),
+                             ylabel='QPU Utilization [%]',)
+    
+    ax.set_ylim(0, 100)  # Set y-axis limits to 0-100% for utilization
+
+def plot_bundler_eval_fidelity_multiq(ax, title):
+    data = pd.read_csv("results/multiq/bundler_results.csv")
+
+    #data_zac['benchmark'] = ['Grouped' if len(data_zac.iloc[i]['benchmark'].split('_')) > 1 else 'Sequential' for i in range(len(data_zac))]
+    #data_zac['qpu_utilization'] = [int(data_zac.iloc[i]['nqubits']*100/qpu_size_zac) for i in range(len(data_zac))]
+    #data_zac['grouped_circuits'] = [len(data_zac.iloc[i]['benchmark'].split('_')) for i in range(len(data_zac))]
+
+    #for i in range(len(data_zac)):
+    #    if data_zac.iloc[i]['type'] == 'Sequential':
+    #        data_zac.at[i, 'updated_shuttling_time'] = data_zac.iloc[i]['cir_shuttling_time']
+    #        #data_zac.at[i, 'updated_execution_time'] = data_zac.iloc[i]['execution_time']
+    #    else:
+    #        grouped_benchmarks = data_zac.iloc[i]['benchmark'].split('_')
+#
+    #        solo_shuttling_times = []
+    #        solo_exec_times = []
+#
+    #        for j in grouped_benchmarks:
+    #            solo_shuttling_times.append(float(data_zac[data_zac['benchmark'] == j][data_zac['nqubits'] == data_zac.iloc[i]['nqubits']//len(grouped_benchmarks)]['cir_shuttling_time'].mean()))
+    #            #solo_exec_times.append(float(data_zac[data_zac['benchmark'] == j][data_zac['nqubits'] == data_zac.iloc[i]['nqubits']//len(grouped_benchmarks)]['execution_time'].mean()))
+#
+    #        data_zac.at[i, 'updated_shuttling_time'] = data_zac.iloc[i]['cir_shuttling_time']
+    #        #data_zac.at[i, 'updated_execution_time'] = data_zac.iloc[i]['execution_time']
+#
+    #        #add row to data_zac copy of this one with uptated fidelity as g1_2q_mov_trans_avg
+    #        data_zac.loc[len(data_zac)] = data_zac.iloc[i]
+    #        data_zac.at[len(data_zac)-1, 'updated_shuttling_time'] = max(solo_shuttling_times)
+    #        #data_zac.at[len(data_zac)-1, 'updated_execution_time'] = max(solo_exec_times)
+    #        data_zac.at[len(data_zac)-1, 'type'] = 'Grouped Independent'
+
+    #data_zac = data_zac[data_zac['nqubits'] != 25]
+    #data_zac = data_zac[data_zac['nqubits'] != 20]
+    #data_zac = data_zac[data_zac['nqubits'] != 10]
+
+    qpu_width = 230 #um
+    storage_cols_separation = 3 #um
+
+    data['benchmark'] = [i.split('.')[0] for i in data['benchmark']]
+    data['decoherence_error'] = [(1 - float(i))*100 for i in data['total_coherence_fidelity']]
+    data['utilization'] = [(i-1)*3/qpu_width for i in data['storage_zone_cols']]  # Assuming 250 is the max width
+
+    data = data[data['benchmark'] != 'ghz_n40']
+    data = data[data['benchmark'] != 'cat_n35']
+
+    ax.grid(True)
+
+    bar_plot.grouped_barplot(data,
+                             ax=ax,
+                             grouping_column='perf_weight',
+                             xcol='benchmark',
+                             ycol='utilization',
+                             title=title,
+                             title_loc='left',
+                             errorbar=None,
+                             linewidth=1.75,
+                             legend_ncol=5,
+                             higher_lower_is_better='higher',
+                             higher_lower_is_better_loc=(0.73, 1),
+                             xlabel='Benchmarks',
+                             legend=True,
+                             legend_loc=(0.5, -0.3),
+                             ylabel='QPU Utilization [%]',)

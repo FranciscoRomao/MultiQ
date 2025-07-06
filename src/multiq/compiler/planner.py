@@ -309,7 +309,7 @@ class Planner:
                 storage_cols=(selected_storage_width // storage_atom_spacing)+1
             )
 
-            logger.info(f'Best storage width: {(best_storage_width // storage_atom_spacing)+1}, selected storage width: {(selected_storage_width // storage_atom_spacing)+1}, minimun entanglement width: {((selected_storage_width-2) // entanglement_pair_spacing)+1}')
+            logger.info(f'Best storage width: {(best_storage_width // storage_atom_spacing)+1},\n selected storage width: {(selected_storage_width // storage_atom_spacing)+1},\n storage rows: {storage_rows},\n entanglement rows: {per_circuit_entanglement_row_height},\n minimun entanglement width: {((minimun_entanglement_width-2) // entanglement_pair_spacing)+1},\n selected entanglement width: {((selected_storage_width-2) // entanglement_pair_spacing)+1},\n largest entanglement: {largest_entanglement}')
 
             tile._set_architecture(out)
             tile.circuit_file = circuit_file

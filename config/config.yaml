@@ -34,10 +34,10 @@ layer_split_window: 10
 # Circuit SA Scheduler
 perf_weight_selector: 0.9 # Performance weight for scheduling
 util_weight_selector: 0.1 # Utilization weight for scheduling
-initial_temperature: 250.0 # Initial temperature for simulated annealing
-cooling_rate: 0.8 # Cooling factor for simulated annealing
+initial_temperature: 10 # Initial temperature for simulated annealing
+cooling_rate: 0.95 # Cooling factor for simulated annealing
 final_temperature: 0.5 # Final temperature for simulated annealing
-max_iterations_per_temp: 10 # Number of iterations per temperature in simulated annealing
+max_iterations_per_temp: 1 # Number of iterations per temperature in simulated annealing
 max_iterations: 1000 # Maximum number of iterations for the scheduler
 
 # file path for temporary generation of architecture files
@@ -66,7 +66,7 @@ physical_cell_width_um: 10.0
 
 # multiprograming grid configuration
 grid_cols: 5
-grid_rows: 2
+grid_rows: 1
 
 # Scheduling and Routing Strategies
 scheduling_strategy: "asap" # As Soon As Possible

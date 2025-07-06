@@ -85,9 +85,12 @@ class CircuitSASelector:
         logger.debug(f"Initial cost: {current_cost}")
         logger.debug(f"Number of bins: {self.bin_counter}")
         logger.debug(f"Starting optimization with SA...")
+
         
         while (temperature > self.final_temperature and iteration < self.max_iterations):
             
+            import pdb; pdb.set_trace()  # Debugging breakpoint
+
             temp_accepted = 0
             temp_rejected = 0
             temp_generation_failures = 0
@@ -358,9 +361,13 @@ class CircuitSASelector:
     def _evaluate_bin_cost(self, bin_idx: int) -> float:
         """Merge all circuits in a bin and evaluate the cost."""
 
+        performance_scaling_factor = 1/0.8
+        utilization_scaling_factor = 1/0.9
+
         tiles = [self.tiles[tile_idx] 
                    for row in self.positions[bin_idx] 
                    for tile_idx in row]
+        
         circuits = [tiles[i].circuit for i in range(len(tiles)) if tiles[i].circuit is not None]
         
         if not circuits:
@@ -368,35 +375,53 @@ class CircuitSASelector:
             return 0.0
             #raise ValueError("Cannot evaluate cost for empty bin")
         
-        if len(circuits) == 1:
+        if len(tiles) == 1:
             merged_circuit = circuits[0]
+            performance_cost = 0.0
         else:
             merged_circuit = self.merge_circuits(circuits)
         
-        merged_dag = circuit_to_dag(merged_circuit)
-        layers = self.split_dag_into_layers(merged_dag, self.window)
+            merged_dag = circuit_to_dag(merged_circuit)
+            layers = self.split_dag_into_layers(merged_dag, self.window)
 
-        entanglement_layers = 0
-        
-        for layer_nodes in layers:
-            if any(i.num_qubits > 1 for i in layer_nodes):  # Fixed: should be > 1, not > 0
-                entanglement_layers += 1
-        
-        #layers_cost = self.circuit_layer_cost(layers)
-        
-        # This is the minimum number of layers needed to execute the merged circuit
-        # equivalent to the longest circuit execution 
-        min_layers = max([tiles.best_nlayers for tiles in tiles if tiles.best_nlayers is not None])
+            entanglement_layers = 0
+            
+            for layer_nodes in layers:
+                if any(i.num_qubits > 1 for i in layer_nodes):  # Fixed: should be > 1, not > 0
+                    entanglement_layers += 1
+
+            #layers_cost = self.circuit_layer_cost(layers)
+
+            # This is the minimum number of layers needed to execute the merged circuit
+            # equivalent to the longest circuit execution 
+
+            max_layers = sum([tiles.best_nlayers for tiles in tiles if tiles.best_nlayers is not None])
+            fastest_circuit = min([tiles.best_nlayers for tiles in tiles if tiles.best_nlayers is not None])
+            best_layers = max([tiles.best_nlayers for tiles in tiles if tiles.best_nlayers is not None])
+            
+            max_layer_diff = max_layers - fastest_circuit
+
+            performance_cost = (((len(layers) - best_layers)/(best_layers)) + max_layer_diff/best_layers) * performance_scaling_factor 
+            logger.debug(f"Bin {bin_idx} cost evaluation: max_layers={max_layers}, bin_layers={len(layers)}, best_layers={best_layers}, max_layer_diff={max_layer_diff}, perfor_cost = {performance_cost}")
 
         summed_layout_width = sum([i.architecture.arch_range[1][0] for i in tiles])
-        avg_layout_width = summed_layout_width / len(self.positions[bin_idx])
+        #avg_layout_width = summed_layout_width / len(tiles)
         
+        max_qpu_width = self.config.qpu_width * self.config.grid_rows
         # Unused qpu width
-        unused_width = self.config.qpu_width * self.config.grid_rows - summed_layout_width
+        unused_width = max_qpu_width - summed_layout_width
         
         # The layout width normalization benefits bins with many larger layout and give a bad score to bins with smaller layout
         # This is because smaller layout can be used to fit more circuits in the same bin (in a balanced distribution)
-        return (len(layers) + entanglement_layers)/min_layers * self.config.perf_weight_selector + unused_width/avg_layout_width * (1-self.config.perf_weight_selector)
+
+        utilization_cost = (unused_width/max_qpu_width) * utilization_scaling_factor
+
+        logger.debug(f"Bin {bin_idx} cost evaluation: unused_width={unused_width}, perf_cost = {utilization_cost}")
+
+        cost = performance_cost  * self.config.perf_weight_selector + utilization_cost * (1-self.config.perf_weight_selector)
+        
+        #return (len(layers) + entanglement_layers)/min_layers * self.config.perf_weight_selector + unused_width/(2*avg_layout_width) * (1-self.config.perf_weight_selector)
+        return cost
     
     def _evaluate_delta_cost(self, changed_bins: List[int]) -> float:
         """
@@ -429,8 +454,8 @@ class CircuitSASelector:
         # Decide on move type based on temperature
         temp_ratio = temperature / self.initial_temperature
 
-        move_probability = temp_ratio * 0.5  # High temp = higher swap probability
-        create_bin_probability = temp_ratio * 0.3  # High temp = higher bin creation probability
+        move_probability = temp_ratio * 0.4  # High temp = higher swap probability
+        create_bin_probability = temp_ratio * 0.6  # High temp = higher bin creation probability
 
         try:
             rand_val = random.random()
@@ -489,6 +514,7 @@ class CircuitSASelector:
                 return list(set(affected_bins))
         
         # Restore bin state if placement failed
+        logger.debug(f"Failed to place tile {tile_idx} in any bin, reverting changes")
         self.positions[from_bin][from_row].append(tile_idx)
         
     def _circuit_swap(self) -> List[int] | None:
@@ -579,8 +605,9 @@ class CircuitSASelector:
             self.positions[from_bin][from_row].append(tile_idx)
             self.positions.pop()
             self.bin_counter -= 1
+            logger.debug(f"Failed to place tile {tile_idx} in new bin {new_bin_idx}, reverting changes")
             raise RuntimeError("Failed to place tile in new bin")
-
+        
     def _revert_last_move(self):
         """Revert to the previously stored state."""
         if hasattr(self, '_previous_positions'):

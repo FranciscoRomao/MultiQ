@@ -13,8 +13,8 @@ from multiq.simulator import Simulator
 logger = logging.getLogger("multiq")
 
 class MultiQ:
-    def __init__(self):
-        self.config = MultiQConfig.from_config_file("config/config.yaml")
+    def __init__(self, config_file: str = "config/config.yaml"):
+        self.config = MultiQConfig.from_config_file(config_file)
 
     def set_inputs(self, input_files: list[str]) -> list[list]:
         
