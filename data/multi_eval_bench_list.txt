@@ -1,0 +1,10 @@
+QASMBench/adder/adder_n18.qasm
+QASMBench/bv/bv_n19.qasm
+QASMBench/cat/cat_n22.qasm
+QASMBench/dnn/dnn_n16.qasm
+QASMBench/ghz/ghz_n23.qasm
+QASMBench/ising/ising_n26.qasm
+QASMBench/knn/knn_n25.qasm
+QASMBench/qft/qft/qft_n18.qasm
+QASMBench/wstate/wstate_n27.qasm
+QASMBench/swap_test/swap_test_n25.qasm

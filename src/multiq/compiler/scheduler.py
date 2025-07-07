@@ -89,8 +89,6 @@ class CircuitSASelector:
         
         while (temperature > self.final_temperature and iteration < self.max_iterations):
             
-            import pdb; pdb.set_trace()  # Debugging breakpoint
-
             temp_accepted = 0
             temp_rejected = 0
             temp_generation_failures = 0
@@ -258,7 +256,7 @@ class CircuitSASelector:
         empty_bin = None
         
         for i,bin_idx in enumerate(changed_bins):
-            if self.positions[changed_bins[i]] == [[],[]]:
+            if self.positions[changed_bins[i]] == [[],[]] or self.positions[changed_bins[i]] == [[]]:
                 empty_bin = bin_idx
                 changed_bins.pop(i)
                 continue
@@ -361,7 +359,7 @@ class CircuitSASelector:
     def _evaluate_bin_cost(self, bin_idx: int) -> float:
         """Merge all circuits in a bin and evaluate the cost."""
 
-        performance_scaling_factor = 1/0.8
+        performance_scaling_factor = 1/0.6
         utilization_scaling_factor = 1/0.9
 
         tiles = [self.tiles[tile_idx] 
@@ -449,6 +447,7 @@ class CircuitSASelector:
             return None
 
         # Store original state for potential reversion
+        self._previous_costs = copy.deepcopy(self.bin_costs)
         self._previous_positions = copy.deepcopy(self.positions)
 
         # Decide on move type based on temperature
@@ -612,6 +611,8 @@ class CircuitSASelector:
         """Revert to the previously stored state."""
         if hasattr(self, '_previous_positions'):
             self.positions = self._previous_positions
+        if hasattr(self, '_previous_costs'):
+            self.bin_costs = self._previous_costs
 
 def circuit_layer_cost(circuit_layers: list) -> List[int]:
     """

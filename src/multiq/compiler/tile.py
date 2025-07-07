@@ -128,7 +128,7 @@ class Tile(Scheduler_mixin, Placer_mixin, Verifier_mixin, Router_mixin):
         self.n_g = len(self.g_q)
         self.g_s = tuple(['CRZ' for _ in range(self.n_g)])
         # we can only do this once we have n_q
-        self._set_architecture()
+        #self._set_architecture()
 
     def collect_reuse_qubit(self):
         """

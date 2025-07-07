@@ -23,7 +23,7 @@ time_1q_gate: 52 # us
 # Planner Settings
 # weights for layout planning
 util_weight: 0 # We dont use this one, we simply do (1 - perf_weight)
-perf_weight: 1
+perf_weight: 0.7
 zone_centering: [1,1] # Defines the centering of the entanglement and storage zones,
                       # 1:1 means the zone overlaps on each side are equal,
                       # 1:2 would push the smaller zone to the left
@@ -35,7 +35,7 @@ layer_split_window: 10
 perf_weight_selector: 0.9 # Performance weight for scheduling
 util_weight_selector: 0.1 # Utilization weight for scheduling
 initial_temperature: 10 # Initial temperature for simulated annealing
-cooling_rate: 0.95 # Cooling factor for simulated annealing
+cooling_rate: 0.9 # Cooling factor for simulated annealing
 final_temperature: 0.5 # Final temperature for simulated annealing
 max_iterations_per_temp: 1 # Number of iterations per temperature in simulated annealing
 max_iterations: 1000 # Maximum number of iterations for the scheduler
@@ -66,7 +66,7 @@ physical_cell_width_um: 10.0
 
 # multiprograming grid configuration
 grid_cols: 5
-grid_rows: 1
+grid_rows: 2
 
 # Scheduling and Routing Strategies
 scheduling_strategy: "asap" # As Soon As Possible

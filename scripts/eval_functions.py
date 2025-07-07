@@ -6,6 +6,7 @@ import pandas as pd
 import warnings
 from plotting import bar_plot, line_plot
 from plotting import utils, defaults
+import ast
 import seaborn as sns
 import matplotlib.pyplot as plt
 
@@ -930,7 +931,7 @@ def plot_planner_eval_fidelity_multiq(ax, title):
                              linewidth=1.75,
                              legend_ncol=5,
                              higher_lower_is_better='higher',
-                             higher_lower_is_better_loc=(0.73, 1),
+                             higher_lower_is_better_loc=(0.73, 1.02),
                              xlabel='Benchmarks',
                              legend=False,
                              legend_loc=(0.5, -0.3),
@@ -993,7 +994,7 @@ def plot_planner_eval_utilization_multiq(ax, title):
                              linewidth=1.75,
                              legend_ncol=5,
                              higher_lower_is_better='higher',
-                             higher_lower_is_better_loc=(0.73, 1),
+                             higher_lower_is_better_loc=(0.73, 1.02),
                              xlabel='Benchmarks',
                              legend=False,
                              legend_loc=(0.5, -0.3),
@@ -1001,7 +1002,79 @@ def plot_planner_eval_utilization_multiq(ax, title):
     
     ax.set_ylim(0, 100)  # Set y-axis limits to 0-100% for utilization
 
-def plot_bundler_eval_fidelity_multiq(ax, title):
+def plot_bundler_eval_utilization_multiq(ax, title):
+    data = pd.read_csv("results/multiq/bundler_results.csv")
+
+    #data_zac['benchmark'] = ['Grouped' if len(data_zac.iloc[i]['benchmark'].split('_')) > 1 else 'Sequential' for i in range(len(data_zac))]
+    #data_zac['qpu_utilization'] = [int(data_zac.iloc[i]['nqubits']*100/qpu_size_zac) for i in range(len(data_zac))]
+    #data_zac['grouped_circuits'] = [len(data_zac.iloc[i]['benchmark'].split('_')) for i in range(len(data_zac))]
+
+    #for i in range(len(data_zac)):
+    #    if data_zac.iloc[i]['type'] == 'Sequential':
+    #        data_zac.at[i, 'updated_shuttling_time'] = data_zac.iloc[i]['cir_shuttling_time']
+    #        #data_zac.at[i, 'updated_execution_time'] = data_zac.iloc[i]['execution_time']
+    #    else:
+    #        grouped_benchmarks = data_zac.iloc[i]['benchmark'].split('_')
+#
+    #        solo_shuttling_times = []
+    #        solo_exec_times = []
+#
+    #        for j in grouped_benchmarks:
+    #            solo_shuttling_times.append(float(data_zac[data_zac['benchmark'] == j][data_zac['nqubits'] == data_zac.iloc[i]['nqubits']//len(grouped_benchmarks)]['cir_shuttling_time'].mean()))
+    #            #solo_exec_times.append(float(data_zac[data_zac['benchmark'] == j][data_zac['nqubits'] == data_zac.iloc[i]['nqubits']//len(grouped_benchmarks)]['execution_time'].mean()))
+#
+    #        data_zac.at[i, 'updated_shuttling_time'] = data_zac.iloc[i]['cir_shuttling_time']
+    #        #data_zac.at[i, 'updated_execution_time'] = data_zac.iloc[i]['execution_time']
+#
+    #        #add row to data_zac copy of this one with uptated fidelity as g1_2q_mov_trans_avg
+    #        data_zac.loc[len(data_zac)] = data_zac.iloc[i]
+    #        data_zac.at[len(data_zac)-1, 'updated_shuttling_time'] = max(solo_shuttling_times)
+    #        #data_zac.at[len(data_zac)-1, 'updated_execution_time'] = max(solo_exec_times)
+    #        data_zac.at[len(data_zac)-1, 'type'] = 'Grouped Independent'
+
+    #data_zac = data_zac[data_zac['nqubits'] != 25]
+    #data_zac = data_zac[data_zac['nqubits'] != 20]
+    #data_zac = data_zac[data_zac['nqubits'] != 10]
+
+    qpu_width = 230 #um
+    storage_cols_separation = 3 #um
+    nrows = 2
+
+    avg_bin_utilization = 1
+
+    for row_idx, row in enumerate(data['tile_widths']):
+        for bin in ast.literal_eval(row):
+            sum_tile_widths = sum(bin)
+            avg_bin_utilization *= sum_tile_widths/(qpu_width*nrows)
+
+        data.at[row_idx, 'avg_bin_utilization'] = avg_bin_utilization**(1/len(data['tile_widths']))
+
+    #data['benchmark'] = [i.split('.')[0] for i in data['benchmark']]
+    data['nbenchmarks'] = [f'Set {len(i.split('-'))}' for i in data['benchmarks']]
+    #data['decoherence_error'] = [(1 - float(i))*100 for i in data['total_coherence_fidelity']]
+    #data['utilization'] = [(i-1)*3/qpu_width for i in data['storage_zone_cols']]  # Assuming 250 is the max width
+
+    ax.grid(True)
+
+    bar_plot.grouped_barplot(data,
+                             ax=ax,
+                             grouping_column='perf_weight',
+                             xcol='nbenchmarks',
+                             ycol='avg_bin_utilization',
+                             title=title,
+                             title_loc='left',
+                             errorbar=None,
+                             linewidth=1.75,
+                             legend_ncol=5,
+                             higher_lower_is_better='higher',
+                             higher_lower_is_better_loc=(0.73, 1.02),
+                             xlabel='Sets of benchmarks',
+                             legend=True,
+                             legend_loc=(0.5, -0.3),
+                             ylabel='QPU Utilization [%]',)
+    
+
+def plot_bundler_eval_decoherence_multiq(ax, title):
     data = pd.read_csv("results/multiq/bundler_results.csv")
 
     #data_zac['benchmark'] = ['Grouped' if len(data_zac.iloc[i]['benchmark'].split('_')) > 1 else 'Sequential' for i in range(len(data_zac))]
@@ -1038,28 +1111,26 @@ def plot_bundler_eval_fidelity_multiq(ax, title):
     qpu_width = 230 #um
     storage_cols_separation = 3 #um
 
-    data['benchmark'] = [i.split('.')[0] for i in data['benchmark']]
-    data['decoherence_error'] = [(1 - float(i))*100 for i in data['total_coherence_fidelity']]
-    data['utilization'] = [(i-1)*3/qpu_width for i in data['storage_zone_cols']]  # Assuming 250 is the max width
-
-    data = data[data['benchmark'] != 'ghz_n40']
-    data = data[data['benchmark'] != 'cat_n35']
+    #data['benchmark'] = [i.split('.')[0] for i in data['benchmark']]
+    data['nbenchmarks'] = [f'Set {len(i.split('-'))}' for i in data['benchmarks']]
+    #data['decoherence_error'] = [(1 - float(i))*100 for i in data['total_coherence_fidelity']]
+    #data['utilization'] = [(i-1)*3/qpu_width for i in data['storage_zone_cols']]  # Assuming 250 is the max width
 
     ax.grid(True)
 
     bar_plot.grouped_barplot(data,
                              ax=ax,
                              grouping_column='perf_weight',
-                             xcol='benchmark',
-                             ycol='utilization',
+                             xcol='nbenchmarks',
+                             ycol='total_coherence_fidelity',
                              title=title,
                              title_loc='left',
                              errorbar=None,
                              linewidth=1.75,
                              legend_ncol=5,
                              higher_lower_is_better='higher',
-                             higher_lower_is_better_loc=(0.73, 1),
-                             xlabel='Benchmarks',
+                             higher_lower_is_better_loc=(0.73, 1.02),
+                             xlabel='Sets of benchmarks',
                              legend=True,
                              legend_loc=(0.5, -0.3),
-                             ylabel='QPU Utilization [%]',)
+                             ylabel='Decoherence Error [%]',)

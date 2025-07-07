@@ -31,7 +31,7 @@ class MultiQ:
         
         logger.debug("Bundled tiles:")
         for i, result in enumerate(self.bins):
-            logger.debug(f"Result bin {i}: {result}")
+            logger.debug(f"Result bin {i}: {[tile.source_name.split('/')[-1] for tile in result if tile is not None]}")
 
         output_files:list[list] = []
         

@@ -290,9 +290,20 @@ class Planner:
 
             largest_entanglement = self._largest_entanglement_op(execution_layers)
             
-            minimun_entanglement_width = (ceil(largest_entanglement / per_circuit_entanglement_row_height)-1) * entanglement_pair_spacing + entanglement_atom_spacing
+            minimun_entanglement_width = (largest_entanglement//per_circuit_entanglement_row_height) * entanglement_pair_spacing + entanglement_atom_spacing
             
-            minimun_storage_width = (ceil(circuit.num_qubits / storage_rows)-1) * storage_atom_spacing
+            minimun_storage_width = (circuit.num_qubits//storage_rows) * storage_atom_spacing
+            #
+
+            #minimun_width = max(minimun_entanglement_width, minimun_storage_width)
+            #
+            #best_storage_width = max(minimun_entanglement_width, (circuit.num_qubits-1) * storage_atom_spacing)
+            #
+            ## Weighted average of the best and minimum storage width with the weights defined in the configuration
+            #selected_storage_width = ceil(best_storage_width * self.perf_weight + minimun_width * (1-self.perf_weight) / 2)
+            #
+            #tile.config.storage_zone_cols = (selected_storage_width // storage_atom_spacing) + 1
+            #
             
             best_storage_width = max(minimun_entanglement_width, (circuit.num_qubits-1) * storage_atom_spacing)
 
@@ -312,7 +323,7 @@ class Planner:
             logger.info(f'Best storage width: {(best_storage_width // storage_atom_spacing)+1},\n selected storage width: {(selected_storage_width // storage_atom_spacing)+1},\n storage rows: {storage_rows},\n entanglement rows: {per_circuit_entanglement_row_height},\n minimun entanglement width: {((minimun_entanglement_width-2) // entanglement_pair_spacing)+1},\n selected entanglement width: {((selected_storage_width-2) // entanglement_pair_spacing)+1},\n largest entanglement: {largest_entanglement}')
 
             tile._set_architecture(out)
-            tile.circuit_file = circuit_file
+            tile.source_name = circuit_file
             tile.circuit = circuit
             tile.best_nlayers = len(execution_layers)
             self.tiles.append(tile)

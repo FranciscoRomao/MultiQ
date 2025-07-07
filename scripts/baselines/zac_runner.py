@@ -71,7 +71,7 @@ def run_zac(benchmark_set, settings_file):
         print("==============================================")
         print("Compile circuit {}".format(benchmark))
 
-        filename = os.path.join(os.path.dirname(__file__), '../../data/benchmarks/', benchmark)
+        filename = os.path.join(os.path.dirname(__file__), '../../data/benchmarks',benchmark)
         #filename = benchmark.split('/')[-1]
         #filename = filename.split('.')[0]
 
@@ -142,7 +142,7 @@ def run_zac_single_benchmarks(benchmark_file, settings_file, output_file):
     #settings_file = "../../config/zac/general.json"
 
     # Run the ZAC compiler
-    info = run_zac(benchmark_file, settings_file)
+    info = run_zac([benchmark_file], settings_file)
     
     # Print the results
     logger.info("ZAC Compilation Info:", info)

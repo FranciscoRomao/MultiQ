@@ -70,15 +70,12 @@ def run_multiq_planner_eval():
     results_file = os.path.join(os.path.dirname(__file__), '../../results/multiq/planner_results.csv')
     data.to_csv(results_file, mode='a', header=False, index=False)
 
-def run_multiq_bundler_eval():
+def run_multiq_bundler_eval(set_sizes:list[int] = [5, 6], perf_weights:list[float] = [0.4, 1.0], config_file:str = "../../config/multiq/bundler_config.yaml", results_file:str = "../../results/multiq/bundler_results.csv"):
 
     logger = logging.getLogger("multiq")
     random.seed(42)
 
     logging.basicConfig(format='%(levelname)s: %(message)s', level=logging.INFO)
-
-    set_sizes = [10]
-    perf_weights = [1, 0.8, 0.6, 0.4, 0.2]
 
     benchmark_set = open("data/bundler_eval_bench_list.txt").read().splitlines()
 
@@ -87,6 +84,7 @@ def run_multiq_bundler_eval():
     benchmark_sets = [random.sample(benchmark_set, size) for size in set_sizes]
 
     data = pd.DataFrame(columns=['benchmarks',
+                                 'tile_widths',
                                  'perf_weight',
                                  'total_fidelity',
                                  'nbins',
@@ -97,7 +95,7 @@ def run_multiq_bundler_eval():
 
     for idx, weight in enumerate(perf_weights):
         for benchmark_set in benchmark_sets:
-            mq = MultiQ()
+            mq = MultiQ(config_file=config_file)
 
             mq.config.perf_weight = 0.7
             mq.config.perf_weight_selector = weight
@@ -106,8 +104,8 @@ def run_multiq_bundler_eval():
             bench = '-'.join([os.path.basename(b).split('.')[0] for b in benchmark_set])
             print(f"Processing benchmark set: {bench} with weight {weight}")
             
-            output_files = mq.set_inputs(benchmark_set)
-            stats = pd.read_json(output_files[0][0], typ='series')
+            output_files_fid = mq.set_inputs(benchmark_set)
+            output_files_code = [file.split('_fidelity')[0] + '.json' for file in output_files_fid[0]]
 
             avg_set_fidelity = 1
             avg_coherence_fidelity = 1
@@ -115,50 +113,61 @@ def run_multiq_bundler_eval():
             avg_circuit_duration = 1
             cummulative_duration = 0
 
-            # Maybe compute here the sorting times for each bin and added to the cummulative duration
+            circuit_counter = 0
 
-            for bin in output_files:
+            # Maybe compute here the sorting times for each bin and added to the cummulative duration
+            tile_widths:list[list] = []
+            for bin in output_files_fid:
+                tile_widths.append([])
                 tile_durations = [pd.read_json(tile, typ='series')['cir_duration'] for tile in bin]
                 cummulative_duration += max(tile_durations)
                 for tile in bin:
+                    circuit_counter += 1
+                    code_file = tile.split('_fidelity')[0] + '.json'
+                    code_stats = pd.read_json(code_file, typ='series')
                     stats = pd.read_json(tile, typ='series')
+                    tile_widths[-1].append(int(code_stats['tile_width']))
                     avg_set_fidelity *= stats['cir_fidelity']
                     avg_coherence_fidelity *= stats['cir_fidelity_coherence']
                     avg_transfer_fidelity *= stats['cir_fidelity_atom_transfer']
-                    avg_circuit_duration *= avg_circuit_duration
+                    avg_circuit_duration *= stats['cir_duration']
 
-            avg_set_fidelity = avg_set_fidelity ** (1 / len(output_files))
-            avg_coherence_fidelity = avg_coherence_fidelity ** (1 / len(output_files))
-            avg_transfer_fidelity = avg_transfer_fidelity ** (1 / len(output_files))
-            avg_circuit_duration = avg_circuit_duration ** (1 / len(output_files))
+            avg_set_fidelity = avg_set_fidelity ** (1 / circuit_counter)
+            avg_coherence_fidelity = avg_coherence_fidelity ** (1 / circuit_counter)
+            avg_transfer_fidelity = avg_transfer_fidelity ** (1 / circuit_counter)
+            avg_circuit_duration = avg_circuit_duration ** (1 / circuit_counter)
             
             data.loc[len(data)] = [bench,
+                                   tile_widths,
                                    weight,
                                    float(avg_set_fidelity),
-                                   len(output_files),
+                                   len(output_files_fid),
                                    float(avg_coherence_fidelity),
                                    float(avg_transfer_fidelity),
                                    avg_circuit_duration,
                                    cummulative_duration]
     
-    results_file = os.path.join(os.path.dirname(__file__), '../../results/multiq/bundler_results.csv')
-    data.to_csv(results_file, mode='a', header=False, index=False)
+            data.to_csv(results_file, mode='a', header=False, index=False)
+
+            # Clean data because it was already saved
+            data.drop(data.index[-1], inplace=True)
 
 def run_multiq(benchmarks:list[str], config_file:str = "../../config/multiq/config.yaml", output_file:str = "../../results/multiq/results.csv"):
 
-    data = pd.DataFrame(columns=['benchmarks',
-                                 'perf_weight',
-                                 'total_fidelity',
+    data = pd.DataFrame(columns=['benchmark',
+                                 'bin_idx',
+                                 'cir_fidelity',
                                  'nbins',
-                                 'total_coherence_fidelity',
-                                 'total_transfer_fidelity',
-                                 'avg_bin_duration',
-                                 'cummulative_duration'])
+                                 'cir_coherence',
+                                 'cir_transfer_fidelity',
+                                 'cir_duration'])
 
     mq = MultiQ(config_file=config_file)
 
     bench = '-'.join([os.path.basename(b).split('.')[0] for b in benchmarks])
-            
+
+    benchmarks = [os.path.join(os.path.dirname(__file__), "../../data/benchmarks", bench) for bench in benchmarks]
+    
     output_files = mq.set_inputs(benchmarks)
     stats = pd.read_json(output_files[0][0], typ='series')
 
@@ -169,31 +178,36 @@ def run_multiq(benchmarks:list[str], config_file:str = "../../config/multiq/conf
     cummulative_duration = 0
 
     # Maybe compute here the sorting times for each bin and added to the cummulative duration
+    bench_name = ''
 
-    for bin in output_files:
-        tile_durations = [pd.read_json(tile, typ='series')['cir_duration'] for tile in bin]
-        cummulative_duration += max(tile_durations)
-        for tile in bin:
+    for bin_idx, bin in enumerate(output_files):
+        #tile_durations = [pd.read_json(tile, typ='series')['cir_duration'] for tile in bin]
+        #cummulative_duration += max(tile_durations)
+        for tile_idx, tile in enumerate(bin):
+            bench_name = tile.split('/')[-1].split('_fidelity')[0]
             stats = pd.read_json(tile, typ='series')
-            avg_set_fidelity *= stats['cir_fidelity']
-            avg_coherence_fidelity *= stats['cir_fidelity_coherence']
-            avg_transfer_fidelity *= stats['cir_fidelity_atom_transfer']
-            avg_circuit_duration *= avg_circuit_duration
+            #avg_set_fidelity *= stats['cir_fidelity']
+            #avg_coherence_fidelity *= stats['cir_fidelity_coherence']
+            #avg_transfer_fidelity *= stats['cir_fidelity_atom_transfer']
+            #avg_circuit_duration *= avg_circuit_duration
 
-        avg_set_fidelity = avg_set_fidelity ** (1 / len(output_files))
-        avg_coherence_fidelity = avg_coherence_fidelity ** (1 / len(output_files))
-        avg_transfer_fidelity = avg_transfer_fidelity ** (1 / len(output_files))
-        avg_circuit_duration = avg_circuit_duration ** (1 / len(output_files))
-            
-        data.loc[len(data)] = [bench,
-                               float(avg_set_fidelity),
-                               len(output_files),
-                               float(avg_coherence_fidelity),
-                               float(avg_transfer_fidelity),
-                               avg_circuit_duration,
-                               cummulative_duration]
+        #avg_set_fidelity = avg_set_fidelity ** (1 / len(output_files))
+        #avg_coherence_fidelity = avg_coherence_fidelity ** (1 / len(output_files))
+        #avg_transfer_fidelity = avg_transfer_fidelity ** (1 / len(output_files))
+        #avg_circuit_duration = avg_circuit_duration ** (1 / len(output_files))
+        
+            data.loc[len(data)] = [bench_name,
+                                   bin_idx,
+                                   stats['cir_fidelity'],
+                                   len(output_files),
+                                   stats['cir_fidelity_coherence'],
+                                   stats['cir_fidelity_atom_transfer'],
+                                   stats['cir_duration']]
     
-    data.to_csv(output_file, mode='a', header=False, index=False)
+    if not os.path.isfile(output_file):
+        data.to_csv(output_file, index=False)
+    else:
+        data.to_csv(output_file, mode='a', header=False, index=False)
 '''
 def run_multiq_single_benchmarks():
     """

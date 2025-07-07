@@ -447,7 +447,7 @@ class Orchestrator:
                 "reuse": True
             }
             tile.parse_setting(zac_settings)
-            tile.load_program(tile.circuit_file)
+            tile.load_program(tile.source_name)
             self.tiles_to_place.append(tile)
 
     def write_output(self, output_dir: str) -> list[str]:
@@ -463,6 +463,8 @@ class Orchestrator:
                     # Check is if the output directory exists, if not create it
                     if not os.path.exists(output_dir):
                         os.makedirs(output_dir)
+
+                    tile.result_json['tile_width'] = tile.architecture.arch_range[1][0]
 
                     with open(os.path.join(output_dir, filename), "w+") as f:
                         f.write(json.dumps(tile.result_json))
