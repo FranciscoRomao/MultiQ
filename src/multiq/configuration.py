@@ -14,7 +14,7 @@ class MultiQConfig:
     entanglement_site_separation: list[int]# = [12, 10] # um
     storage_site_separation: list[int]# = [10, 10] # um
     aod_minimum_separation: int# = 2
-    time_1qGate: float# = 0.625 # us
+    time_1qGate: float# us
     grid_cols: int# = 2 # Number of grid cells horizontally
     grid_rows: int# = 1  # Number of QPU rows for tiles
     
@@ -27,7 +27,7 @@ class MultiQConfig:
     time_1q_gate: float
 
     # Planner Settings
-    util_weight: float# = 0.05 #This is not used, we simply do (1 - perf_weight) for utility weight
+    #util_weight: float# = 0.05 #This is not used, we simply do (1 - perf_weight) for utility weight
     perf_weight: float# = 0.95
     tmp_arch_file: str# = 'zac_config/tmp_architecture.json'
     layer_split_window: int# = 2 # Defines the lookahead window for execution layer splitting in the planner
@@ -37,8 +37,9 @@ class MultiQConfig:
 
     # Scheduler 
     perf_weight_selector: float# = 0.95 # Weight for performance in the circuit compatibility selector
-    util_weight_selector: float# = 0.05 # Weight for utility in the circuit
-    # SA parameters
+    #util_weight_selector: float# = 0.05 # Weight for utility in the circuit
+    # Bundler parameters
+    selection_algorithm: str  # Selector algorithm to use, options: "fifo", "sa"
     initial_temperature: float # Initial temperature for simulated annealing
     final_temperature: float # Final temperature for simulated annealing
     cooling_rate: float # Cooling rate for simulated annealing

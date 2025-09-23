@@ -153,7 +153,7 @@ def run_zac_single_benchmarks(benchmark_file, settings_file, output_file):
                              'total_coherence_fidelity',
                              'total_transfer_fidelity',
                              'total_2q_on_idle',
-                             'n_bench'])
+                             'cir_duration'])
     
     #for i, benchmark in enumerate(benchmark_set):
 
@@ -171,7 +171,7 @@ def run_zac_single_benchmarks(benchmark_file, settings_file, output_file):
                            fid_res['cir_fidelity_coherence'],
                            fid_res['cir_fidelity_atom_transfer'],
                            fid_res['cir_fidelity_2q_gate_for_idle'],
-                           1]
+                           fid_res['cir_duration']]
     
     os.remove(fid_file)
     os.remove(time_file)
@@ -181,38 +181,30 @@ def run_zac_single_benchmarks(benchmark_file, settings_file, output_file):
     else:
         data.to_csv(output_file, mode='a', header=False, index=False)
 
-def run_zac_merged_benchmarks():
+def run_zac_merge_benchmarks(benchmark_set, settings_file, output_file):
 
     logger = logging.getLogger("zac.evaluation")
     random.seed(42)
 
     logging.basicConfig(format='%(levelname)s: %(message)s', level=logging.INFO)
 
-    set_sizes = [2, 3, 4, 5, 6]
-
-    benchmark_set = open("data/controler_eval_bench_list.txt").read().splitlines()
-
-    benchmark_set = [os.path.join(os.path.dirname(__file__), "../../data/benchmarks", bench) for bench in benchmark_set]
-
-    benchmark_sets = [random.sample(benchmark_set, size) for size in set_sizes]
-
     bench=''
 
     merged_bench_files = []
 
-    for benchmark_set in benchmark_sets:
-        
-        circuits = [QuantumCircuit.from_qasm_file(bench) for bench in benchmark_set]
-        merged_circuit = merge_circuits(circuits)
+    benchmark_set = [os.path.join(os.path.dirname(__file__), '../../data/benchmarks', bench) for bench in benchmark_set]
 
-        bench = '-'.join([os.path.basename(b).split('.')[0] for b in benchmark_set])
-        merged_bench_files.append(bench)
+    circuits = [QuantumCircuit.from_qasm_file(bench) for bench in benchmark_set]
+    merged_circuit = merge_circuits(circuits)
 
-        save_circuit(merged_circuit, os.path.join(os.path.dirname(__file__), '../../data/benchmarks/merged', f'{bench}.qasm'))
+    bench = '-'.join([os.path.basename(b).split('.')[0] for b in benchmark_set])
+    merged_bench_files.append(bench)
+
+    save_circuit(merged_circuit, os.path.join(os.path.dirname(__file__), '../../data/benchmarks/merged', f'{bench}.qasm'))
         
     print(f"Runnig ZAC for benchmark set: {bench}")
     
-    settings_file = os.path.join(os.path.dirname(__file__), "../../config/zac/general.json")
+    settings_file = os.path.join(os.path.dirname(__file__), settings_file)
 
     merged_bench = [os.path.join('merged', f'{bench}.qasm') for bench in merged_bench_files]
 
@@ -252,9 +244,9 @@ def run_zac_merged_benchmarks():
                                fid_res['cir_fidelity_atom_transfer'],
                                fid_res['cir_fidelity_2q_gate_for_idle'],
                                len(bench.split('-')),
-                               fid_res['cir_duration']]
+                               fid_res['cir_duration']/1000]
     
-        results_file = os.path.join(os.path.dirname(__file__), '../../results/zac/compiled_results.csv')
+        results_file = os.path.join(os.path.dirname(__file__), output_file)
 
     if not os.path.isfile(results_file):
         data.to_csv(results_file, index=False)
@@ -382,5 +374,76 @@ def run_zac_merged_benchmarks():
                     data.to_csv(results_file, mode='a', header=False, index=False)  
 '''
 
+def run_zac_preeval(benchmark_set, settings_file):
+
+    with open(settings_file, 'r') as f:
+        exp_spec = json.load(f)
+
+    dict_arch = dict()
+    list_zac_setting = exp_spec["zac_setting"]
+    to_run_simulation = exp_spec["simulation"]
+
+    info = {'nqubits': []}
+
+    for benchmark in benchmark_set:
+        print("==============================================")
+        print("Compile circuit {}".format(benchmark))
+
+        filename = benchmark.split('/')[-1]
+        #filename = filename.split('.')[0]
+
+        for zac_setting in list_zac_setting:
+            if zac_setting["arch_spec"] in dict_arch:
+                (arch, spec) = dict_arch[zac_setting["arch_spec"]]
+            else:
+                with open(zac_setting["arch_spec"], 'r') as f:
+                    spec = json.load(f)
+                arch = Architecture(spec)
+                arch.preprocessing() 
+                dict_arch[zac_setting["arch_spec"]] = (arch, spec)
+            zac_setting["name"] = filename
+            zac_compiler = ZAC()
+            zac_compiler.parse_setting(zac_setting)
+            zac_compiler.set_architecture_spec_path(zac_setting["arch_spec"])
+            zac_compiler.set_architecture(arch)
+            filename = os.path.join(os.path.dirname(__file__), '../../data/benchmarks/generated/', filename) 
+            zac_compiler.set_program(filename)
+            # construct directory for result and time profiling
+            directory = zac_compiler.dir+"code"
+            if not os.path.exists(directory):
+                os.makedirs(directory)
+            directory = zac_compiler.dir+"time"
+            if not os.path.exists(directory):
+                os.makedirs(directory)
+            code_dict = zac_compiler.solve(save_file=True)
+            code_file = zac_compiler.code_filename
+            with open(code_file, 'r') as f:
+                result = json.load(f)
+            
+            if to_run_simulation:
+                # set arch fidelity 
+                # run simulation
+                simulator = Simulator()
+                simulator.set_arch_spec(spec)
+                simulator.parse(zac_compiler.code_filename)
+                fideilty_result = simulator.simulate()
+                # continue
+                # construct directory for fidelity result
+                directory = zac_compiler.dir+"fidelity"
+                if not os.path.exists(directory):
+                    os.makedirs(directory)
+                tmp = zac_compiler.dir + f"fidelity/{zac_setting['name']}_fidelity.json"
+                with open(tmp, 'w') as f:  
+                    json.dump(fideilty_result, f, indent = 2)
+
+            if exp_spec["animation"]:
+                # construct directory for fidelity animation
+                directory = zac_compiler.dir+"animation"
+                if not os.path.exists(directory):
+                    os.makedirs(directory)
+                tmp =  zac_compiler.dir + f"animation/{zac_setting['name']}.mp4"
+                zac_compiler.animate(code_dict, output=tmp, first_frame=True)
+        info['nqubits'].append(zac_compiler.n_q)
+    return info
 #if __name__ == "__main__":
 #    main()

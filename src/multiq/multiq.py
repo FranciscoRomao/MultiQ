@@ -6,7 +6,7 @@ from multiq.compiler.planner import Planner
 from multiq.compiler.orchestrator import Orchestrator
 from multiq.animator.animator import Animator
 from multiq.configuration import MultiQConfig
-from multiq.compiler.scheduler import CircuitSASelector
+from multiq.compiler.scheduler import CircuitSelector
 from multiq.checker import Checker
 from multiq.simulator import Simulator
 
@@ -22,7 +22,7 @@ class MultiQ:
         self.planner.set_input_circuits(input_files, optimization_level=3)
         tiles = self.planner.set_best_architectures()
 
-        self.selector = CircuitSASelector(self.config)
+        self.selector = CircuitSelector(self.config)
 
         # There is a bug on the selector where the cost starts to be negative at some point,
         # although it should not be possible it doesnt seem to affect the results.
@@ -31,13 +31,15 @@ class MultiQ:
         
         logger.debug("Bundled tiles:")
         for i, result in enumerate(self.bins):
-            logger.debug(f"Result bin {i}: {[tile.source_name.split('/')[-1] for tile in result if tile is not None]}")
+            logger.info(f"Result bin {i}: {[tile.source_name.split('/')[-1] for tile in result if tile is not None]}")
 
         output_files:list[list] = []
+
+        print(f"---------------------Number of grid cols: {self.config.grid_cols}")
         
         for idx, bin in enumerate(self.bins):
             logger.info(f"Starting compilation for bin {idx} with {len(bin)} tiles")
-            logger.info("-" * 50)
+            logger.debug("-" * 50)
             compiler = Orchestrator(self.config)
             compiler.set_programs(bin)
             compiler.compile()

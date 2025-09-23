@@ -308,7 +308,7 @@ class PlacementOptimiser:
 
         temp = initial_temp
 
-        logger.info(
+        logger.debug(
             f"Starting placement optimisation. Initial contention: {current_contention:.2f} (target {len(self.tiles_to_place)} tiles)")
 
         for i in range(iterations):

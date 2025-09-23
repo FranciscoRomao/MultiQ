@@ -20,6 +20,7 @@ dependencies = [
     "pachinqo @ https://github.com/positivetechnologylab/PachinQo/archive/refs/tags/Paper.tar.gz",
     "mqt-qmap==3.1.3",
     "seaborn>=0.13.2",
+    "black>=25.1.0",
 ]
 
 requires-python = ">=3.12"
@@ -33,3 +34,6 @@ build-backend = "pdm.backend"
 
 [tool.pdm]
 distribution = true
+
+[tool.black]
+line-length = 120

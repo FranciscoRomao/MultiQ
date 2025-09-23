@@ -2,7 +2,7 @@
     "name": "general_architecture",
     "operation_duration": {
         "rydberg": 0.36,
-        "1qGate": 6,
+        "1qGate": 52,
         "atom_transfer": 15
     },
     "operation_fidelity": {
@@ -18,11 +18,11 @@
         "slms": [{
             "id": 0, 
             "site_seperation": [3, 3], 
-            "r": 34, 
-            "c": 78, 
+            "r": 36, 
+            "c": 77, 
             "location": [0, 0]}],
         "offset": [0, 0],
-        "dimenstion": [230, 100]
+        "dimenstion": [230, 105]
     }],
     "entanglement_zones": [{
         "zone_id": 0,
@@ -31,15 +31,15 @@
                 "id": 1,
                 "site_seperation": [12, 10],
                 "r": 4,
-                "c": 20,
-                "location": [0, 120]
+                "c": 22,
+                "location": [0, 115]
             },
             {
                 "id": 2,
                 "site_seperation": [12, 10],
                 "r": 4,
-                "c": 20,
-                "location": [2, 120]
+                "c": 22,
+                "location": [2, 115]
             }],
         "offset": [0, 0],
         "dimension": [230, 35]
@@ -48,5 +48,5 @@
         {"id": 0, "site_seperation": 2, "r": 100, "c": 100}
     ],
     "arch_range": [[0, 0], [230, 155]],
-    "rydberg_range": [[[0, 120], [230, 155]]]
+    "rydberg_range": [[[0, 115], [230, 155]]]
 }

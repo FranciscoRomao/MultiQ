@@ -405,7 +405,8 @@ class Orchestrator:
         return gate_instrs
 
     def compile(self):
-        # gate shceduling and placement are done per-tile with no cross-tile considerations
+        # Target compilation per-tile with no cross-tile considerations
+        # ZAC compilation
         for tile in self.tiles_to_place:
             if tile is None:
                 continue
@@ -414,6 +415,7 @@ class Orchestrator:
             tile.collect_reuse_qubit()
             tile.place_qubit_initial()
             tile.place_qubit_intermedeiate()
+        # ----
 
         # Only once we have scheduling info, do we place on the tile grid
         optim = PlacementOptimiser(self.config, self.tiles_to_place)

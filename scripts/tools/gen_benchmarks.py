@@ -4,7 +4,7 @@ import os
 import pdb
 from qiskit import QuantumCircuit, QuantumRegister, ClassicalRegister
 from qiskit.qasm2 import dumps
-from mqt.bench import get_benchmark
+from mqt.bench import get_benchmark, BenchmarkLevel
 from qiskit import transpile
 #from qiskit.circuit.random import random_circuit
 from qiskit.circuit import QuantumCircuit, CircuitInstruction
@@ -77,6 +77,83 @@ def save_circuit(circuit, filename):
 
     with open(filename, "w") as f:
         f.write(qasm_str)
+
+def merge_circuits_from_qasm(files: list[str], output_dir='data/benchmarks/random') -> str:
+    assert len(files) >= 1, "At least one circuit is required to merge."
+
+    files = [os.path.join(output_dir, file) for file in files if os.path.exists(os.path.join(output_dir, file))]
+    
+    circuits = [QuantumCircuit.from_qasm_file(circuit) for circuit in files]
+
+    new_circuit: QuantumCircuit = circuits[0].copy()
+
+    circuit_name = ''.join([os.path.basename(file).split('.')[0] + '-' for file in files])[:-1] + "_merged.qasm"
+
+    for i in range(1, len(circuits)):
+        circuit2 = circuits[i]
+        new_circuit_copy = new_circuit.copy()
+        
+        # Create a new quantum circuit with enough qubits and classical bits
+        total_qubits = new_circuit.num_qubits + circuit2.num_qubits
+        total_clbits = new_circuit.num_clbits + circuit2.num_clbits
+
+        new_circuit = QuantumCircuit(total_qubits, total_clbits)
+
+        # Map circuit1's qubits and clbits into the new circuit
+        new_circuit.compose(
+            new_circuit_copy,
+            qubits=range(new_circuit_copy.num_qubits),
+            clbits=range(new_circuit_copy.num_clbits),
+            inplace=True
+        )
+
+        # Map circuit2's qubits and clbits into the new circuit
+        new_circuit.compose(
+            circuit2,
+            qubits=range(new_circuit_copy.num_qubits, total_qubits),
+            clbits=range(new_circuit_copy.num_clbits, total_clbits),
+            inplace=True
+        )
+
+    save_circuit(new_circuit, os.path.join(output_dir, circuit_name))
+    
+    return os.path.join(output_dir, circuit_name)
+
+def merge_circuits(circuits: list[QuantumCircuit]) -> QuantumCircuit:
+    assert len(circuits) >= 1, "At least one circuit is required to merge."
+
+    if len(circuits) == 1:
+        return circuits[0]
+
+    new_circuit: QuantumCircuit = circuits[0].copy()
+
+    for i in range(1, len(circuits)):
+        circuit2 = circuits[i]
+        new_circuit_copy = new_circuit.copy()
+        
+        # Create a new quantum circuit with enough qubits and classical bits
+        total_qubits = new_circuit.num_qubits + circuit2.num_qubits
+        total_clbits = new_circuit.num_clbits + circuit2.num_clbits
+
+        new_circuit = QuantumCircuit(total_qubits, total_clbits)
+
+        # Map circuit1's qubits and clbits into the new circuit
+        new_circuit.compose(
+            new_circuit_copy,
+            qubits=range(new_circuit_copy.num_qubits),
+            clbits=range(new_circuit_copy.num_clbits),
+            inplace=True
+        )
+
+        # Map circuit2's qubits and clbits into the new circuit
+        new_circuit.compose(
+            circuit2,
+            qubits=range(new_circuit_copy.num_qubits, total_qubits),
+            clbits=range(new_circuit_copy.num_clbits, total_clbits),
+            inplace=True
+        )
+    
+    return new_circuit
 
 def cut_circuit_critical_path_limit_NA(circuit: QuantumCircuit, depth: int) -> QuantumCircuit:
     assert circuit.data is not None, "Input circuit is empty."
@@ -329,6 +406,26 @@ def random_circuit(
                 operation = gate(*parameters[p_start:p_end])
                 qc._append(CircuitInstruction(operation=operation, qubits=qubits[q_start:q_end]))
     return qc
+
+def gen_single_benchmarks(circuit_sizes, benchmarks, regen=False):
+
+    benchmarks_set = []
+    #merged = merge_two_circuits(ghz_circuit1, ghz_circuit2)
+    #Individual circuits sizes 50,100,150,200,250
+
+    for i in benchmarks:
+        for j in circuit_sizes:
+            if os.path.exists(f"data/benchmarks/generated/{i}-{j}.qasm") and not regen:
+                benchmarks_set.append(f"data/benchmarks/generated/{i}-{j}.qasm")
+                continue
+            tmp = get_benchmark(benchmark=i, level=BenchmarkLevel.INDEP, circuit_size=int(j))
+            tmp = transpile(tmp, basis_gates=["cz", "id", "u2", "u1", "u3"], optimization_level=3, seed_transpiler=0)
+
+            benchmarks_set.append(f"data/benchmarks/generated/{i}-{j}.qasm")
+            save_circuit(tmp, f"data/benchmarks/generated/{i}-{j}.qasm")
+            #save_circuit_figure(tmp, f"benchmarks/figures/{i}-{j}.png")
+            
+    return benchmarks_set
 
 def single_random_NA_circuit(num_qubits, depth, seed=None, max_operands=2):
     #(gate object, num_qubits, num_params)

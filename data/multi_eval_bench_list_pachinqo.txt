@@ -5,10 +5,6 @@ single/dj_n26.qasm
 single/swap_test_n25.qasm
 single/qaoa_maxcut_n14.qasm
 single/dj_n16.qasm
-single/bv_n14.qasm
-single/hamsim_n18.qasm
 single/graphstate_n20.qasm
-single/bv_n19.qasm
-single/multiply_n13.qasm
 single/knn_n25.qasm
 single/wstate_n24.qasm
