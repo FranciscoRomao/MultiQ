@@ -932,7 +932,7 @@ def plot_planner_eval_fidelity_multiq(ax, title, complete=False):
                              errorbar=None,
                              linewidth=1.75,
                              legend_ncol=5,
-                             higher_lower_is_better='higher',
+                             higher_lower_is_better='lower',
                              higher_lower_is_better_loc=(0.68, 1.04),
                              xlabel='Benchmarks',
                              legend=False,
@@ -1004,7 +1004,7 @@ def plot_planner_eval_utilization_multiq(ax, title, complete=False):
                              errorbar=None,
                              linewidth=1.75,
                              legend_ncol=5,
-                             higher_lower_is_better='higher',
+                             higher_lower_is_better='lower',
                              higher_lower_is_better_loc=(0.68, 1.04),
                              xlabel='Benchmarks',
                              legend=False,
@@ -1049,7 +1049,7 @@ def plot_bundler_space_util(ax, title):
 
     #df['selector_algo'] = pd.Categorical(df['selector_algo'], categories=selector_algo_order, ordered=True)
     df.sort_values(by = "selector_algo")
-    #df = df[df['selector_algo'] != 'SA - 0.0']
+    df = df[df['selector_algo'] != 'SA - 0.0']
     df = df[df['selector_algo'] != 'SA - 1.0']
     #df['set_size'] = pd.Categorical(df['set_size'], categories=set_order, ordered=True)
     #df['phase_duration'] = pd.Categorical(df['phase_duration'], categories=phase_order, ordered=True)
@@ -1065,7 +1065,7 @@ def plot_bundler_space_util(ax, title):
                              linewidth=1.75,
                              legend_ncol=5,
                              higher_lower_is_better='higher',
-                             higher_lower_is_better_loc=(0.73, 1.02),
+                             higher_lower_is_better_loc=(0.7, 1.02),
                              xlabel='Sets of benchmarks',
                              legend=False,
                              legend_loc=(0.5, -0.3),
@@ -1117,7 +1117,7 @@ def plot_bundler_temporal_util(ax, title):
     #df['selector_algo'] = pd.Categorical(df['selector_algo'], categories=selector_algo_order)
     df.sort_values(by = "selector_algo")
     df = df[df['selector_algo'] != 'SA - 0.0']
-    #df = df[df['selector_algo'] != 'SA - 1.0']
+    df = df[df['selector_algo'] != 'SA - 1.0']
 
     bar_plot.grouped_barplot(df,
                              ax=ax,
@@ -1130,7 +1130,7 @@ def plot_bundler_temporal_util(ax, title):
                              linewidth=1.75,
                              legend_ncol=5,
                              higher_lower_is_better='higher',
-                             higher_lower_is_better_loc=(0.73, 1.02),
+                             higher_lower_is_better_loc=(0.7, 1.02),
                              xlabel='Sets of benchmarks',
                              legend=False,
                              legend_loc=(0.5, -0.3),
@@ -1754,7 +1754,7 @@ def plot_e2e_results_total_runtime(ax, title, set_size, include_pachinqo=False, 
                                           higher_lower_is_better_loc=(0.73, 1.02),
                                           xlabel='Benchmarks sets',
                                           legend=True,
-                                          legend_loc=(0.3, 0.755) if not include_pachinqo else (0.01, 0.76),
+                                          legend_loc=(0.3, 0.755) if not include_pachinqo else (0.01, 0.7),
                                           ylabel='Total runtime [ms]',
                                           ylim=600,
                                           xticks=xticks_visible)

@@ -12,8 +12,8 @@ fidelity_1q_gate: 0.9991
 fidelity_2q_gate: 0.9955
 fidelity_atom_transfer: 0.999
 final_temperature: 0.5
-grid_cols: 14
-grid_rows: 1
+grid_cols: 12
+grid_rows: 2
 has_dependency: true
 initial_temperature: 10
 l2: false
@@ -23,7 +23,7 @@ max_iterations_per_temp: 3
 multiq_check: false
 no_row1q_gates: false
 num_aods: 1
-perf_weight: 0.8
+perf_weight: 0.48
 perf_weight_selector: 0
 physical_cell_height_um: 95.0
 physical_cell_width_um: 6

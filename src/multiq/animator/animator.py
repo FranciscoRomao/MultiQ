@@ -460,7 +460,7 @@ class Animator:
         if schedules_durations:
             n_frames = max(schedules_durations.values())
 
-        n_frames = 0
+        #n_frames = 0
         anim = FuncAnimation(
             self.fig,
             self.update,
@@ -536,14 +536,10 @@ class Animator:
                     ax = fig.add_subplot(gs[r, c: c + tile_grid_width_span])
 
                     current_tile_arch = tile.architecture
-                    ax.set_xlim([
-                        current_tile_arch.arch_range[0][0] - CANVAS_PADDING,
-                        current_tile_arch.arch_range[1][0] + CANVAS_PADDING
-                    ])
-                    ax.set_ylim([
-                        current_tile_arch.arch_range[0][1] - CANVAS_PADDING,
-                        current_tile_arch.arch_range[1][1] + CANVAS_PADDING
-                    ])
+                    ax.set_xlim([current_tile_arch.arch_range[0][0] - CANVAS_PADDING,
+                                 current_tile_arch.arch_range[1][0] + CANVAS_PADDING])
+                    ax.set_ylim([current_tile_arch.arch_range[0][1] - CANVAS_PADDING,
+                                 current_tile_arch.arch_range[1][1] + CANVAS_PADDING])
                     # Add semi-transparent grid lines to the tile's subplot
                     ax.grid(True, linestyle=':', alpha=0.4, color='grey')
                     self.axes_map[(r, c)] = ax  # Store ax by root coordinate

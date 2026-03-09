@@ -14,7 +14,6 @@ import random
 # In PachinQo's source code it is called "framework"
 from framework.grid import Grid
 
-
 def save_circuit(circuit, filename):
     qasm_str = dumps(circuit)
 

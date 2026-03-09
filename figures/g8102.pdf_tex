@@ -1,0 +1,112 @@
+%% Creator: Inkscape 1.2.2 (b0a8486541, 2022-12-01), www.inkscape.org
+%% PDF/EPS/PS + LaTeX output extension by Johan Engelen, 2010
+%% Accompanies image file 'g8102.pdf' (pdf, eps, ps)
+%%
+%% To include the image in your LaTeX document, write
+%%   \input{<filename>.pdf_tex}
+%%  instead of
+%%   \includegraphics{<filename>.pdf}
+%% To scale the image, write
+%%   \def\svgwidth{<desired width>}
+%%   \input{<filename>.pdf_tex}
+%%  instead of
+%%   \includegraphics[width=<desired width>]{<filename>.pdf}
+%%
+%% Images with a different path to the parent latex file can
+%% be accessed with the `import' package (which may need to be
+%% installed) using
+%%   \usepackage{import}
+%% in the preamble, and then including the image with
+%%   \import{<path to file>}{<filename>.pdf_tex}
+%% Alternatively, one can specify
+%%   \graphicspath{{<path to file>/}}
+%% 
+%% For more information, please see info/svg-inkscape on CTAN:
+%%   http://tug.ctan.org/tex-archive/info/svg-inkscape
+%%
+\begingroup%
+  \makeatletter%
+  \providecommand\color[2][]{%
+    \errmessage{(Inkscape) Color is used for the text in Inkscape, but the package 'color.sty' is not loaded}%
+    \renewcommand\color[2][]{}%
+  }%
+  \providecommand\transparent[1]{%
+    \errmessage{(Inkscape) Transparency is used (non-zero) for the text in Inkscape, but the package 'transparent.sty' is not loaded}%
+    \renewcommand\transparent[1]{}%
+  }%
+  \providecommand\rotatebox[2]{#2}%
+  \newcommand*\fsize{\dimexpr\f@size pt\relax}%
+  \newcommand*\lineheight[1]{\fontsize{\fsize}{#1\fsize}\selectfont}%
+  \ifx\svgwidth\undefined%
+    \setlength{\unitlength}{834.31158502bp}%
+    \ifx\svgscale\undefined%
+      \relax%
+    \else%
+      \setlength{\unitlength}{\unitlength * \real{\svgscale}}%
+    \fi%
+  \else%
+    \setlength{\unitlength}{\svgwidth}%
+  \fi%
+  \global\let\svgwidth\undefined%
+  \global\let\svgscale\undefined%
+  \makeatother%
+  \begin{picture}(1,0.33260349)%
+    \lineheight{1}%
+    \setlength\tabcolsep{0pt}%
+    \put(0,0){\includegraphics[width=\unitlength,page=1]{g8102.pdf}}%
+    \put(0.10174995,0.02867422){\color[rgb]{0,0,0}\makebox(0,0)[lt]{\lineheight{1.25}\smash{\begin{tabular}[t]{l}Front-end\end{tabular}}}}%
+    \put(0.24260572,0.02819664){\color[rgb]{0,0,0}\makebox(0,0)[lt]{\lineheight{1.25}\smash{\begin{tabular}[t]{l}Optimizer\end{tabular}}}}%
+    \put(0.38152779,0.02883571){\color[rgb]{0,0,0}\makebox(0,0)[lt]{\lineheight{1.25}\smash{\begin{tabular}[t]{l}Back-end\end{tabular}}}}%
+    \put(0.43546448,0.01625055){\color[rgb]{0,0,0}\makebox(0,0)[lt]{\lineheight{1.25}\smash{\begin{tabular}[t]{l}\textit{QPU Info.}\end{tabular}}}}%
+    \put(0.59782225,0.0261307){\color[rgb]{0,0,0}\makebox(0,0)[lt]{\lineheight{1.25}\smash{\begin{tabular}[t]{l}\textit{QPU Info.}\end{tabular}}}}%
+    \put(0,0){\includegraphics[width=\unitlength,page=2]{g8102.pdf}}%
+    \put(0.09329774,0.21761413){\color[rgb]{1,0.6,0}\transparent{0.61772102}\makebox(0,0)[lt]{\lineheight{1.25}\smash{\begin{tabular}[t]{l}Front-end\end{tabular}}}}%
+    \put(0.0991573,0.15826856){\color[rgb]{1,0.6,0}\transparent{0.61772102}\makebox(0,0)[lt]{\lineheight{1.25}\smash{\begin{tabular}[t]{l}\textit{Gate level}\end{tabular}}}}%
+    \put(0.08162074,0.14192599){\color[rgb]{1,0.6,0}\transparent{0.61772102}\makebox(0,0)[lt]{\lineheight{1.25}\smash{\begin{tabular}[t]{l}\textit{Architecture level}\end{tabular}}}}%
+    \put(0.38242669,0.29476184){\color[rgb]{1,0.6,0}\transparent{0.61772102}\makebox(0,0)[lt]{\lineheight{1.25}\smash{\begin{tabular}[t]{l}\textit{Target-compiled }\textit{executable}\end{tabular}}}}%
+    \put(0.71070538,0.16422289){\color[rgb]{1,0.6,0}\transparent{0.61772102}\makebox(0,0)[lt]{\lineheight{1.25}\smash{\begin{tabular}[t]{l}\textit{QPU bins}\end{tabular}}}}%
+    \put(0.74919615,0.20666526){\color[rgb]{0,0,0}\makebox(0,0)[lt]{\lineheight{1.25}\smash{\begin{tabular}[t]{l}\textit{Layout}\textit{ }\textit{placements}\end{tabular}}}}%
+    \put(0.74919615,0.08620666){\color[rgb]{0,0,0}\makebox(0,0)[lt]{\lineheight{1.25}\smash{\begin{tabular}[t]{l}\textit{Layout}\textit{ }\textit{placements}\end{tabular}}}}%
+    \put(0.02824247,0.25880406){\color[rgb]{1,0.6,0}\transparent{0.61772102}\makebox(0,0)[t]{\lineheight{1.25}\smash{\begin{tabular}[t]{c}Quantum circuits\end{tabular}}}}%
+    \put(0,0){\includegraphics[width=\unitlength,page=3]{g8102.pdf}}%
+    \put(0.23134778,0.23642893){\color[rgb]{1,0.6,0}\transparent{0.61772102}\makebox(0,0)[lt]{\lineheight{1.25}\smash{\begin{tabular}[t]{l}Gate synthesis\end{tabular}}}}%
+    \put(0.20711256,0.28430343){\color[rgb]{1,0.6,0}\transparent{0.61772102}\makebox(0,0)[lt]{\lineheight{1.25}\smash{\begin{tabular}[t]{l}\textbf{MultiQ Compiler}\end{tabular}}}}%
+    \put(0.68450354,0.27765144){\color[rgb]{1,0.6,0}\transparent{0.61772102}\makebox(0,0)[lt]{\lineheight{1.25}\smash{\begin{tabular}[t]{l}\textbf{MultiQ Controller}\end{tabular}}}}%
+    \put(0,0){\includegraphics[width=\unitlength,page=4]{g8102.pdf}}%
+    \put(0.22375241,0.20257099){\color[rgb]{1,0.6,0}\transparent{0.61772102}\makebox(0,0)[lt]{\lineheight{1.25}\smash{\begin{tabular}[t]{l}Circuit optimizer\end{tabular}}}}%
+    \put(0.22367867,0.17407154){\color[rgb]{1,0.6,0}\transparent{0.61772102}\makebox(0,0)[lt]{\lineheight{1.25}\smash{\begin{tabular}[t]{l}Circuit processor\end{tabular}}}}%
+    \put(0,0){\includegraphics[width=\unitlength,page=5]{g8102.pdf}}%
+    \put(0.4218082,0.18230568){\color[rgb]{1,0.6,0}\transparent{0.61772102}\makebox(0,0)[lt]{\lineheight{1.25}\smash{\begin{tabular}[t]{l}\\Target compilation\end{tabular}}}}%
+    \put(0.54243886,0.18688847){\color[rgb]{1,0.6,0}\transparent{0.61772102}\makebox(0,0)[lt]{\lineheight{1.25}\smash{\begin{tabular}[t]{l}\\Target compilation\end{tabular}}}}%
+    \put(0.54243886,0.14014337){\color[rgb]{1,0.6,0}\transparent{0.61772102}\makebox(0,0)[lt]{\lineheight{1.25}\smash{\begin{tabular}[t]{l}Virtual zone layout\end{tabular}}}}%
+    \put(0,0){\includegraphics[width=\unitlength,page=6]{g8102.pdf}}%
+    \put(0.26695435,0.10598345){\color[rgb]{1,0.6,0}\transparent{0.61772102}\makebox(0,0)[t]{\lineheight{1.25}\smash{\begin{tabular}[t]{c}Virtual zone layout planner\end{tabular}}}}%
+    \put(0.34876896,0.12470679){\color[rgb]{1,0.6,0}\transparent{0.61772102}\makebox(0,0)[t]{\lineheight{1.25}\smash{\begin{tabular}[t]{c}\textit{Virtual }\textit{layouts}\end{tabular}}}}%
+    \put(0,0){\includegraphics[width=\unitlength,page=7]{g8102.pdf}}%
+    \put(0.52985363,0.31633651){\color[rgb]{0,0,0}\makebox(0,0)[t]{\lineheight{1.25}\smash{\begin{tabular}[t]{c}Sequential consistency checker\end{tabular}}}}%
+    \put(0,0){\includegraphics[width=\unitlength,page=8]{g8102.pdf}}%
+    \put(0.83549488,0.19048425){\color[rgb]{1,0.6,0}\transparent{0.61772102}\makebox(0,0)[lt]{\lineheight{1.25}\smash{\begin{tabular}[t]{l}\\Multiprogramming scheduler\end{tabular}}}}%
+    \put(0.96585647,0.05384473){\color[rgb]{1,0.6,0}\transparent{0.61772102}\makebox(0,0)[lt]{\lineheight{1.25}\smash{\begin{tabular}[t]{l}Circuit results\end{tabular}}}}%
+    \put(0,0){\includegraphics[width=\unitlength,page=9]{g8102.pdf}}%
+    \put(0.79687991,0.23208619){\color[rgb]{0,0,0}\makebox(0,0)[lt]{\lineheight{1.25}\smash{\begin{tabular}[t]{l}Laser Scheduler\end{tabular}}}}%
+    \put(0,0){\includegraphics[width=\unitlength,page=10]{g8102.pdf}}%
+    \put(0.79687989,0.19834793){\color[rgb]{0,0,0}\makebox(0,0)[lt]{\lineheight{1.25}\smash{\begin{tabular}[t]{l}Laser Scheduler\end{tabular}}}}%
+    \put(0,0){\includegraphics[width=\unitlength,page=11]{g8102.pdf}}%
+    \put(0.83527248,0.11985097){\color[rgb]{1,0.6,0}\transparent{0.61772102}\makebox(0,0)[lt]{\lineheight{1.25}\smash{\begin{tabular}[t]{l}\\Quantum results resolver\end{tabular}}}}%
+    \put(0,0){\includegraphics[width=\unitlength,page=12]{g8102.pdf}}%
+    \put(0.62503888,0.19983703){\color[rgb]{1,0.6,0}\transparent{0.61772102}\makebox(0,0)[lt]{\lineheight{1.25}\smash{\begin{tabular}[t]{l}Circuit bundler\end{tabular}}}}%
+    \put(0,0){\includegraphics[width=\unitlength,page=13]{g8102.pdf}}%
+    \put(0.53639848,0.02638469){\color[rgb]{1,0.6,0}\transparent{0.61772102}\makebox(0,0)[lt]{\lineheight{1.25}\smash{\begin{tabular}[t]{l}\\QDMI\end{tabular}}}}%
+    \put(0,0){\includegraphics[width=\unitlength,page=14]{g8102.pdf}}%
+    \put(0.6718869,0.11856867){\color[rgb]{1,0.6,0}\transparent{0.61772102}\makebox(0,0)[lt]{\lineheight{1.25}\smash{\begin{tabular}[t]{l}Spatial placement  engine\end{tabular}}}}%
+    \put(0,0){\includegraphics[width=\unitlength,page=15]{g8102.pdf}}%
+    \put(0.3451193,0.25810643){\color[rgb]{1,0.6,0}\transparent{0.61772102}\makebox(0,0)[lt]{\lineheight{1.25}\smash{\begin{tabular}[t]{l}\textit{QASM}\end{tabular}}}}%
+    \put(0,0){\includegraphics[width=\unitlength,page=16]{g8102.pdf}}%
+    \put(0.21746914,0.13545665){\color[rgb]{1,0.6,0}\transparent{0.61772102}\makebox(0,0)[lt]{\lineheight{1.25}\smash{\begin{tabular}[t]{l}\textit{QASM}\end{tabular}}}}%
+    \put(0,0){\includegraphics[width=\unitlength,page=17]{g8102.pdf}}%
+    \put(0.75998348,0.03406787){\color[rgb]{0,0,0}\makebox(0,0)[t]{\lineheight{1.25}\smash{\begin{tabular}[t]{c}\textit{Multiprogrammed }\textit{executable}\end{tabular}}}}%
+    \put(0.72582358,0.25880405){\color[rgb]{0,0,0}\makebox(0,0)[t]{\lineheight{1.25}\smash{\begin{tabular}[t]{c}\textit{Multiprogrammed}\textit{ }\textit{executable}\end{tabular}}}}%
+    \put(0.63852161,0.32004937){\color[rgb]{0,0,0}\makebox(0,0)[t]{\lineheight{1.25}\smash{\begin{tabular}[t]{c}\textit{Checked result}\end{tabular}}}}%
+    \put(0.87325052,0.06642988){\color[rgb]{0,0,0}\makebox(0,0)[t]{\lineheight{1.25}\smash{\begin{tabular}[t]{c}\textit{Execution }\textit{results}\end{tabular}}}}%
+  \end{picture}%
+\endgroup%

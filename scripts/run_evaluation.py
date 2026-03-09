@@ -30,7 +30,6 @@ logging.getLogger("PIL").setLevel(logging.WARNING)
 
 logger = logging.getLogger("multiq.evaluation")
 
-
 # ----- 1. End-to-End Evaluation -----
 def run_end_to_end_evaluation():
     # ----- 1. End-to-End Evaluation -----
@@ -39,7 +38,8 @@ def run_end_to_end_evaluation():
     multi_benchmark_set = open("data/multi_eval_bench_list.txt").read().splitlines()
     multi_benchmark_set_pachinqo = open("data/multi_eval_bench_list_pachinqo.txt").read().splitlines()
 
-    set_sizes = [4, 6, 8, 10, 12, 14]
+    #set_sizes = [4, 6, 8, 10, 12, 14]
+    set_sizes = [8, 12]
 
     # (nrows, set_size, perf_weight)
     set_size_perf_weights = [(1, 8, 0.35)]
@@ -58,7 +58,7 @@ def run_end_to_end_evaluation():
     for _, bench in enumerate(multi_benchmark_set):
         run_zac_single_benchmarks(bench, zac_settings_file, zac_results_file)
     
-
+    #exit()
     # Selecting random subsets of benchmarks for MultiQ evaluation
     random.seed(42)  # For reproducibility
     multi_benchmark_sets = [random.sample(multi_benchmark_set, size) for size in set_sizes]
@@ -86,7 +86,7 @@ def run_end_to_end_evaluation():
                     config["perf_weight"] = 1  # 1 full
                     #continue
                 if rows == 1 and len(benchmark_set) == 8:
-                    config["perf_weight"] = 0.41
+                    config["perf_weight"] = 0.35
                     #continue
                 elif rows == 2 and len(benchmark_set) == 8:
                     config["perf_weight"] = 0.8  # 0.84 full 0.8 is best (0.667146)
@@ -120,11 +120,11 @@ def run_end_to_end_evaluation():
                 output_file=multiq_results_file,
             )
 
-
-def plot_e2e_detailed():
+def plot_e2e_detailed_half():
     # ----- Plot end-to-end evaluation results fidelity and exection time for MultiQ and baselines
 
     detailed_set_sizes = [8]
+    include_pachinqo = True
 
     zac_results_file = os.path.join(os.path.dirname(__file__), f"../results/zac/e2e_results.csv")
 
@@ -132,7 +132,54 @@ def plot_e2e_detailed():
     pachinqo_results_file = os.path.join(os.path.dirname(__file__), f"../results/pachinqo/e2e_results.csv")
     multiq_results_file = os.path.join(os.path.dirname(__file__), f"../results/multiq/e2e_results.csv")
 
-    fig = plt.figure(figsize=(13, 2.5), constrained_layout=True)
+    #fig = plt.figure(figsize=(13, 2.5), constrained_layout=True)
+    fig = plt.figure(figsize=(7, 3), constrained_layout=True)
+    gs = gridspec.GridSpec(1,1, figure=fig)
+
+    axes = []
+    for idx in range(len(detailed_set_sizes)):
+        axes.append(fig.add_subplot(gs[idx * 1]))
+        #axes.append(fig.add_subplot(gs[idx * 2 + 1]))
+
+    print("Plotting fidelity")
+    #letters = ["a", "b", "c", "d", "e", "f", "g", "h", "i", "j"]
+    for idx, set in enumerate(detailed_set_sizes):
+        print(f"Plotting results for benchmark set of size {set}")
+        eval.plot_e2e_results_fidelity(
+            ax=axes[idx],
+            set_size=set,
+            title=f"Fidelity (Set size: {set})",
+            multiq_results_file=multiq_results_file,
+            zac_results_file=zac_results_file,
+            pachinqo_results_file=pachinqo_results_file,
+            include_pachinqo=include_pachinqo,
+        )
+
+        axes[idx].set_xlabel(None)
+
+    fig.tight_layout(w_pad=0.3, rect=(-0.013, 0.06, 1.005, 1.045))
+
+    if include_pachinqo:
+        fig.legend(loc='lower center', bbox_to_anchor=(0.52, -0.005), ncol=5, fontsize=11, frameon=True, labels=['MultiQ (1 Row)', 'MultiQ (2 Row)', 'ZAC', 'PachinQo'], title_fontsize=11)
+    else:
+        fig.legend(loc='lower center', bbox_to_anchor=(0.52, -0.005), ncol=5, fontsize=11, frameon=True, labels=['MultiQ (1 Row)', 'MultiQ (2 Row)', 'ZAC'], title_fontsize=11)
+
+    fig.savefig("results/plots/e2e_plot_detailed.pdf", format="pdf")
+
+def plot_e2e_detailed():
+    # ----- Plot end-to-end evaluation results fidelity and exection time for MultiQ and baselines
+
+    detailed_set_sizes = [8]
+    include_pachinqo = True
+
+    zac_results_file = os.path.join(os.path.dirname(__file__), f"../results/zac/e2e_results.csv")
+
+    zac_results_file = os.path.join(os.path.dirname(__file__), f"../results/zac/e2e_results.csv")
+    pachinqo_results_file = os.path.join(os.path.dirname(__file__), f"../results/pachinqo/e2e_results.csv")
+    multiq_results_file = os.path.join(os.path.dirname(__file__), f"../results/multiq/e2e_results.csv")
+
+    #fig = plt.figure(figsize=(13, 2.5), constrained_layout=True)
+    fig = plt.figure(figsize=(13, 3), constrained_layout=True)
     gs = gridspec.GridSpec(1,2, figure=fig)
 
     axes = []
@@ -151,6 +198,7 @@ def plot_e2e_detailed():
             multiq_results_file=multiq_results_file,
             zac_results_file=zac_results_file,
             pachinqo_results_file=pachinqo_results_file,
+            include_pachinqo=include_pachinqo,
         )
 
         axes[idx].set_xlabel(None)
@@ -165,20 +213,24 @@ def plot_e2e_detailed():
             multiq_results_file=multiq_results_file,
             zac_results_file=zac_results_file,
             pachinqo_results_file=pachinqo_results_file,
+            include_pachinqo=include_pachinqo,
         )
         axes[idx + len(detailed_set_sizes)].set_xlabel(None)
 
     fig.tight_layout(w_pad=0.3, rect=(-0.013, 0.06, 1.005, 1.045))
 
-    fig.legend(loc='lower center', bbox_to_anchor=(0.52, -0.005), ncol=5, fontsize=11, frameon=True, labels=['MultiQ (1 Row)', 'MultiQ (2 Row)', 'ZAC'], title_fontsize=11)
+    if include_pachinqo:
+        fig.legend(loc='lower center', bbox_to_anchor=(0.52, -0.005), ncol=5, fontsize=11, frameon=True, labels=['MultiQ (1 Row)', 'MultiQ (2 Row)', 'ZAC', 'PachinQo'], title_fontsize=11)
+    else:
+        fig.legend(loc='lower center', bbox_to_anchor=(0.52, -0.005), ncol=5, fontsize=11, frameon=True, labels=['MultiQ (1 Row)', 'MultiQ (2 Row)', 'ZAC'], title_fontsize=11)
 
     fig.savefig("results/plots/e2e_plot_detailed.pdf", format="pdf")
-
 
 def plot_e2e_detailed_full():
     # ----- Plot end-to-end evaluation results fidelity and exection time for MultiQ and baselines
 
-    detailed_set_sizes = [4, 6, 8, 10, 12, 14]
+    #detailed_set_sizes = [4, 6, 8, 10, 12, 14]
+    detailed_set_sizes = [4, 8, 12]
 
     zac_results_file = os.path.join(os.path.dirname(__file__), f"../results/zac/e2e_results.csv")
 
@@ -186,7 +238,7 @@ def plot_e2e_detailed_full():
     pachinqo_results_file = os.path.join(os.path.dirname(__file__), f"../results/pachinqo/e2e_results.csv")
     multiq_results_file = os.path.join(os.path.dirname(__file__), f"../results/multiq/e2e_results.csv")
 
-    fig = plt.figure(figsize=(15, 2.5 * len(detailed_set_sizes)), constrained_layout=True)
+    fig = plt.figure(figsize=(15, 2.3 * len(detailed_set_sizes)), constrained_layout=True)
 
     gs = gridspec.GridSpec(len(detailed_set_sizes), 2, figure=fig, width_ratios=[1, 1])
 
@@ -202,7 +254,7 @@ def plot_e2e_detailed_full():
         eval.plot_e2e_results_fidelity(
             ax=axes[idx * 2],
             set_size=set,
-            title=f"({letters[idx]}) Fidelity (Set size: {set})",
+            title=f"({letters[idx*2]}) Fidelity (Set size: {set})",
             multiq_results_file=multiq_results_file,
             zac_results_file=zac_results_file,
             pachinqo_results_file=pachinqo_results_file,
@@ -217,7 +269,7 @@ def plot_e2e_detailed_full():
         eval.plot_e2e_results_duration(
             ax=axes[idx * 2 + 1],
             set_size=set,
-            title=f"({letters[idx+len(detailed_set_sizes)]}) Execution time (Set size: {set})",
+            title=f"({letters[idx*2+1]}) Execution time (Set size: {set})",
             multiq_results_file=multiq_results_file,
             zac_results_file=zac_results_file,
             pachinqo_results_file=pachinqo_results_file,
@@ -500,7 +552,7 @@ def plot_e2e_total_runtime_complete():
 
     set_sizes = [4, 6, 8, 10, 12, 14]
 
-    fig, (ax0) = plt.subplots(1, 1, figsize=(13, 3), constrained_layout=True)
+    fig, (ax0) = plt.subplots(1, 1, figsize=(13, 2.5), constrained_layout=True)
 
     df = eval.plot_e2e_results_total_runtime(ax=ax0, title="Total runtime", set_size=set_sizes, include_pachinqo=True)
 
@@ -548,7 +600,7 @@ def plot_e2e_total_runtime_complete():
 
     fig.legend(
         handles=custom_handles,
-        bbox_to_anchor=(0.33, 0.923),
+        bbox_to_anchor=(0.33, 0.905),
         fontsize=11,
         frameon=True,
         labels=["MultiQ (1 Row)", "MultiQ (2 Row)", "ZAC", "PachinQo"],
@@ -602,7 +654,7 @@ def plot_e2e_means():
 
     fig.savefig("results/plots/e2e_plot_means.pdf", format="pdf")
 
-
+'''
 def plot_planner_bundler():
     # ----- Plotting Planner and Bundler Results ----
     fig, ((ax0, ax1), (ax2, ax3)) = plt.subplots(2, 2, figsize=(15, 5.2), constrained_layout=True)
@@ -660,7 +712,106 @@ def plot_planner_bundler():
     """
 
     fig.savefig("results/plots/planner_bundler_plot.pdf", format="pdf")
+'''
 
+def plot_planner():
+    # ----- Plotting Planner and Bundler Results ----
+    fig, ((ax0, ax1)) = plt.subplots(1,2, figsize=(13, 2.5), constrained_layout=True)
+
+    eval.plot_planner_eval_fidelity_multiq(ax=ax0, title="(a) MultiQ Planner (Decoherence error)", complete=False)
+    eval.plot_planner_eval_utilization_multiq(ax=ax1, title="(b) MultiQ Planner (Utilization)")
+
+    # fig.legend(loc='lower center', bbox_to_anchor=(0.52, 0), ncol=5, fontsize=12, frameon=True, labels=['0.2', '0.4', '0.6', '0.8', '1.0'], title='Performance weight', title_fontsize=10)
+
+    # change xlabel position
+    #ax2.get_xaxis().set_label_coords(0.4, -0.2)
+    #ax3.get_xaxis().set_label_coords(0.6, -0.2)
+
+    temporal_util_weights = [0.2, 0.4, 0.6, 0.8][::-1]
+
+    fig.legend(
+        loc="lower center",
+        bbox_to_anchor=(0.52, -0.02),
+        ncol=5,
+        fontsize=12,
+        frameon=True,
+        labels=["0.2", "0.4", "0.6", "0.8", "1.0"],
+        title="Performance weight (1 - Spatial utilization)",
+        title_fontsize=11,
+    )
+
+    #legends = [f"SA - {weight}" for weight in temporal_util_weights]
+    #legends.insert(0, "FIFO")  # Ensure 'fifo' is first
+    #fig.legend(
+    #    loc="lower center",
+    #    bbox_to_anchor=(0.52, -0.002),
+    #    ncol=7,
+    #    fontsize=12,
+    #    frameon=True,
+    #    labels=legends,
+    #    title="Selection algorithm - Temporal utilization weight",
+    #    title_fontsize=11,
+    #)
+
+    fig.tight_layout(rect=(-0.01, 0.085, 1.005, 1.04), h_pad=2.5, w_pad=0.3)
+
+    """
+    fig.savefig('results/plots/bundler_plots.pdf', format='pdf')
+
+    fig.tight_layout(rect=(0,0.08,1,1), w_pad=-0.4)
+
+    fig.savefig('results/plots/planner_bundler_plots.pdf', format='pdf')
+
+    fig.tight_layout(rect=(0,0.08,1,1), w_pad=-0.4)
+
+    fig.legend(loc='lower center', bbox_to_anchor=(0.52, 0), ncol=5, fontsize=12, frameon=True, labels=['0.2', '0.4', '0.6', '0.8', '1.0'], title='Performance weight', title_fontsize=11)
+    """
+
+    fig.savefig("results/plots/planner_plot.pdf", format="pdf")
+
+def plot_bundler():
+    # ----- Plotting Planner and Bundler Results ----
+    fig, ((ax0, ax1)) = plt.subplots(1,2, figsize=(13, 2.5), constrained_layout=True)
+
+    # fig.legend(loc='lower center', bbox_to_anchor=(0.52, 0), ncol=5, fontsize=12, frameon=True, labels=['0.2', '0.4', '0.6', '0.8', '1.0'], title='Performance weight', title_fontsize=10)
+
+    eval.plot_bundler_space_util(ax=ax0, title="(a) Bundler (Spatial utilization)")
+    eval.plot_bundler_temporal_util(ax=ax1, title="(b) Bundler (Temporal utilization)")
+
+    # change xlabel position
+    ax0.get_xaxis().set_label_coords(0.4, -0.2)
+    ax1.get_xaxis().set_label_coords(0.6, -0.2)
+
+    temporal_util_weights = [0.2, 0.4, 0.6, 0.8][::-1]
+
+    legends = [f"SA - {weight}" for weight in temporal_util_weights]
+    legends.insert(0, "FIFO")  # Ensure 'fifo' is first
+    fig.legend(
+        loc="lower center",
+        bbox_to_anchor=(0.52, -0.02),
+        ncol=7,
+        fontsize=10.5,
+        frameon=True,
+        labels=legends,
+        title="Selection algorithm - Temporal utilization weight (1 - Spatial utilization)",
+        title_fontsize=11,
+    )
+
+    fig.tight_layout(rect=(-0.01, 0.052, 1.006, 1.02), h_pad=2.5, w_pad=0.3)
+
+    """
+    fig.savefig('results/plots/bundler_plots.pdf', format='pdf')
+
+    fig.tight_layout(rect=(0,0.08,1,1), w_pad=-0.4)
+
+    fig.savefig('results/plots/planner_bundler_plots.pdf', format='pdf')
+
+    fig.tight_layout(rect=(0,0.08,1,1), w_pad=-0.4)
+
+    fig.legend(loc='lower center', bbox_to_anchor=(0.52, 0), ncol=5, fontsize=12, frameon=True, labels=['0.2', '0.4', '0.6', '0.8', '1.0'], title='Performance weight', title_fontsize=11)
+    """
+
+    fig.savefig("results/plots/bundler_plot.pdf", format="pdf")
 
 def run_planner_eval(set_sizes=None, perf_weights=None, config_file=None, results_file=None):
     multiq_config_file = os.path.join(os.path.dirname(__file__), "../config/multiq/planner_bundler_config.yaml")
@@ -764,7 +915,7 @@ def run_controller_eval():
     zac_settings_file = os.path.join(os.path.dirname(__file__), "../config/zac/general.json")
     zac_results_file = os.path.join(os.path.dirname(__file__), "../results/zac/controller_results.csv")
 
-    set_sizes = [4, 6, 8, 10, 12, 14]  # Tile widths
+    set_sizes = [4, 6, 8, 10, 12, 14]
 
     random.seed(42)  # For reproducibility
     multi_benchmark_sets = [random.sample(benchmark_set, size) for size in set_sizes]
@@ -865,28 +1016,56 @@ def plot_controller_eval():
 
     fig.savefig("results/plots/controller_plot.pdf", format="pdf")
 
+
+def plot_controller_eval_half():
+    fig, [ax0] = utils.gen_subplots(1, 1, figsize=(7, 3))
+
+    #eval.plot_controler_execution_time(ax0, title="(a) Execution time")
+    eval.plot_controler_decoherence_error(ax0, title="Decoherence error")
+
+    fig.tight_layout(rect=(-0.01, 0.05, 1.01, 1.05), w_pad=0.3)
+
+    fig.legend(
+        loc="lower center",
+        bbox_to_anchor=(0.52, -0.01),
+        ncol=3,
+        fontsize=11,
+        frameon=True,
+        labels=["MultiQ (1 Row)", "MultiQ (2 Rows)", "ZAC"],
+    )
+
+    fig.savefig("results/plots/controller_plot_half.pdf", format="pdf")
+
+
 if __name__ == "__main__":
     # Run the script directly to execute the evaluations
     # Uncomment the sections you want to run
-    '''
-    run_end_to_end_evaluation()
-    plot_e2e_detailed()
-    plot_e2e_detailed_full()
-    plot_e2e_total_runtime()
-
-    plot_e2e_total_runtime_complete()
-
-    '''
-    plot_e2e_means()
-    '''
-
-    run_planner_eval()
-
-    run_bundler_eval()
-
-    plot_planner_bundler()
+    #run_end_to_end_evaluation()
     
-    run_controller_eval()
+    #plot_e2e_detailed()
 
-    plot_controller_eval()
-    '''
+    #plot_e2e_detailed_half()
+    
+    #plot_e2e_detailed_full()
+    
+    #plot_e2e_total_runtime()
+
+    #plot_e2e_total_runtime_complete()
+    
+    #plot_e2e_means()
+
+    #run_planner_eval()
+
+    #run_bundler_eval()
+
+    #plot_planner_bundler()
+
+    #plot_bundler()
+
+    #plot_planner()
+    
+    #run_controller_eval()
+
+    #plot_controller_eval()
+
+    plot_controller_eval_half()
