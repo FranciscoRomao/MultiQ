@@ -1,4 +1,4 @@
-# MultiQ Compiler Backend
+# MultiQ Compiler
 
 MultiQ is an advanced multiprogramming-enabled compiler backend for the **Neutral-Atom Quantum Computing Architecture** (such as dynamic Acousto-Optic Deflector (AOD) tweeser array structures). It ingests multiple quantum circuits, evaluates optimal architecture topologies, lowers them into discrete execution tiles, and coordinates parallel compilation workflows featuring grid allocations, scheduling atom movements, fidelity analysis, and trajectory modeling.
 
