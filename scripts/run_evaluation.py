@@ -736,7 +736,7 @@ def plot_planner():
         fontsize=12,
         frameon=True,
         labels=["0.2", "0.4", "0.6", "0.8", "1.0"],
-        title="Performance weight (1 - Spatial utilization)",
+        title="Performance weight (1 - Utilization weight)",
         title_fontsize=11,
     )
 
@@ -793,7 +793,7 @@ def plot_bundler():
         fontsize=10.5,
         frameon=True,
         labels=legends,
-        title="Selection algorithm - Temporal utilization weight (1 - Spatial utilization)",
+        title="Selection algorithm - Temporal utilization weight (1 - Utilization weight)",
         title_fontsize=11,
     )
 
@@ -1062,10 +1062,10 @@ if __name__ == "__main__":
 
     #plot_bundler()
 
-    #plot_planner()
+    plot_planner()
     
     #run_controller_eval()
 
     #plot_controller_eval()
 
-    plot_controller_eval_half()
+    #plot_controller_eval_half()
