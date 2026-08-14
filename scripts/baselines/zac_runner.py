@@ -71,7 +71,9 @@ def run_zac(benchmark_set, settings_file):
         print("==============================================")
         print("Compile circuit {}".format(benchmark))
 
-        filename = os.path.join(os.path.dirname(__file__), '../../data/benchmarks',benchmark)
+        #pdb.set_trace()
+
+        filename = os.path.join('data/benchmarks',benchmark)
         #filename = benchmark.split('/')[-1]
         #filename = filename.split('.')[0]
 
@@ -98,11 +100,12 @@ def run_zac(benchmark_set, settings_file):
             if not os.path.exists(directory):
                 os.makedirs(directory)
             code_dict = zac_compiler.solve(save_file=False)
-            code_file = os.path.join(os.path.dirname(__file__), '../../results/zac/code', f'{benchmark.split('.')[0].split('/')[-1]}.json')
+            #code_file = os.path.join('results/zac/code', f'{benchmark.split('.')[0].split('/')[-1]}.json')
+            code_file = os.path.join('results/zac/code', f'{benchmark.split('/')[-1].split('.')[0].split('/')[-1]}.json')
             with open(code_file, 'w') as f:
                 json.dump(code_dict, f)
 
-            tmp = os.path.join(os.path.dirname(__file__), '../../results/zac/time', f'{benchmark.split('.')[0].split('/')[-1]}.json')
+            tmp = os.path.join('results/zac/time', f'{benchmark.split('/')[-1].split('.')[0].split('/')[-1]}.json')
             with open(tmp, 'w') as f:  
                 json.dump(zac_compiler.runtime_analysis, f, indent = 2)
             
@@ -118,7 +121,7 @@ def run_zac(benchmark_set, settings_file):
                 directory = zac_compiler.dir+"fidelity"
                 if not os.path.exists(directory):
                     os.makedirs(directory)
-                tmp = os.path.join(os.path.dirname(__file__), '../../results/zac/fidelity', f'{benchmark.split('.')[0].split('/')[-1]}.json')
+                tmp = os.path.join('results/zac/fidelity', f'{benchmark.split('/')[-1].split('.')[0].split('/')[-1]}.json')
                 with open(tmp, 'w') as f:  
                     json.dump(fidelity_result, f, indent = 2)
 
@@ -127,7 +130,7 @@ def run_zac(benchmark_set, settings_file):
                 directory = zac_compiler.dir+"animation"
                 if not os.path.exists(directory):
                     os.makedirs(directory)
-                tmp =  os.path.join(os.path.dirname(__file__), '../../results/zac/animation', f'{benchmark.split('.')[0].split('/')[-1]}.mp4')
+                tmp =  os.path.join('results/zac/animation', f'{benchmark.split('/')[-1].split('.')[0].split('/')[-1]}.mp4')
                 zac_compiler.animate(code_dict, output=tmp)
     return info
 
@@ -159,14 +162,17 @@ def run_zac_single_benchmarks(benchmark_file, settings_file, output_file):
 
     benchmark = benchmark_file.split('/')[-1]
 
-    fid_file = os.path.join(os.path.dirname(__file__), '../../results/zac/fidelity', f'{benchmark.split(".")[0].split("/")[-1]}.json')
-    time_file = os.path.join(os.path.dirname(__file__), '../../results/zac/time', f'{benchmark.split(".")[0].split("/")[-1]}.json')
+    fid_file = os.path.join('results/zac/fidelity', f'{benchmark.split(".")[0].split("/")[-1]}.json')
+    time_file = os.path.join('results/zac/time', f'{benchmark.split(".")[0].split("/")[-1]}.json')
 
     fid_res = pd.read_json(fid_file, typ='series')
     time_res = pd.read_json(time_file, typ='series')
 
+    #pdb.set_trace()
+
     data.loc[len(data)] = [benchmark.split('.')[0],
-                           benchmark.split('.')[0].split('n')[-1],
+                           benchmark.split('.')[0].split('-')[-1],
+                           #benchmark.split('.')[0].split('n')[-1],
                            fid_res['cir_fidelity'],
                            fid_res['cir_fidelity_coherence'],
                            fid_res['cir_fidelity_atom_transfer'],

@@ -3,9 +3,9 @@ import yaml
 import numpy as np
 import pandas as pd
 import warnings
-from plotting import bar_plot
-from plotting import utils, defaults
-import eval_functions as ppfunctions
+from scripts.plotting import bar_plot
+from scripts.plotting import utils, defaults
+import scripts.eval_functions as ppfunctions
 from matplotlib import gridspec, figure
 import logging
 
@@ -32,16 +32,19 @@ ax2 = fig.add_subplot(gs[1,1])
 #ax4 = fig.add_subplot(gs[1,1])
 
 #ppfunctions.plot_fidelity_shuttling_times_vs_layout_width_zac(ax=ax0, title='(a1) Shuttling time vs Utilization (ZAC)')
-handles = ppfunctions.plot_fidelity_shuttling_times_vs_layout_width_zac(ax=ax0, title='(a) Relative fidelity vs Circuit size')
+
+#handles = ppfunctions.plot_fidelity_shuttling_times_vs_layout_width_zac(ax=ax0, title='(a) Relative fidelity vs Circuit size')
+
 #fig.legend(bbox_to_anchor=(0.01, 0.01), fontsize=12, frameon=True, labels=['Ratio 1:4', 'Ratio 1:1', 'Ratio 4:1'], title='Layout ratio (width:height)')
 
 #ppfunctions.plot_shuttling_times_vs_utilization_zac(ax=ax1, title='(a1) Shuttling time vs Utilization (ZAC)')
-ppfunctions.plot_shuttling_times_vs_utilization_zac(ax=ax1, title='(b1) Shuttling time vs Utilization')
+
+#ppfunctions.plot_shuttling_times_vs_utilization_zac(ax=ax1, title='(b1) Shuttling time vs Utilization')
 
 #ppfunctions.plot_shuttling_times_vs_utilization_pachinqo(ax=ax2, title='(a2) Shuttling time vs Utilization (PachinQo)')
-ppfunctions.plot_shuttling_times_vs_utilization_pachinqo(ax=ax2, title='(b2) Shuttling time vs Utilization')
+##ppfunctions.plot_shuttling_times_vs_utilization_pachinqo(ax=ax2, title='(b2) Shuttling time vs Utilization')
 
-#ppfunctions.plot_fidelity_vs_utilization_zac(ax=ax0)
+ppfunctions.plot_fidelity_vs_utilization_zac(ax=ax0)
 
 #ppfunctions.plot_fidelity_vs_utilization_pachinqo(ax=ax2)
 

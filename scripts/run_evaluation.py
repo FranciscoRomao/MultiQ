@@ -8,7 +8,7 @@ from baselines.multiq_runner import (
 )
 import eval_functions as eval
 
-from eval_functions import plot_planner_eval_fidelity_multiq, plot_planner_eval_utilization_multiq, plot_controler_eval, plot_e2e_results_duration, plot_e2e_results_fidelity, plot_e2e_results_total_runtime, plot_bundler_temporal_util, plot_bundler_space_util
+from eval_functions import plot_planner_eval_fidelity_multiq, plot_planner_eval_utilization_multiq, plot_e2e_results_duration, plot_e2e_results_fidelity, plot_e2e_results_total_runtime, plot_bundler_temporal_util, plot_bundler_space_util
 import os
 import matplotlib.pyplot as plt
 import matplotlib.patches as mpatches
@@ -1042,7 +1042,7 @@ if __name__ == "__main__":
     # Uncomment the sections you want to run
     #run_end_to_end_evaluation()
     
-    #plot_e2e_detailed()
+    plot_e2e_detailed()
 
     #plot_e2e_detailed_half()
     
@@ -1062,7 +1062,7 @@ if __name__ == "__main__":
 
     #plot_bundler()
 
-    plot_planner()
+    #plot_planner()
     
     #run_controller_eval()
 

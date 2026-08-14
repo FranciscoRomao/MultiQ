@@ -415,14 +415,14 @@ def gen_single_benchmarks(circuit_sizes, benchmarks, regen=False):
 
     for i in benchmarks:
         for j in circuit_sizes:
-            if os.path.exists(f"data/benchmarks/generated/{i}-{j}.qasm") and not regen:
-                benchmarks_set.append(f"data/benchmarks/generated/{i}-{j}.qasm")
+            if os.path.exists(f"data/benchmarks/single/{i}-{j}.qasm") and not regen:
+                benchmarks_set.append(f"data/benchmarks/single/{i}-{j}.qasm")
                 continue
             tmp = get_benchmark(benchmark=i, level=BenchmarkLevel.INDEP, circuit_size=int(j))
             tmp = transpile(tmp, basis_gates=["cz", "id", "u2", "u1", "u3"], optimization_level=3, seed_transpiler=0)
 
-            benchmarks_set.append(f"data/benchmarks/generated/{i}-{j}.qasm")
-            save_circuit(tmp, f"data/benchmarks/generated/{i}-{j}.qasm")
+            benchmarks_set.append(f"data/benchmarks/single/{i}-{j}.qasm")
+            save_circuit(tmp, f"data/benchmarks/single/{i}-{j}.qasm")
             #save_circuit_figure(tmp, f"benchmarks/figures/{i}-{j}.png")
             
     return benchmarks_set

@@ -4,8 +4,8 @@ import yaml
 import numpy as np
 import pandas as pd
 import warnings
-from plotting import bar_plot, line_plot
-from plotting import utils, defaults
+from scripts.plotting import bar_plot, line_plot
+from scripts.plotting import utils, defaults
 import ast
 import seaborn as sns
 import random
@@ -16,7 +16,7 @@ warnings.simplefilter(action='ignore', category=RuntimeWarning)
 warnings.simplefilter(action='ignore', category=FutureWarning)
 
 def plot_shuttling_times_vs_utilization_zac(ax, title):
-    data_zac = pd.read_csv("organize/zac_results.csv")
+    data_zac = pd.read_csv("results/preeval/zac_preeval.csv")
 
     qpu_size_zac = 250
     data_zac['qpu_utilization'] = [int(data_zac.iloc[i]['nqubits']*100/qpu_size_zac) for i in range(len(data_zac))]
@@ -278,7 +278,7 @@ def plot_compilation_time_vs_utilization_zac(ax):
                              ylabel='Compilation time [s]')  
     
 def plot_fidelity_vs_utilization_zac(ax):
-    data_zac = pd.read_csv("organize/zac_results.csv")
+    data_zac = pd.read_csv("results/preeval/zac_preeval.csv")
 
     qpu_size_zac = 250
     data_zac['qpu_utilization'] = [int(data_zac.iloc[i]['nqubits']*100/qpu_size_zac) for i in range(len(data_zac))]
@@ -316,7 +316,7 @@ def plot_fidelity_vs_utilization_zac(ax):
                              title='(a1) Fidelity vs Utilization',
                              title_loc='left',
                              errorbar=None,
-                             group_labels='',
+                             #group_labels='',
                              linewidth=1.75,
                              higher_lower_is_better='higher',
                              higher_lower_is_better_loc=(0.65, 1.04),

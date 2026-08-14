@@ -3,9 +3,9 @@ import yaml
 import numpy as np
 import pandas as pd
 import warnings
-from plotting import bar_plot
-from plotting import utils, defaults
-import eval_functions as ppfunctions
+from scripts.plotting import bar_plot
+from scripts.plotting import utils, defaults
+import scripts.eval_functions as ppfunctions
 from matplotlib import gridspec, figure
 
 warnings.simplefilter(action='ignore', category=UserWarning)

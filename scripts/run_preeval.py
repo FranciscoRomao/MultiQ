@@ -5,9 +5,11 @@ import os
 import pandas as pd
 import csv
 import json
-from baselines.zac_runner import run_zac_single_benchmarks
+# pyrefly: ignore [missing-import]
+from scripts.baselines.zac_runner import run_zac_single_benchmarks
 from qiskit import transpile, QuantumCircuit
-from tools.gen_benchmarks import single_random_NA_circuit, gen_random_NA_circuits, merge_circuits_from_qasm, save_circuit
+# pyrefly: ignore [missing-import]
+from scripts.tools.gen_benchmarks import single_random_NA_circuit, gen_random_NA_circuits, merge_circuits_from_qasm, save_circuit, gen_single_benchmarks
 from framework.grid import Grid #This is pachinqo
 
 def compute_fidelity(returned_values,cir_qubits):
@@ -169,35 +171,35 @@ def run_preeval_pachinqo():
 def run_preeval_zac():
     # Running merged benchmarks
 
-    circuit_sizes = [10, 25]
-    depths = [10, 25]
+    circuit_sizes = [10, 25, 50, 100, 150, 200, 250]
+    depths = [10, 25, 50, 100, 150, 200, 250]
     #circuit_sizes = [8]
     #benchmarks = ["ghz", "wstate", "dj", "grover-noancilla"]
-    #benchmarks = ["ghz", "wstate", "dj"]
+    benchmarks = ["ghz", "wstate", "dj"]
     circuits_per_size = 3
     benchmark_sets = []
 
-    dir = "data/benchmarks/random/"
+    dir = "data/benchmarks/single/"
 
     print("Generating single benchmarks...")
-    benchmark_sets = gen_random_NA_circuits(circuit_sizes, depths=depths, regen=False, ncircuits_per_size=circuits_per_size, output_folder=dir)
-    #benchmark_sets += gen_single_benchmarks(circuit_sizes, benchmarks, regen=True)
+    #benchmark_sets = gen_random_NA_circuits(circuit_sizes, depths=depths, regen=False, ncircuits_per_size=circuits_per_size, output_folder=dir)
+    benchmark_sets += gen_single_benchmarks(circuit_sizes, benchmarks, regen=True)
 
-    dir = "data/benchmarks/random/"
+    #dir = "data/benchmarks/random/"
 
-    print("Generating joint benchmarks...")
-    np.random.seed(42)
-    benchgroups = np.random.choice([f"random{j}-10.qasm" for j in range(circuits_per_size)], (circuits_per_size, 2))
-
-    for i in benchgroups:
-        benchmark_sets.append(merge_circuits_from_qasm(i, output_dir=dir))
+    #print("Generating joint benchmarks...")
+    #np.random.seed(42)
+    #benchgroups = np.random.choice([f"random{j}-10.qasm" for j in range(circuits_per_size)], (circuits_per_size, 2))
+    #
+    #for i in benchgroups:
+    #    benchmark_sets.append(merge_circuits_from_qasm(i, output_dir=dir))
 
     #benchmark_sets += gen_joint_benchmarks(benchgroups, [[10]*2]*circuits_per_size, folder=dir)
 
-    for index,i in enumerate(circuit_sizes[1:]):
-        benchgroups = np.random.choice([f"random{j}-{i}.qasm" for j in range(circuits_per_size)], (circuits_per_size, 2))
-        for group in benchgroups:
-            benchmark_sets.append(merge_circuits_from_qasm(group, output_dir=dir))
+    #for index,i in enumerate(circuit_sizes[1:]):
+    #    benchgroups = np.random.choice([f"random{j}-{i}.qasm" for j in range(circuits_per_size)], (circuits_per_size, 2))
+    #    for group in benchgroups:
+    #        benchmark_sets.append(merge_circuits_from_qasm(group, output_dir=dir))
 
     settings_file = 'config/zac/general.json'
     output_file = 'results/preeval/zac_preeval.csv'
@@ -211,14 +213,14 @@ def run_preeval_zac():
 
              # Run the ZAC compiler
             benchmark = benchmark.split('/')[-1]
-            benchmark = os.path.join(os.path.dirname(__file__), '/random/', benchmark)
+            benchmark = os.path.join(os.path.dirname(__file__), '../', dir, benchmark)
             
             info = run_zac_single_benchmarks(benchmark, settings_file, output_file)
 
             print(f"Processing benchmark: {benchmark}")
 
-            fid_file = os.path.join(os.path.dirname(__file__), '../../results/zac/fidelity', f'{benchmark.split(".")[0].split("/")[-1]}.json')
-            time_file = os.path.join(os.path.dirname(__file__), '../../results/zac/time', f'{benchmark.split(".")[0].split("/")[-1]}.json')
+            fid_file = os.path.join('results/zac/fidelity', f'{benchmark.split(".")[0].split("/")[-1]}.json')
+            time_file = os.path.join('results/zac/time', f'{benchmark.split(".")[0].split("/")[-1]}.json')
 
             fid_res = pd.read_json(fid_file, typ='series')
             time_res = pd.read_json(time_file, typ='series')
@@ -231,7 +233,7 @@ def run_preeval_zac():
                                    fid_res['cir_fidelity'],
                                    fid_res['cir_fidelity_coherence']]
 
-            results_file = os.path.join(os.path.dirname(__file__), '../../results/zac/', f'{benchmark.split(".")[0].split("/")[-1]}.csv')
+            results_file = os.path.join('results/zac/', f'{benchmark.split(".")[0].split("/")[-1]}.csv')
 
             if not os.path.isfile(results_file):
                 data.to_csv(results_file, index=False)
@@ -777,8 +779,6 @@ def run_zac_layout_preeval():
         data.to_csv(f"results/preeval/zac_results.csv", mode='a', header=False, index=False)
 
 if __name__ == "__main__":
+    run_preeval_zac()
     #run_preeval_pachinqo()
-    #run_preeval_zac()
-    run_zac_layout_preeval()
-    #pdb.set_trace()
-    #transpile_all_benchmarks(["ghz-10.qasm", "wstate-10.qasm", "dj-10.qasm"])
+    #run_zac_layout_preeval()

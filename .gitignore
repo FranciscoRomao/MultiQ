@@ -18,6 +18,7 @@ pdm.lock
 baselines/atomique
 data/benchmarks
 organize
+figures/
 results/zac
 
 results
