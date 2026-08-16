@@ -1,0 +1,9 @@
+[submodule "compilers/powermove"]
+	path = compilers/powermove
+	url = git@github.com:Scarlett0815/PowerMove.git
+[submodule "compilers/qmap"]
+	path = compilers/qmap
+	url = git@github.com:munich-quantum-toolkit/qmap.git
+[submodule "compilers/zap"]
+	path = compilers/zap
+	url = git@github.com:BAQIS-Quantum/neutral-atom-compilation.git

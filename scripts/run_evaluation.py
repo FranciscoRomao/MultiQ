@@ -1,5 +1,8 @@
 from baselines.zac_runner import run_zac_single_benchmarks, run_zac_merge_benchmarks
 from baselines.pachinqo_runner import run_pachiqo_single_benchmark
+from baselines.powermove_runner import run_powermove_single_benchmarks
+from baselines.qmap_runner import run_qmap_single_benchmarks
+from baselines.zap_runner import run_zap_single_benchmarks
 from baselines.multiq_runner import (
     run_multiq_planner_eval,
     run_multiq_bundler_eval,
@@ -38,26 +41,33 @@ def run_end_to_end_evaluation():
     multi_benchmark_set = open("data/multi_eval_bench_list.txt").read().splitlines()
     multi_benchmark_set_pachinqo = open("data/multi_eval_bench_list_pachinqo.txt").read().splitlines()
 
-    #set_sizes = [4, 6, 8, 10, 12, 14]
-    set_sizes = [8, 12]
+    set_sizes = [4, 6, 8, 10, 12, 14]
+    #set_sizes = [8, 12]
 
     # (nrows, set_size, perf_weight)
     set_size_perf_weights = [(1, 8, 0.35)]
 
     zac_settings_file = os.path.join(os.path.dirname(__file__), "../config/zac/general.json")
+    general_arch_file = os.path.join(os.path.dirname(__file__), "../config/zac/general_arch.json")
 
     multiq_config_file = os.path.join(os.path.dirname(__file__), "..", "config/multiq/e2e_config.yaml")
     zac_results_file = os.path.join(os.path.dirname(__file__), f"../results/zac/e2e_results.csv")
     pachinqo_results_file = os.path.join(os.path.dirname(__file__), f"../results/pachinqo/e2e_results.csv")
+    powermove_results_file = os.path.join(os.path.dirname(__file__), f"../results/powermove/e2e_results.csv")
+    qmap_results_file = os.path.join(os.path.dirname(__file__), f"../results/qmap/e2e_results.csv")
+    zap_results_file = os.path.join(os.path.dirname(__file__), f"../results/zap/e2e_results.csv")
     multiq_results_file = os.path.join(os.path.dirname(__file__), f"../results/multiq/e2e_results.csv")
 
-    # Running baselines (ZAC and Pachinqo) on single benchmarks
+    # Running baselines (ZAC, Pachinqo, PowerMove, qmap and ZAP) on single benchmarks
     for _, bench in enumerate(multi_benchmark_set_pachinqo):
         run_pachiqo_single_benchmark(bench, zac_settings_file, pachinqo_results_file)
-    
+
     for _, bench in enumerate(multi_benchmark_set):
         run_zac_single_benchmarks(bench, zac_settings_file, zac_results_file)
-    
+        run_powermove_single_benchmarks(bench, general_arch_file, powermove_results_file)
+        run_qmap_single_benchmarks(bench, general_arch_file, qmap_results_file)
+        run_zap_single_benchmarks(bench, general_arch_file, zap_results_file)
+
     #exit()
     # Selecting random subsets of benchmarks for MultiQ evaluation
     random.seed(42)  # For reproducibility
@@ -171,11 +181,17 @@ def plot_e2e_detailed():
 
     detailed_set_sizes = [8]
     include_pachinqo = True
+    include_powermove = True
+    include_qmap = True
+    include_zap = True
 
     zac_results_file = os.path.join(os.path.dirname(__file__), f"../results/zac/e2e_results.csv")
 
     zac_results_file = os.path.join(os.path.dirname(__file__), f"../results/zac/e2e_results.csv")
     pachinqo_results_file = os.path.join(os.path.dirname(__file__), f"../results/pachinqo/e2e_results.csv")
+    powermove_results_file = os.path.join(os.path.dirname(__file__), f"../results/powermove/e2e_results.csv")
+    qmap_results_file = os.path.join(os.path.dirname(__file__), f"../results/qmap/e2e_results.csv")
+    zap_results_file = os.path.join(os.path.dirname(__file__), f"../results/zap/e2e_results.csv")
     multiq_results_file = os.path.join(os.path.dirname(__file__), f"../results/multiq/e2e_results.csv")
 
     #fig = plt.figure(figsize=(13, 2.5), constrained_layout=True)
@@ -198,7 +214,13 @@ def plot_e2e_detailed():
             multiq_results_file=multiq_results_file,
             zac_results_file=zac_results_file,
             pachinqo_results_file=pachinqo_results_file,
+            powermove_results_file=powermove_results_file,
+            qmap_results_file=qmap_results_file,
+            zap_results_file=zap_results_file,
             include_pachinqo=include_pachinqo,
+            include_powermove=include_powermove,
+            include_qmap=include_qmap,
+            include_zap=include_zap,
         )
 
         axes[idx].set_xlabel(None)
@@ -213,16 +235,28 @@ def plot_e2e_detailed():
             multiq_results_file=multiq_results_file,
             zac_results_file=zac_results_file,
             pachinqo_results_file=pachinqo_results_file,
+            powermove_results_file=powermove_results_file,
+            qmap_results_file=qmap_results_file,
+            zap_results_file=zap_results_file,
             include_pachinqo=include_pachinqo,
+            include_powermove=include_powermove,
+            include_qmap=include_qmap,
+            include_zap=include_zap,
         )
         axes[idx + len(detailed_set_sizes)].set_xlabel(None)
 
     fig.tight_layout(w_pad=0.3, rect=(-0.013, 0.06, 1.005, 1.045))
 
+    legend_labels = ['MultiQ (1 Row)', 'MultiQ (2 Row)', 'ZAC']
+    if include_powermove:
+        legend_labels.append('PowerMove')
+    if include_qmap:
+        legend_labels.append('QMAP')
+    if include_zap:
+        legend_labels.append('ZAP')
     if include_pachinqo:
-        fig.legend(loc='lower center', bbox_to_anchor=(0.52, -0.005), ncol=5, fontsize=11, frameon=True, labels=['MultiQ (1 Row)', 'MultiQ (2 Row)', 'ZAC', 'PachinQo'], title_fontsize=11)
-    else:
-        fig.legend(loc='lower center', bbox_to_anchor=(0.52, -0.005), ncol=5, fontsize=11, frameon=True, labels=['MultiQ (1 Row)', 'MultiQ (2 Row)', 'ZAC'], title_fontsize=11)
+        legend_labels.append('PachinQo')
+    fig.legend(loc='lower center', bbox_to_anchor=(0.52, -0.005), ncol=len(legend_labels), fontsize=11, frameon=True, labels=legend_labels, title_fontsize=11)
 
     fig.savefig("results/plots/e2e_plot_detailed.pdf", format="pdf")
 
@@ -1040,8 +1074,8 @@ def plot_controller_eval_half():
 if __name__ == "__main__":
     # Run the script directly to execute the evaluations
     # Uncomment the sections you want to run
-    #run_end_to_end_evaluation()
-    
+    run_end_to_end_evaluation()
+
     plot_e2e_detailed()
 
     #plot_e2e_detailed_half()

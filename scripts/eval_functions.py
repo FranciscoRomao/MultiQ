@@ -1290,10 +1290,13 @@ def plot_controler_decoherence_error(ax, title):
     ax.annotate('', xy=(ax.containers[1][5].get_x() + ax.containers[1][5]._width/2, df[df['compiler']=='MultiQ (2 Row)'][df['set_size']=='Set 14']['decoherence_error']+1), xytext=(ax.containers[1][5].get_x() + ax.containers[1][5]._width/2, df[df['compiler']=='ZAC'][df['set_size']=='Set 14']['decoherence_error']), fontsize=9, color='red', ha='center', arrowprops=dict(arrowstyle='fancy', color='green'))
     ax.text(ax.containers[0][5].get_x(), df[df['compiler']=='ZAC'][df['set_size']=='Set 14']['decoherence_error']/2, f'-{(df[df['compiler']=='ZAC'][df['set_size']=='Set 14']['decoherence_error'].item()/df[df['compiler']=='MultiQ (2 Row)'][df['set_size']=='Set 14']['decoherence_error'].item()):.1f}x', fontsize=9, color='green')
 
-def plot_e2e_results_fidelity(ax, set_size, title, multiq_results_file="results/multiq/e2e_results.csv", zac_results_file="results/zac/e2e_results.csv", pachinqo_results_file="results/pachinqo/e2e_results.csv", include_pachinqo=False):
+def plot_e2e_results_fidelity(ax, set_size, title, multiq_results_file="results/multiq/e2e_results.csv", zac_results_file="results/zac/e2e_results.csv", pachinqo_results_file="results/pachinqo/e2e_results.csv", powermove_results_file="results/powermove/e2e_results.csv", qmap_results_file="results/qmap/e2e_results.csv", zap_results_file="results/zap/e2e_results.csv", include_pachinqo=False, include_powermove=False, include_qmap=False, include_zap=False):
     data_multiq = pd.read_csv(multiq_results_file)
     data_zac = pd.read_csv(zac_results_file)
     data_pachinqo = pd.read_csv(pachinqo_results_file)
+    data_powermove = pd.read_csv(powermove_results_file)
+    data_qmap = pd.read_csv(qmap_results_file)
+    data_zap = pd.read_csv(zap_results_file)
 
     df = pd.DataFrame(columns=['benchmark', 'total_fidelity', 'cir_duration', 'compiler'])
 
@@ -1309,17 +1312,41 @@ def plot_e2e_results_fidelity(ax, set_size, title, multiq_results_file="results/
         df.loc[len(df)] = [benchmark, data_zac[data_zac['benchmark'] == benchmark]['total_fidelity'].item(), data_zac[data_zac['benchmark'] == benchmark]['cir_duration'].item(), 'ZAC']
         df.loc[len(df)] = [benchmark, data_multiq[data_multiq['set_size']==set_size][data_multiq['benchmark'] == benchmark][data_multiq['n_rows'] == 1]['cir_fidelity'].item(), data_multiq[data_multiq['set_size']==set_size][data_multiq['benchmark'] == benchmark][data_multiq['n_rows'] == 1]['cir_duration'].item(), 'MultiQ (1 Row)']
         df.loc[len(df)] = [benchmark, data_multiq[data_multiq['set_size']==set_size][data_multiq['benchmark'] == benchmark][data_multiq['n_rows'] == 2]['cir_fidelity'].item(), data_multiq[data_multiq['set_size']==set_size][data_multiq['benchmark'] == benchmark][data_multiq['n_rows'] == 2]['cir_duration'].item(), 'MultiQ (2 Row)']
-        
+
+        if include_powermove:
+            if benchmark in data_powermove['benchmark'].unique():
+                df.loc[len(df)] = [benchmark, data_powermove[data_powermove['benchmark'] == benchmark]['total_fidelity'].item(), data_powermove[data_powermove['benchmark'] == benchmark]['cir_duration'].item(), 'PowerMove']
+            else:
+                df.loc[len(df)] = [benchmark, 0, 0, 'PowerMove']
+
+        if include_qmap:
+            if benchmark in data_qmap['benchmark'].unique():
+                df.loc[len(df)] = [benchmark, data_qmap[data_qmap['benchmark'] == benchmark]['total_fidelity'].item(), data_qmap[data_qmap['benchmark'] == benchmark]['cir_duration'].item(), 'QMAP']
+            else:
+                df.loc[len(df)] = [benchmark, 0, 0, 'QMAP']
+
+        if include_zap:
+            if benchmark in data_zap['benchmark'].unique():
+                df.loc[len(df)] = [benchmark, data_zap[data_zap['benchmark'] == benchmark]['total_fidelity'].item(), data_zap[data_zap['benchmark'] == benchmark]['cir_duration'].item(), 'ZAP']
+            else:
+                df.loc[len(df)] = [benchmark, 0, 0, 'ZAP']
+
         if include_pachinqo:
             if benchmark in data_pachinqo['benchmark'].unique():
                 df.loc[len(df)] = [benchmark, data_pachinqo[data_pachinqo['benchmark'] == benchmark]['total_fidelity'].item(), data_pachinqo[data_pachinqo['benchmark'] == benchmark]['execution_time'].item(), 'Pachinqo']
             else:
                 df.loc[len(df)] = [benchmark, 0, 0, 'Pachinqo']
-    
+
     # Add mean of all benchmarks for each compiler
     df.loc[len(df)] = ['Mean', df[df['compiler']=='ZAC']['total_fidelity'].mean(), data_zac['cir_duration'].mean(), 'ZAC']
     df.loc[len(df)] = ['Mean', df[df['compiler']=='MultiQ (1 Row)']['total_fidelity'].mean(), df[df['compiler']=='MultiQ (1 Row)']['cir_duration'].mean(), 'MultiQ (1 Row)']
     df.loc[len(df)] = ['Mean', df[df['compiler']=='MultiQ (2 Row)']['total_fidelity'].mean(), df[df['compiler']=='MultiQ (2 Row)']['cir_duration'].mean(), 'MultiQ (2 Row)']
+    if include_powermove:
+        df.loc[len(df)] = ['Mean', df[df['compiler']=='PowerMove'][df['benchmark'].isin(data_powermove['benchmark'].unique())]['total_fidelity'].mean(), df[df['compiler']=='PowerMove']['cir_duration'].mean(), 'PowerMove']
+    if include_qmap:
+        df.loc[len(df)] = ['Mean', df[df['compiler']=='QMAP'][df['benchmark'].isin(data_qmap['benchmark'].unique())]['total_fidelity'].mean(), df[df['compiler']=='QMAP']['cir_duration'].mean(), 'QMAP']
+    if include_zap:
+        df.loc[len(df)] = ['Mean', df[df['compiler']=='ZAP'][df['benchmark'].isin(data_zap['benchmark'].unique())]['total_fidelity'].mean(), df[df['compiler']=='ZAP']['cir_duration'].mean(), 'ZAP']
     if include_pachinqo:
         df.loc[len(df)] = ['Mean', df[df['compiler']=='Pachinqo'][df['benchmark'].isin(data_pachinqo['benchmark'].unique())]['total_fidelity'].mean(), df[df['compiler']=='Pachinqo']['cir_duration'].mean(), 'Pachinqo']
 
@@ -1328,6 +1355,12 @@ def plot_e2e_results_fidelity(ax, set_size, title, multiq_results_file="results/
     higher_lower_is_better_loc = (0.68, 1.02)
 
     compiler_order = ['MultiQ (1 Row)', 'MultiQ (2 Row)', 'ZAC']
+    if include_powermove:
+        compiler_order.append('PowerMove')
+    if include_qmap:
+        compiler_order.append('QMAP')
+    if include_zap:
+        compiler_order.append('ZAP')
     if include_pachinqo:
         compiler_order.append('Pachinqo')
 
@@ -1384,10 +1417,13 @@ def plot_e2e_results_fidelity(ax, set_size, title, multiq_results_file="results/
             
     print(df)
     
-def plot_e2e_results_duration(ax, set_size, title,multiq_results_file="results/multiq/e2e_results.csv", zac_results_file="results/zac/e2e_results.csv", pachinqo_results_file="results/pachinqo/e2e_results.csv", include_pachinqo=False):
+def plot_e2e_results_duration(ax, set_size, title,multiq_results_file="results/multiq/e2e_results.csv", zac_results_file="results/zac/e2e_results.csv", pachinqo_results_file="results/pachinqo/e2e_results.csv", powermove_results_file="results/powermove/e2e_results.csv", qmap_results_file="results/qmap/e2e_results.csv", zap_results_file="results/zap/e2e_results.csv", include_pachinqo=False, include_powermove=False, include_qmap=False, include_zap=False):
     data_multiq = pd.read_csv(multiq_results_file)
     data_zac = pd.read_csv(zac_results_file)
     data_pachinqo = pd.read_csv(pachinqo_results_file)
+    data_powermove = pd.read_csv(powermove_results_file)
+    data_qmap = pd.read_csv(qmap_results_file)
+    data_zap = pd.read_csv(zap_results_file)
 
     df = pd.DataFrame(columns=['benchmark', 'total_fidelity', 'cir_duration', 'compiler'])
 
@@ -1397,23 +1433,53 @@ def plot_e2e_results_duration(ax, set_size, title,multiq_results_file="results/m
         df.loc[len(df)] = [benchmark, data_multiq[data_multiq['set_size']==set_size][data_multiq['benchmark'] == benchmark][data_multiq['n_rows'] == 1]['cir_fidelity'].item(), data_multiq[data_multiq['set_size']==set_size][data_multiq['benchmark'] == benchmark][data_multiq['n_rows'] == 1]['cir_duration'].item()/1000, 'MultiQ (1 Row)']
         df.loc[len(df)] = [benchmark, data_multiq[data_multiq['set_size']==set_size][data_multiq['benchmark'] == benchmark][data_multiq['n_rows'] == 2]['cir_fidelity'].item(), data_multiq[data_multiq['set_size']==set_size][data_multiq['benchmark'] == benchmark][data_multiq['n_rows'] == 2]['cir_duration'].item()/1000, 'MultiQ (2 Row)']
 
+        if include_powermove:
+            if benchmark in data_powermove['benchmark'].unique():
+                df.loc[len(df)] = [benchmark, data_powermove[data_powermove['benchmark'] == benchmark]['total_fidelity'].item(), data_powermove[data_powermove['benchmark'] == benchmark]['cir_duration'].item()/1000, 'PowerMove']
+            else:
+                df.loc[len(df)] = [benchmark, 0, 0, 'PowerMove']
+
+        if include_qmap:
+            if benchmark in data_qmap['benchmark'].unique():
+                df.loc[len(df)] = [benchmark, data_qmap[data_qmap['benchmark'] == benchmark]['total_fidelity'].item(), data_qmap[data_qmap['benchmark'] == benchmark]['cir_duration'].item()/1000, 'QMAP']
+            else:
+                df.loc[len(df)] = [benchmark, 0, 0, 'QMAP']
+
+        if include_zap:
+            if benchmark in data_zap['benchmark'].unique():
+                df.loc[len(df)] = [benchmark, data_zap[data_zap['benchmark'] == benchmark]['total_fidelity'].item(), data_zap[data_zap['benchmark'] == benchmark]['cir_duration'].item()/1000, 'ZAP']
+            else:
+                df.loc[len(df)] = [benchmark, 0, 0, 'ZAP']
+
         if include_pachinqo:
             if benchmark in data_pachinqo['benchmark'].unique():
                 df.loc[len(df)] = [benchmark, data_pachinqo[data_pachinqo['benchmark'] == benchmark]['total_fidelity'].item(), data_pachinqo[data_pachinqo['benchmark'] == benchmark]['execution_time'].item()/1000, 'Pachinqo']
             else:
                 df.loc[len(df)] = [benchmark, 0, 0, 'Pachinqo']
-    
+
     ax.grid(True)
 
     df.loc[len(df)] = ['Mean', df[df['compiler']=='ZAC']['total_fidelity'].mean(), df[df['compiler']=='ZAC']['cir_duration'].mean(), 'ZAC']
     df.loc[len(df)] = ['Mean', df[df['compiler']=='MultiQ (1 Row)']['total_fidelity'].mean(), df[df['compiler']=='MultiQ (1 Row)']['cir_duration'].mean(), 'MultiQ (1 Row)']
     df.loc[len(df)] = ['Mean', df[df['compiler']=='MultiQ (2 Row)']['total_fidelity'].mean(), df[df['compiler']=='MultiQ (2 Row)']['cir_duration'].mean(), 'MultiQ (2 Row)']
+    if include_powermove:
+        df.loc[len(df)] = ['Mean', df[df['compiler']=='PowerMove'][df['benchmark'].isin(data_powermove['benchmark'].unique())]['total_fidelity'].mean(), df[df['compiler']=='PowerMove']['cir_duration'].mean(), 'PowerMove']
+    if include_qmap:
+        df.loc[len(df)] = ['Mean', df[df['compiler']=='QMAP'][df['benchmark'].isin(data_qmap['benchmark'].unique())]['total_fidelity'].mean(), df[df['compiler']=='QMAP']['cir_duration'].mean(), 'QMAP']
+    if include_zap:
+        df.loc[len(df)] = ['Mean', df[df['compiler']=='ZAP'][df['benchmark'].isin(data_zap['benchmark'].unique())]['total_fidelity'].mean(), df[df['compiler']=='ZAP']['cir_duration'].mean(), 'ZAP']
     if include_pachinqo:
         df.loc[len(df)] = ['Mean', df[df['compiler']=='Pachinqo'][df['benchmark'].isin(data_pachinqo['benchmark'].unique())]['total_fidelity'].mean(), df[df['compiler']=='Pachinqo']['cir_duration'].mean(), 'Pachinqo']
 
     higher_lower_is_better_loc = (0.68, 1.02)
 
     compiler_order = ['MultiQ (1 Row)', 'MultiQ (2 Row)', 'ZAC']
+    if include_powermove:
+        compiler_order.append('PowerMove')
+    if include_qmap:
+        compiler_order.append('QMAP')
+    if include_zap:
+        compiler_order.append('ZAP')
     if include_pachinqo:
         compiler_order.append('Pachinqo')
     df['compiler'] = pd.Categorical(df['compiler'], categories=compiler_order, ordered=True)
