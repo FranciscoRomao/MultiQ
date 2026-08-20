@@ -1,8 +1,8 @@
 from baselines.zac_runner import run_zac_single_benchmarks, run_zac_merge_benchmarks
 from baselines.pachinqo_runner import run_pachiqo_single_benchmark
-from baselines.powermove_runner import run_powermove_single_benchmarks
-from baselines.qmap_runner import run_qmap_single_benchmarks
-from baselines.zap_runner import run_zap_single_benchmarks
+from baselines.powermove_runner import run_powermove_single_benchmarks, run_powermove_merge_benchmarks
+from baselines.qmap_runner import run_qmap_single_benchmarks, run_qmap_merge_benchmarks
+from baselines.zap_runner import run_zap_single_benchmarks, run_zap_merge_benchmarks
 from baselines.multiq_runner import (
     run_multiq_planner_eval,
     run_multiq_bundler_eval,
@@ -326,10 +326,10 @@ def plot_e2e_detailed_full():
     fig.savefig("results/plots/e2e_plot_detailed_full.pdf", format="pdf")
 
 
-def plot_e2e_total_runtime():
+def plot_e2e_total_runtime(include_powermove=True, include_qmap=True, include_zap=True):
     # ----- Plot end-to-end evaluation results total runtime for MultiQ and baselines
 
-    fig, [ax0, ax1] = utils.gen_subplots(1, 2, figsize=(7, 3), height_ratios=[0.8, 1])
+    fig, [ax0, ax1] = utils.gen_subplots(1, 2, figsize=(13, 3), height_ratios=[0.8, 1])
 
     set_sizes = [6, 8, 10, 12, 14]
 
@@ -348,6 +348,9 @@ def plot_e2e_total_runtime():
         set_size=set_sizes,
         higher_lower_is_better="lower",
         xticks_visible=False,
+        include_powermove=include_powermove,
+        include_qmap=include_qmap,
+        include_zap=include_zap,
     )
     df = eval.plot_e2e_results_total_runtime(
         ax=ax1,
@@ -355,6 +358,9 @@ def plot_e2e_total_runtime():
         set_size=set_sizes,
         higher_lower_is_better=None,
         xticks_visible=True,
+        include_powermove=include_powermove,
+        include_qmap=include_qmap,
+        include_zap=include_zap,
     )
 
     plt.annotate(
@@ -519,7 +525,7 @@ def plot_e2e_total_runtime():
 
     ax1.grid(axis="x", visible=False)
 
-    ax0.get_legend().set(bbox_to_anchor=(0.3, 0.385))
+    ax0.get_legend().set(bbox_to_anchor=(0.53, 0.99), loc="upper left")
     ax1.get_legend().remove()  # Remove legend from the first plot
     ax0.set_ylabel("")
     ax1.set_ylabel("")
@@ -552,6 +558,22 @@ def plot_e2e_total_runtime():
         ),
         mpatches.Patch(label="ZAC", hatch=defaults.hatches[2], facecolor="none", edgecolor="black"),
     ]
+    legend_labels = ["MultiQ (1 Row)", "MultiQ (2 Row)", "ZAC"]
+    if include_powermove:
+        custom_handles.append(
+            mpatches.Patch(label="PowerMove", hatch=defaults.hatches[4], facecolor="none", edgecolor="black")
+        )
+        legend_labels.append("PowerMove")
+    if include_qmap:
+        custom_handles.append(
+            mpatches.Patch(label="QMAP", hatch=defaults.hatches[5], facecolor="none", edgecolor="black")
+        )
+        legend_labels.append("QMAP")
+    if include_zap:
+        custom_handles.append(
+            mpatches.Patch(label="ZAP", hatch="+", facecolor="none", edgecolor="black")
+        )
+        legend_labels.append("ZAP")
 
     d = 0.5  # proportion of vertical to horizontal extent of the slanted line
     kwargs = dict(
@@ -566,17 +588,19 @@ def plot_e2e_total_runtime():
     ax0.plot([0, 1], [0, 0], transform=ax0.transAxes, **kwargs)
     ax1.plot([0, 1], [1, 1], transform=ax1.transAxes, **kwargs)
 
-    # fig.legend(handles=custom_handles, bbox_to_anchor=(0.53, 0.92), fontsize=11, frameon=True, labels=['MultiQ (1 Row)', 'MultiQ (2 Row)', 'ZAC'], title_fontsize=11)
     fig.legend(
         handles=custom_handles,
-        bbox_to_anchor=(0.365, 0.9),
-        fontsize=11,
+        loc="upper left",
+        bbox_to_anchor=(0.01, 0.99),
+        bbox_transform=ax0.transAxes,
+        fontsize=10,
         frameon=True,
-        labels=["MultiQ (1 Row)", "MultiQ (2 Row)", "ZAC"],
+        labels=legend_labels,
+        ncol=3,
         title_fontsize=11,
     )
     fig.subplots_adjust(hspace=0.1)
-    fig.tight_layout(rect=(0.01, -0.03, 1.03, 1.04), h_pad=-3.8)
+    fig.tight_layout(rect=(0.01, -0.03, 1.0, 1.04), h_pad=-3.8)
 
     fig.savefig("results/plots/e2e_durations.pdf", format="pdf")
 
@@ -949,6 +973,11 @@ def run_controller_eval():
     zac_settings_file = os.path.join(os.path.dirname(__file__), "../config/zac/general.json")
     zac_results_file = os.path.join(os.path.dirname(__file__), "../results/zac/controller_results.csv")
 
+    general_arch_file = os.path.join(os.path.dirname(__file__), "../config/zac/general_arch.json")
+    powermove_results_file = os.path.join(os.path.dirname(__file__), "../results/powermove/controller_results.csv")
+    qmap_results_file = os.path.join(os.path.dirname(__file__), "../results/qmap/controller_results.csv")
+    zap_results_file = os.path.join(os.path.dirname(__file__), "../results/zap/controller_results.csv")
+
     set_sizes = [4, 6, 8, 10, 12, 14]
 
     random.seed(42)  # For reproducibility
@@ -1028,44 +1057,81 @@ def run_controller_eval():
 
     for benchmark_set in multi_benchmark_sets:
         run_zac_merge_benchmarks(benchmark_set, zac_settings_file, zac_results_file)
+        run_powermove_merge_benchmarks(benchmark_set, general_arch_file, powermove_results_file)
+        run_qmap_merge_benchmarks(benchmark_set, general_arch_file, qmap_results_file)
+        run_zap_merge_benchmarks(benchmark_set, general_arch_file, zap_results_file)
         # run_pachiqo_single_benchmarks(benchmark_set, pachinqo_settings_file, output_file="results/pachinqo_results.csv")
 
 
-def plot_controller_eval():
+def plot_controller_eval(include_powermove=True, include_qmap=True, include_zap=True):
     fig, [ax0, ax1] = utils.gen_subplots(2, 1, figsize=(13, 2.4))
 
-    eval.plot_controler_execution_time(ax0, title="(a) Execution time")
-    eval.plot_controler_decoherence_error(ax1, title="(b) Decoherence error")
+    eval.plot_controler_execution_time(
+        ax0,
+        title="(a) Execution time",
+        include_powermove=include_powermove,
+        include_qmap=include_qmap,
+        include_zap=include_zap,
+    )
+    eval.plot_controler_decoherence_error(
+        ax1,
+        title="(b) Decoherence error",
+        include_powermove=include_powermove,
+        include_qmap=include_qmap,
+        include_zap=include_zap,
+    )
 
     fig.tight_layout(rect=(-0.01, 0, 1.01, 1.05), w_pad=0.3)
+
+    legend_labels = ["MultiQ (1 Row)", "MultiQ (2 Rows)", "ZAC"]
+    if include_powermove:
+        legend_labels.append("PowerMove")
+    if include_qmap:
+        legend_labels.append("QMAP")
+    if include_zap:
+        legend_labels.append("ZAP")
 
     fig.legend(
         loc="lower center",
         bbox_to_anchor=(0.52, -0.01),
-        ncol=3,
+        ncol=len(legend_labels),
         fontsize=11,
         frameon=True,
-        labels=["MultiQ (1 Row)", "MultiQ (2 Rows)", "ZAC"],
+        labels=legend_labels,
     )
 
     fig.savefig("results/plots/controller_plot.pdf", format="pdf")
 
 
-def plot_controller_eval_half():
+def plot_controller_eval_half(include_powermove=True, include_qmap=True, include_zap=True):
     fig, [ax0] = utils.gen_subplots(1, 1, figsize=(7, 3))
 
     #eval.plot_controler_execution_time(ax0, title="(a) Execution time")
-    eval.plot_controler_decoherence_error(ax0, title="Decoherence error")
+    eval.plot_controler_decoherence_error(
+        ax0,
+        title="Decoherence error",
+        include_powermove=include_powermove,
+        include_qmap=include_qmap,
+        include_zap=include_zap,
+    )
 
     fig.tight_layout(rect=(-0.01, 0.05, 1.01, 1.05), w_pad=0.3)
+
+    legend_labels = ["MultiQ (1 Row)", "MultiQ (2 Rows)", "ZAC"]
+    if include_powermove:
+        legend_labels.append("PowerMove")
+    if include_qmap:
+        legend_labels.append("QMAP")
+    if include_zap:
+        legend_labels.append("ZAP")
 
     fig.legend(
         loc="lower center",
         bbox_to_anchor=(0.52, -0.01),
-        ncol=3,
+        ncol=len(legend_labels),
         fontsize=11,
         frameon=True,
-        labels=["MultiQ (1 Row)", "MultiQ (2 Rows)", "ZAC"],
+        labels=legend_labels,
     )
 
     fig.savefig("results/plots/controller_plot_half.pdf", format="pdf")
@@ -1074,9 +1140,9 @@ def plot_controller_eval_half():
 if __name__ == "__main__":
     # Run the script directly to execute the evaluations
     # Uncomment the sections you want to run
-    run_end_to_end_evaluation()
+    #run_end_to_end_evaluation()
 
-    plot_e2e_detailed()
+    #plot_e2e_detailed()
 
     #plot_e2e_detailed_half()
     
@@ -1100,6 +1166,6 @@ if __name__ == "__main__":
     
     #run_controller_eval()
 
-    #plot_controller_eval()
+    plot_controller_eval()
 
     #plot_controller_eval_half()

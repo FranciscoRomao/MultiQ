@@ -1,4 +1,5 @@
 import logging
+import math
 import os
 import json
 import heapq
@@ -415,6 +416,25 @@ class Orchestrator:
             tile.collect_reuse_qubit()
             tile.place_qubit_initial()
             tile.place_qubit_intermedeiate()
+            # placement.py's PlacementOptimiser._get_tile_width_in_cells has
+            # always assumed "tile.width is set by Orchestrator as number of
+            # grid cells" -- it never was (Tile.__init__ only ever
+            # initialises it to 1, and nothing else in the codebase
+            # reassigns it), so every tile was placed as if it were exactly
+            # 1 grid cell wide regardless of its real footprint. Deriving it
+            # here from the tile's own arch_range is what that comment
+            # already assumed happened. Uses arch_range[1][0] (not
+            # arch_range[1][0] - arch_range[0][0]) to stay consistent with
+            # CircuitSelector._simple_fit_check, which already used that
+            # same (padding-blind) width to decide these tiles fit in one
+            # bin together -- a separate, pre-existing padding-accounting
+            # issue, not something to fix here. floor (not the more
+            # physically-conservative ceil) so no single tile's rounding can
+            # push an otherwise-fitting bin over the grid's real capacity.
+            tile.width = max(1, math.floor(
+                tile.architecture.arch_range[1][0] / self.config.physical_cell_width_um))
+            true_height = tile.architecture.arch_range[1][1] - tile.architecture.arch_range[0][1]
+            tile.height = max(1, math.floor(true_height / self.config.physical_cell_height_um))
         # ----
 
         # Only once we have scheduling info, do we place on the tile grid

@@ -69,7 +69,11 @@ def diagonal_compatible(config: MultiQConfig, tiles: list[list[Tile | None]] , t
         for r_target in range(config.grid_rows):
             for c_target in range(config.grid_cols):
                 target_tile = tiles[r_target][c_target]
-                if target_tile is None:
+                if not target_tile:
+                    # Catches both a genuinely empty cell (None) and the
+                    # body of a wide tile whose root is elsewhere
+                    # (placement.py's `_OCCUPIED` marker, falsy by design)
+                    # -- neither has a `.architecture` to check below.
                     continue
 
                 # Calculate the target_tile's origin in global physical coordinates

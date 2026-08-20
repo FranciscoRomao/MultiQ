@@ -1138,9 +1138,15 @@ def plot_bundler_temporal_util(ax, title):
     
     ax.set_ylim(70, 100)  # Set y-axis limits to 0-100% for utilization
 
-def plot_controler_execution_time(ax, title):
+def plot_controler_execution_time(ax, title, zac_results_file="results/zac/controller_results.csv", powermove_results_file="results/powermove/controller_results.csv", qmap_results_file="results/qmap/controller_results.csv", zap_results_file="results/zap/controller_results.csv", include_powermove=False, include_qmap=False, include_zap=False):
     data_multiq = pd.read_csv("results/multiq/e2e_results.csv")
-    data_zac = pd.read_csv("results/zac/controller_results.csv")
+    data_zac = pd.read_csv(zac_results_file)
+    if include_powermove:
+        data_powermove = pd.read_csv(powermove_results_file)
+    if include_qmap:
+        data_qmap = pd.read_csv(qmap_results_file)
+    if include_zap:
+        data_zap = pd.read_csv(zap_results_file)
 
     #data_zac['benchmark'] = ['Grouped' if len(data_zac.iloc[i]['benchmark'].split('_')) > 1 else 'Sequential' for i in range(len(data_zac))]
     #data_zac['qpu_utilization'] = [int(data_zac.iloc[i]['nqubits']*100/qpu_size_zac) for i in range(len(data_zac))]
@@ -1176,22 +1182,67 @@ def plot_controler_execution_time(ax, title):
     qpu_width = 230 #um
     storage_cols_separation = 3 #um
 
+    set_order = ['Set 4', 'Set 6', 'Set 8', 'Set 10', 'Set 12', 'Set 14']  # Define the order of set sizes explicitly
+
+    # (compiler, set_label) pairs with no data - e.g. PowerMove can't place merged
+    # sets whose qubit count exceeds its fixed entanglement-zone grid. These get a
+    # zero-height placeholder bar plus an "x" marker instead of silently vanishing.
+    failed_markers = []
+
     df = pd.DataFrame(columns=['set_size', 'total_duration', 'compiler'])
     set_sizes = data_multiq['set_size'].unique()
-    
+
     for size in set_sizes:
         for j in data_multiq[data_multiq['set_size'] == size]['n_rows'].unique():
             df.loc[len(df)] = [f'Set {size}', data_multiq[data_multiq['set_size'] == size][data_multiq['n_rows'] == j]['cir_duration'].max()/1000, f'MultiQ ({j} Row)']
-    
+
     for i in range(len(data_zac)):
         df.loc[len(df)] = [f'Set {len(data_zac.at[i,'benchmark'].split('-'))}', data_zac.at[i,'execution_time'], 'ZAC']
+
+    if include_powermove:
+        present = set()
+        for i in range(len(data_powermove)):
+            set_label = f'Set {len(data_powermove.at[i,'benchmark'].split('-'))}'
+            df.loc[len(df)] = [set_label, data_powermove.at[i,'execution_time'], 'PowerMove']
+            present.add(set_label)
+        for set_label in set_order:
+            if set_label not in present:
+                df.loc[len(df)] = [set_label, 0, 'PowerMove']
+                failed_markers.append(('PowerMove', set_label))
+
+    if include_qmap:
+        present = set()
+        for i in range(len(data_qmap)):
+            set_label = f'Set {len(data_qmap.at[i,'benchmark'].split('-'))}'
+            df.loc[len(df)] = [set_label, data_qmap.at[i,'execution_time'], 'QMAP']
+            present.add(set_label)
+        for set_label in set_order:
+            if set_label not in present:
+                df.loc[len(df)] = [set_label, 0, 'QMAP']
+                failed_markers.append(('QMAP', set_label))
+
+    if include_zap:
+        present = set()
+        for i in range(len(data_zap)):
+            set_label = f'Set {len(data_zap.at[i,'benchmark'].split('-'))}'
+            df.loc[len(df)] = [set_label, data_zap.at[i,'execution_time'], 'ZAP']
+            present.add(set_label)
+        for set_label in set_order:
+            if set_label not in present:
+                df.loc[len(df)] = [set_label, 0, 'ZAP']
+                failed_markers.append(('ZAP', set_label))
 
     #data['benchmark'] = [i.split('.')[0] for i in data['benchmark']]
     #data['decoherence_error'] = [(1 - float(i))*100 for i in data['total_coherence_fidelity']]
     #data['utilization'] = [(i-1)*3/qpu_width for i in data['storage_zone_cols']]  # Assuming 250 is the max width
 
     compiler_order = ['MultiQ (1 Row)', 'MultiQ (2 Row)', 'ZAC']
-    set_order = ['Set 4', 'Set 6', 'Set 8', 'Set 10', 'Set 12', 'Set 14']  # Define the order of set sizes explicitly
+    if include_powermove:
+        compiler_order.append('PowerMove')
+    if include_qmap:
+        compiler_order.append('QMAP')
+    if include_zap:
+        compiler_order.append('ZAP')
 
     df['compiler'] = pd.Categorical(df['compiler'], categories=compiler_order, ordered=True)
     df['set_size'] = pd.Categorical(df['set_size'], categories=set_order, ordered=True)
@@ -1218,24 +1269,42 @@ def plot_controler_execution_time(ax, title):
                              ylabel='Execution time (ms)',)
     
     ax.set_ylim(0, max(df['total_duration']) + 2)  # Set y-axis limits to 0-100% for utilization
-    
+
+    marker_y = ax.get_ylim()[1] * 0.03
+    for compiler_name, set_label in failed_markers:
+        bar = ax.containers[compiler_order.index(compiler_name)][set_order.index(set_label)]
+        ax.plot(bar.get_x() + bar.get_width() / 2, marker_y, marker='x', color='black', markersize=7, markeredgewidth=2, zorder=5)
+
     #ax.hlines(df[df['compiler']=='ZAC'][df['set_size']==4]['cir_duration'].mean(), xmin=ax.containers[0][0].get_x(), xmax=ax.containers[0][0].get_x()+ax.containers[0][4]._width*3, colors='red', linestyles='dashed')
     ax.annotate('', xy=(ax.containers[1][4].get_x() + ax.containers[1][4]._width/2, df[df['compiler']=='MultiQ (2 Row)'][df['set_size']=='Set 12']['total_duration']+1), xytext=(ax.containers[1][4].get_x() + ax.containers[1][4]._width/2, df[df['compiler']=='ZAC'][df['set_size']=='Set 12']['total_duration']), fontsize=9, color='red', ha='center', arrowprops=dict(arrowstyle='fancy', color='green'))
-    ax.text(ax.containers[0][4].get_x(), df[df['compiler']=='ZAC'][df['set_size']=='Set 12']['total_duration']/2, f'-{(df[df['compiler']=='ZAC'][df['set_size']=='Set 12']['total_duration'].item()/df[df['compiler']=='MultiQ (2 Row)'][df['set_size']=='Set 12']['total_duration'].item()):.1f}x', fontsize=9, color='green')
+    ax.text(ax.containers[0][4].get_x() - ax.containers[0][4].get_width(), df[df['compiler']=='ZAC'][df['set_size']=='Set 12']['total_duration']/2, f'{(df[df['compiler']=='ZAC'][df['set_size']=='Set 12']['total_duration'].item()/df[df['compiler']=='MultiQ (2 Row)'][df['set_size']=='Set 12']['total_duration'].item()):.1f}x', fontsize=9, color='green')
 
     ax.annotate('', xy=(ax.containers[1][0].get_x() + ax.containers[1][0]._width/2, df[df['compiler']=='MultiQ (2 Row)'][df['set_size']=='Set 4']['total_duration']+1), xytext=(ax.containers[1][0].get_x() + ax.containers[1][0]._width/2, df[df['compiler']=='ZAC'][df['set_size']=='Set 4']['total_duration']), fontsize=9, color='red', ha='center', arrowprops=dict(arrowstyle='fancy', color='green'))
-    ax.text(ax.containers[0][0].get_x(), df[df['compiler']=='ZAC'][df['set_size']=='Set 4']['total_duration']/2+8, f'-{(df[df['compiler']=='ZAC'][df['set_size']=='Set 4']['total_duration'].item()/df[df['compiler']=='MultiQ (2 Row)'][df['set_size']=='Set 4']['total_duration'].item()):.1f}x', fontsize=9, color='green')
+    ax.text(ax.containers[0][0].get_x() - ax.containers[0][0].get_width(), df[df['compiler']=='ZAC'][df['set_size']=='Set 4']['total_duration']/2+8, f'{(df[df['compiler']=='ZAC'][df['set_size']=='Set 4']['total_duration'].item()/df[df['compiler']=='MultiQ (2 Row)'][df['set_size']=='Set 4']['total_duration'].item()):.1f}x', fontsize=9, color='green')
     #ax.text(ax.containers[2][4].get_x() + ax.containers[2][0]._width/4, df[df['compiler']=='MultiQ (2 Row)'][df['set_size']==4]['cir_duration'].mean()+0.5, f'+{(df[df['compiler']=='MultiQ (2 Row)'][df['set_size']==4]['cir_duration'].mean() - df[df["compiler"] == "ZAC"][df['set_size']==4]["cir_duration"].mean()):.1f}', fontsize=9, color='red', rotation=90)
 
     ax.annotate('', xy=(ax.containers[1][5].get_x() + ax.containers[1][5]._width/2, df[df['compiler']=='MultiQ (2 Row)'][df['set_size']=='Set 14']['total_duration']+1), xytext=(ax.containers[1][5].get_x() + ax.containers[1][5]._width/2, df[df['compiler']=='ZAC'][df['set_size']=='Set 14']['total_duration']), fontsize=9, color='red', ha='center', arrowprops=dict(arrowstyle='fancy', color='green'))
-    ax.text(ax.containers[0][5].get_x(), df[df['compiler']=='ZAC'][df['set_size']=='Set 14']['total_duration']/2, f'-{(df[df['compiler']=='ZAC'][df['set_size']=='Set 14']['total_duration'].item()/df[df['compiler']=='MultiQ (2 Row)'][df['set_size']=='Set 14']['total_duration'].item()):.1f}x', fontsize=9, color='green')
+    ax.text(ax.containers[0][5].get_x() - ax.containers[0][5].get_width(), df[df['compiler']=='ZAC'][df['set_size']=='Set 14']['total_duration']/2, f'{(df[df['compiler']=='ZAC'][df['set_size']=='Set 14']['total_duration'].item()/df[df['compiler']=='MultiQ (2 Row)'][df['set_size']=='Set 14']['total_duration'].item()):.1f}x', fontsize=9, color='green')
     
-def plot_controler_decoherence_error(ax, title):
+def plot_controler_decoherence_error(ax, title, zac_results_file="results/zac/controller_results.csv", powermove_results_file="results/powermove/controller_results.csv", qmap_results_file="results/qmap/controller_results.csv", zap_results_file="results/zap/controller_results.csv", include_powermove=False, include_qmap=False, include_zap=False):
     data_multiq = pd.read_csv("results/multiq/e2e_results.csv")
-    data_zac = pd.read_csv("results/zac/controller_results.csv")
+    data_zac = pd.read_csv(zac_results_file)
+    if include_powermove:
+        data_powermove = pd.read_csv(powermove_results_file)
+    if include_qmap:
+        data_qmap = pd.read_csv(qmap_results_file)
+    if include_zap:
+        data_zap = pd.read_csv(zap_results_file)
 
     qpu_width = 230 #um
     storage_cols_separation = 3 #um
+
+    set_order = ['Set 4', 'Set 6', 'Set 8', 'Set 10', 'Set 12', 'Set 14']  # Define the order of set sizes explicitly
+
+    # (compiler, set_label) pairs with no data - e.g. PowerMove can't place merged
+    # sets whose qubit count exceeds its fixed entanglement-zone grid. These get a
+    # zero-height placeholder bar plus an "x" marker instead of silently vanishing.
+    failed_markers = []
 
     df = pd.DataFrame(columns=['set_size', 'decoherence_error', 'compiler'])
     set_sizes = data_multiq['set_size'].unique()
@@ -1245,15 +1314,56 @@ def plot_controler_decoherence_error(ax, title):
             # Geometric mean of decoherence error for each benchmark with the same set size and number of rows
             decoherence_error = 100-(data_multiq[data_multiq['set_size'] == size][data_multiq['n_rows'] == j]['cir_coherence'].product()) ** (1/len(data_multiq[data_multiq['set_size'] == size][data_multiq['n_rows'] == j]['benchmark'])) * 100
             df.loc[len(df)] = [f'Set {size}', decoherence_error, f'MultiQ ({j} Row)']
-        
+
     for i in range(len(data_zac)):
         decoherence_error = (1-data_zac.at[i,'total_coherence_fidelity'])*100
-        df.loc[len(df)] = [f'Set {len(data_zac.at[i,'benchmark'].split('-'))}', 
-                             decoherence_error, 
+        df.loc[len(df)] = [f'Set {len(data_zac.at[i,'benchmark'].split('-'))}',
+                             decoherence_error,
                              'ZAC']
-        
+
+    if include_powermove:
+        present = set()
+        for i in range(len(data_powermove)):
+            set_label = f'Set {len(data_powermove.at[i,'benchmark'].split('-'))}'
+            decoherence_error = (1-data_powermove.at[i,'total_coherence_fidelity'])*100
+            df.loc[len(df)] = [set_label, decoherence_error, 'PowerMove']
+            present.add(set_label)
+        for set_label in set_order:
+            if set_label not in present:
+                df.loc[len(df)] = [set_label, 0, 'PowerMove']
+                failed_markers.append(('PowerMove', set_label))
+
+    if include_qmap:
+        present = set()
+        for i in range(len(data_qmap)):
+            set_label = f'Set {len(data_qmap.at[i,'benchmark'].split('-'))}'
+            decoherence_error = (1-data_qmap.at[i,'total_coherence_fidelity'])*100
+            df.loc[len(df)] = [set_label, decoherence_error, 'QMAP']
+            present.add(set_label)
+        for set_label in set_order:
+            if set_label not in present:
+                df.loc[len(df)] = [set_label, 0, 'QMAP']
+                failed_markers.append(('QMAP', set_label))
+
+    if include_zap:
+        present = set()
+        for i in range(len(data_zap)):
+            set_label = f'Set {len(data_zap.at[i,'benchmark'].split('-'))}'
+            decoherence_error = (1-data_zap.at[i,'total_coherence_fidelity'])*100
+            df.loc[len(df)] = [set_label, decoherence_error, 'ZAP']
+            present.add(set_label)
+        for set_label in set_order:
+            if set_label not in present:
+                df.loc[len(df)] = [set_label, 0, 'ZAP']
+                failed_markers.append(('ZAP', set_label))
+
     compiler_order = ['MultiQ (1 Row)', 'MultiQ (2 Row)', 'ZAC']
-    set_order = ['Set 4', 'Set 6', 'Set 8', 'Set 10', 'Set 12', 'Set 14']  # Define the order of set sizes explicitly
+    if include_powermove:
+        compiler_order.append('PowerMove')
+    if include_qmap:
+        compiler_order.append('QMAP')
+    if include_zap:
+        compiler_order.append('ZAP')
 
     df['compiler'] = pd.Categorical(df['compiler'], categories=compiler_order, ordered=True)
     df['set_size'] = pd.Categorical(df['set_size'], categories=set_order, ordered=True)
@@ -1278,17 +1388,22 @@ def plot_controler_decoherence_error(ax, title):
                              legend=False,
                              legend_loc=(0.5, -0.38),
                              ylabel='Error by decoherence [%]',)
-    
+
     ax.set_ylim(0, 100)  # Set y-axis limits to 0-100% for utilization
 
+    marker_y = ax.get_ylim()[1] * 0.03
+    for compiler_name, set_label in failed_markers:
+        bar = ax.containers[compiler_order.index(compiler_name)][set_order.index(set_label)]
+        ax.plot(bar.get_x() + bar.get_width() / 2, marker_y, marker='x', color='black', markersize=7, markeredgewidth=2, zorder=5)
+
     ax.annotate('', xy=(ax.containers[1][4].get_x() + ax.containers[1][4]._width/2, df[df['compiler']=='MultiQ (2 Row)'][df['set_size']=='Set 12']['decoherence_error']+1), xytext=(ax.containers[1][4].get_x() + ax.containers[1][4]._width/2, df[df['compiler']=='ZAC'][df['set_size']=='Set 12']['decoherence_error']), fontsize=9, color='red', ha='center', arrowprops=dict(arrowstyle='fancy', color='green'))
-    ax.text(ax.containers[0][4].get_x(), df[df['compiler']=='ZAC'][df['set_size']=='Set 12']['decoherence_error']/2, f'-{(df[df['compiler']=='ZAC'][df['set_size']=='Set 12']['decoherence_error'].item()/df[df['compiler']=='MultiQ (2 Row)'][df['set_size']=='Set 12']['decoherence_error'].item()):.1f}x', fontsize=9, color='green')
+    ax.text(ax.containers[0][4].get_x() - ax.containers[0][4].get_width(), df[df['compiler']=='ZAC'][df['set_size']=='Set 12']['decoherence_error']/2, f'{(df[df['compiler']=='ZAC'][df['set_size']=='Set 12']['decoherence_error'].item()/df[df['compiler']=='MultiQ (2 Row)'][df['set_size']=='Set 12']['decoherence_error'].item()):.1f}x', fontsize=9, color='green')
 
     ax.annotate('', xy=(ax.containers[1][0].get_x() + ax.containers[1][0]._width/2, df[df['compiler']=='MultiQ (2 Row)'][df['set_size']=='Set 4']['decoherence_error']+1), xytext=(ax.containers[1][0].get_x() + ax.containers[1][0]._width/2, df[df['compiler']=='ZAC'][df['set_size']=='Set 4']['decoherence_error']), fontsize=9, color='red', ha='center', arrowprops=dict(arrowstyle='fancy', color='green'))
-    ax.text(ax.containers[0][0].get_x(), df[df['compiler']=='ZAC'][df['set_size']=='Set 4']['decoherence_error']/2, f'-{(df[df['compiler']=='ZAC'][df['set_size']=='Set 4']['decoherence_error'].item()/df[df['compiler']=='MultiQ (2 Row)'][df['set_size']=='Set 4']['decoherence_error'].item()):.1f}x', fontsize=9, color='green')
+    ax.text(ax.containers[0][0].get_x() - ax.containers[0][0].get_width(), df[df['compiler']=='ZAC'][df['set_size']=='Set 4']['decoherence_error']/2, f'{(df[df['compiler']=='ZAC'][df['set_size']=='Set 4']['decoherence_error'].item()/df[df['compiler']=='MultiQ (2 Row)'][df['set_size']=='Set 4']['decoherence_error'].item()):.1f}x', fontsize=9, color='green')
 
     ax.annotate('', xy=(ax.containers[1][5].get_x() + ax.containers[1][5]._width/2, df[df['compiler']=='MultiQ (2 Row)'][df['set_size']=='Set 14']['decoherence_error']+1), xytext=(ax.containers[1][5].get_x() + ax.containers[1][5]._width/2, df[df['compiler']=='ZAC'][df['set_size']=='Set 14']['decoherence_error']), fontsize=9, color='red', ha='center', arrowprops=dict(arrowstyle='fancy', color='green'))
-    ax.text(ax.containers[0][5].get_x(), df[df['compiler']=='ZAC'][df['set_size']=='Set 14']['decoherence_error']/2, f'-{(df[df['compiler']=='ZAC'][df['set_size']=='Set 14']['decoherence_error'].item()/df[df['compiler']=='MultiQ (2 Row)'][df['set_size']=='Set 14']['decoherence_error'].item()):.1f}x', fontsize=9, color='green')
+    ax.text(ax.containers[0][5].get_x() - ax.containers[0][5].get_width(), df[df['compiler']=='ZAC'][df['set_size']=='Set 14']['decoherence_error']/2, f'{(df[df['compiler']=='ZAC'][df['set_size']=='Set 14']['decoherence_error'].item()/df[df['compiler']=='MultiQ (2 Row)'][df['set_size']=='Set 14']['decoherence_error'].item()):.1f}x', fontsize=9, color='green')
 
 def plot_e2e_results_fidelity(ax, set_size, title, multiq_results_file="results/multiq/e2e_results.csv", zac_results_file="results/zac/e2e_results.csv", pachinqo_results_file="results/pachinqo/e2e_results.csv", powermove_results_file="results/powermove/e2e_results.csv", qmap_results_file="results/qmap/e2e_results.csv", zap_results_file="results/zap/e2e_results.csv", include_pachinqo=False, include_powermove=False, include_qmap=False, include_zap=False):
     data_multiq = pd.read_csv(multiq_results_file)
@@ -1705,10 +1820,13 @@ def plot_e2e_results_duration_means(ax, title, set_sizes, multiq_results_file="r
             \t Pachinqo {df[df["compiler"] == "Pachinqo"][df["set_size"] == set_size]["cir_duration"].mean():.2f} \n ')
         
 
-def plot_e2e_results_total_runtime(ax, title, set_size, include_pachinqo=False, higher_lower_is_better='lower', xticks_visible=True, bar_width=0.35):
+def plot_e2e_results_total_runtime(ax, title, set_size, include_pachinqo=False, include_powermove=False, include_qmap=False, include_zap=False, higher_lower_is_better='lower', xticks_visible=True, bar_width=0.35):
     data_multiq = pd.read_csv(f"results/multiq/e2e_results.csv")
     data_zac = pd.read_csv("results/zac/e2e_results.csv")
     data_pachinqo = pd.read_csv("results/pachinqo/e2e_results.csv")
+    data_powermove = pd.read_csv("results/powermove/e2e_results.csv")
+    data_qmap = pd.read_csv("results/qmap/e2e_results.csv")
+    data_zap = pd.read_csv("results/zap/e2e_results.csv")
 
     df = pd.DataFrame(columns=['run_phase', 'phase_duration', 'compiler', 'set_size'])
 
@@ -1734,6 +1852,45 @@ def plot_e2e_results_total_runtime(ax, title, set_size, include_pachinqo=False, 
 
         df.loc[len(df)] = ['Execution', run_time, 'ZAC', f'Set {size}']
         df.loc[len(df)] = ['Initialization', initialization_time, 'ZAC', f'Set {size}']
+
+    if include_powermove:
+        for _, size in enumerate(set_size):
+            data = data_multiq[data_multiq['set_size'] == size]
+            run_time = 0
+            initialization_time = 0
+            for benchmark in data['benchmark'].unique():
+                total_runtime = data_powermove[data_powermove['benchmark'] == benchmark]['cir_duration'].item()
+                run_time += total_runtime/1000  # Convert to milliseconds
+                initialization_time += init_time
+
+            df.loc[len(df)] = ['Execution', run_time, 'PowerMove', f'Set {size}']
+            df.loc[len(df)] = ['Initialization', initialization_time, 'PowerMove', f'Set {size}']
+
+    if include_qmap:
+        for _, size in enumerate(set_size):
+            data = data_multiq[data_multiq['set_size'] == size]
+            run_time = 0
+            initialization_time = 0
+            for benchmark in data['benchmark'].unique():
+                total_runtime = data_qmap[data_qmap['benchmark'] == benchmark]['cir_duration'].item()
+                run_time += total_runtime/1000  # Convert to milliseconds
+                initialization_time += init_time
+
+            df.loc[len(df)] = ['Execution', run_time, 'QMAP', f'Set {size}']
+            df.loc[len(df)] = ['Initialization', initialization_time, 'QMAP', f'Set {size}']
+
+    if include_zap:
+        for _, size in enumerate(set_size):
+            data = data_multiq[data_multiq['set_size'] == size]
+            run_time = 0
+            initialization_time = 0
+            for benchmark in data['benchmark'].unique():
+                total_runtime = data_zap[data_zap['benchmark'] == benchmark]['cir_duration'].item()
+                run_time += total_runtime/1000  # Convert to milliseconds
+                initialization_time += init_time
+
+            df.loc[len(df)] = ['Execution', run_time, 'ZAP', f'Set {size}']
+            df.loc[len(df)] = ['Initialization', initialization_time, 'ZAP', f'Set {size}']
 
     if include_pachinqo:
         for _, size in enumerate(set_size):
@@ -1785,6 +1942,12 @@ def plot_e2e_results_total_runtime(ax, title, set_size, include_pachinqo=False, 
     #ax.set_yscale('log')
 
     compiler_order = ['MultiQ\n1 Row', 'MultiQ\n2 Row', 'ZAC']
+    if include_powermove:
+        compiler_order.append('PowerMove')
+    if include_qmap:
+        compiler_order.append('QMAP')
+    if include_zap:
+        compiler_order.append('ZAP')
     if include_pachinqo:
         compiler_order.append('PachinQo')
     

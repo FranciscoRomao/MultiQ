@@ -361,7 +361,23 @@ def stacked_grouped_barplot(data,
     group_width = spacing / n_groups
     bar_positions = np.arange(len(x_labels))
 
-    new_hatches = [hatches[7], hatches[8], hatches[2], hatches[3]]
+    # Keyed by compiler name so each compiler keeps a stable, distinct hatch
+    # regardless of which subset of compilers (and therefore which group
+    # index) is present in a given plot.
+    hatch_map = {
+        "MultiQ\n1 Row": hatches[7],
+        "MultiQ 1 Row": hatches[7],
+        "MultiQ (1 Row)": hatches[7],
+        "MultiQ\n2 Row": hatches[8],
+        "MultiQ 2 Row": hatches[8],
+        "MultiQ (2 Row)": hatches[8],
+        "ZAC": hatches[2],
+        "PachinQo": hatches[3],
+        "Pachinqo": hatches[3],
+        "PowerMove": hatches[4],
+        "QMAP": hatches[5],
+        "ZAP": "+",
+    }
 
     # Colors for stacking
     colors = sns.color_palette("pastel")
@@ -401,7 +417,7 @@ def stacked_grouped_barplot(data,
                             edgecolor='black',
                             linewidth=2,
                             label=label,
-                            hatch=new_hatches[i % len(new_hatches)],)
+                            hatch=hatch_map.get(group, hatches[i % len(hatches)]),)
                 
                 bottom += values
     

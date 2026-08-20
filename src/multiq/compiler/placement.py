@@ -13,6 +13,28 @@ from multiq.configuration import MultiQConfig
 logger = logging.getLogger("multiq")
 
 
+class _OccupiedMarker:
+    """Marks a grid cell covered by a wide tile's body (not its root), so
+    it can be told apart from a genuinely empty cell -- both used to be
+    plain `None`, which meant `_can_place_tile` (and `get_neighbour_
+    placement`'s candidate scan) could never distinguish "free" from
+    "already covered by an earlier tile placed here", so a later tile
+    could be placed directly on top of one already occupying these cells.
+    Falsy (like `None`) so every existing `if tile:`/`if cell_content:`
+    check elsewhere (Orchestrator.route(), Animator) keeps treating it as
+    "no addressable tile here" -- only `is None` identity checks (used
+    exclusively within this file) can tell it apart from real emptiness.
+    """
+    def __bool__(self) -> bool:
+        return False
+
+    def __repr__(self) -> str:
+        return "<occupied>"
+
+
+_OCCUPIED = _OccupiedMarker()
+
+
 class PlacementOptimiser:
     def __init__(self, config: MultiQConfig,  tiles_to_place: list[Tile]):
         """ Create a new tile placement optimiser.
@@ -50,10 +72,12 @@ class PlacementOptimiser:
         """Places a tile at (r_root, c_root), marking its full extent."""
         tile_w = self._get_tile_width_in_cells(tile)
         placement[r_root][c_root] = tile
-        # Mark subsequent cells covered by this tile as None
+        # Mark subsequent cells covered by this tile as occupied (not
+        # None -- see `_OccupiedMarker` -- so a later tile's own
+        # `_can_place_tile` check can't mistake them for free space).
         for c_offset in range(1, tile_w):
             if c_root + c_offset < self.grid_cols:
-                placement[r_root][c_root + c_offset] = None
+                placement[r_root][c_root + c_offset] = _OCCUPIED
 
     def _clear_cells_for_tile(self, placement: list[list[Tile | None]], r_root: int, c_root: int, tile_w: int):
         """Clears all cells that would be occupied by a tile of width tile_w at (r_root, c_root)."""
@@ -235,9 +259,15 @@ class PlacementOptimiser:
                     candidate_items_for_swap.append(
                         {'r': r_idx, 'c': c_idx, 'tile': cell_content, 'w': width})
                     c_idx += width
-                else:  # It's a None cell, representing an empty slot of width 1
+                elif cell_content is None:  # A genuinely empty slot of width 1
                     candidate_items_for_swap.append(
                         {'r': r_idx, 'c': c_idx, 'tile': None, 'w': 1})
+                    c_idx += 1
+                else:
+                    # `_OCCUPIED`: the body of a wide tile whose root is
+                    # somewhere to the left -- already accounted for by
+                    # that tile's own candidate entry, not a slot of its
+                    # own to offer up for swapping.
                     c_idx += 1
 
         if len(candidate_items_for_swap) < 2:
