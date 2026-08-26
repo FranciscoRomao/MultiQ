@@ -1,16 +1,30 @@
+import argparse
+import os
+import sys
+from dataclasses import dataclass
+
+# Same dual-invocation shim as run_evaluation.py: supports both
+# `python scripts/run_preeval.py` (from repo root) and
+# `python -m scripts.run_preeval` (from repo root). See that file's header
+# comment for why both sys.path entries are needed.
+_scripts_dir = os.path.dirname(os.path.abspath(__file__))
+sys.path.insert(0, _scripts_dir)
+sys.path.insert(0, os.path.dirname(_scripts_dir))
+
 import pdb
 import yaml
 import numpy as np
-import os
 import pandas as pd
 import csv
 import json
-# pyrefly: ignore [missing-import]
-from scripts.baselines.zac_runner import run_zac_single_benchmarks
+import warnings
+from baselines.zac_runner import run_zac_single_benchmarks
 from qiskit import transpile, QuantumCircuit
-# pyrefly: ignore [missing-import]
-from scripts.tools.gen_benchmarks import single_random_NA_circuit, gen_random_NA_circuits, merge_circuits_from_qasm, save_circuit, gen_single_benchmarks
+from tools.gen_benchmarks import single_random_NA_circuit, gen_random_NA_circuits, merge_circuits_from_qasm, save_circuit, gen_single_benchmarks
 from framework.grid import Grid #This is pachinqo
+import eval_functions as ppfunctions
+from plotting import utils, bar_plot, defaults
+from matplotlib import gridspec, figure
 
 def compute_fidelity(returned_values,cir_qubits):
     layers  = returned_values[0]
@@ -778,7 +792,137 @@ def run_zac_layout_preeval():
     else:
         data.to_csv(f"results/preeval/zac_results.csv", mode='a', header=False, index=False)
 
+# ----- Motivation / preliminary-eval plots -----
+# Folded in from the former scripts/plot_preeval.py and
+# scripts/introduction_plots.py, which ran as bare module-level code on
+# import (not callable, not composable with a CLI) -- wrapped into functions
+# here so they can be registered as experiments below.
+
+
+def plot_preeval_motivation():
+    # Was scripts/plot_preeval.py. `legend_handles_scatter`/`legend_labels_scatter`
+    # were referenced below without being defined -- the call that produces
+    # them (into a third panel, ax3) was commented out. Restoring that call
+    # (uncommenting `ax3` + the scatter-plot call it was clearly meant to
+    # feed) since that's the only source of those variables in this file.
+    warnings.simplefilter(action='ignore', category=UserWarning)
+    warnings.simplefilter(action='ignore', category=RuntimeWarning)
+    warnings.simplefilter(action='ignore', category=FutureWarning)
+
+    fig = figure.Figure(figsize=(18, 6))
+    gs = gridspec.GridSpec(2, 3)
+
+    ax0 = fig.add_subplot(gs[0:2, 0])  # Layout plot
+    ax1 = fig.add_subplot(gs[0, 1])
+    ax2 = fig.add_subplot(gs[1, 1])
+    ax3 = fig.add_subplot(gs[0:2, 2])
+
+    ppfunctions.plot_fidelity_vs_utilization_zac(ax=ax0)
+
+    legend_handles_scatter, legend_labels_scatter = ppfunctions.plot_compilation_time_vs_fidelity_scatter_plot(
+        ax=ax3, title='(c) Framework runtime vs Fidelity'
+    )
+
+    fig.legend(handles=legend_handles_scatter, labels=legend_labels_scatter, loc='lower center',
+               bbox_to_anchor=(0.852, -0.01), ncol=2, fontsize=12, frameon=True)
+
+    fig.legend(loc='lower center', bbox_to_anchor=(0.52, 0.01), ncol=3, fontsize=12, frameon=True,
+               labels=['Single', 'Grouped', 'Grouped Independent'])
+
+    fig.text(0.335, 0.23, "PachinQo", fontweight='bold', rotation=90, fontsize=18)
+    fig.text(0.335, 0.74, "ZAC", fontweight='bold', rotation=90, fontsize=18)
+
+    fig.tight_layout(rect=(0.005, 0.07, 1, 1), h_pad=0.005)
+
+    fig.savefig('results/preeval/preeval.pdf', format='pdf')
+
+
+def plot_introduction_figures():
+    # Was scripts/introduction_plots.py.
+    fig, [ax0] = utils.gen_subplots(1, 1, figsize=(6.5, 3.5))
+
+    ppfunctions.plot_fidelity_vs_circuit_size_zac_pachinqo_atomique(ax0, title='(a) Fidelity vs Circuit size')
+    ppfunctions.plot_initialization_time_vs_qpu_size(ax0, title='(b) Initialization Time vs QPU size')
+    ppfunctions.plot_execution_time_vs_circuit_size_zac_pachinqo_atomique(ax0, title='(c) Execution time vs Circuit size')
+
+    fig.tight_layout()
+
+    fig.legend(loc='lower center', bbox_to_anchor=(0.52, 0.935), ncol=4, fontsize=12, frameon=True,
+               labels=['ZAC', 'PachinQo', 'Atomique', 'Average'])
+
+    fig.savefig('results/preeval/introduction_plots.png', format='png', dpi=300, bbox_inches='tight')
+
+
+@dataclass
+class Experiment:
+    name: str
+    description: str
+    data_fn: callable = None
+    plot_fn: callable = None
+
+
+EXPERIMENTS = [
+    Experiment(
+        "introduction",
+        "Paper introduction/motivation figure (fidelity/init-time/exec-time vs. ZAC/PachinQo/Atomique)",
+        plot_fn=plot_introduction_figures,
+    ),
+    Experiment(
+        "preeval_zac",
+        "Preliminary ZAC single-benchmark fidelity sweep",
+        data_fn=run_preeval_zac,
+        plot_fn=plot_preeval_motivation,
+    ),
+    Experiment("preeval_pachinqo", "Preliminary PachinQo single-benchmark fidelity sweep", data_fn=run_preeval_pachinqo),
+    Experiment("preeval_zac_layouts", "Preliminary ZAC layout-ratio fidelity sweep", data_fn=run_zac_layout_preeval),
+]
+
+
+def _parse_args():
+    parser = argparse.ArgumentParser(
+        description="Regenerate MultiQ's introduction/motivation and preliminary-eval figures (results/preeval/*)."
+    )
+    parser.add_argument("--list", action="store_true", help="List available experiments and exit.")
+    parser.add_argument("--all", action="store_true", help="Run every experiment (default behavior; explicit alias).")
+    parser.add_argument(
+        "--only", type=str, default=None, help="Comma-separated experiment names to run (default: all)."
+    )
+    parser.add_argument("--data-only", action="store_true", help="Only run data collection, skip plotting.")
+    parser.add_argument(
+        "--plots-only", action="store_true", help="Only (re)generate plots from existing results, skip data collection."
+    )
+    return parser.parse_args()
+
+
+def main():
+    args = _parse_args()
+
+    if args.list:
+        for exp in EXPERIMENTS:
+            print(f"{exp.name:24s} {exp.description}")
+        return
+
+    if args.data_only and args.plots_only:
+        raise SystemExit("--data-only and --plots-only are mutually exclusive")
+    if args.all and args.only:
+        raise SystemExit("--all and --only are mutually exclusive")
+
+    selected_names = [n.strip() for n in args.only.split(",")] if args.only else None
+    if selected_names:
+        unknown = set(selected_names) - {exp.name for exp in EXPERIMENTS}
+        if unknown:
+            raise SystemExit(f"Unknown experiment(s): {', '.join(sorted(unknown))}. Use --list to see available names.")
+
+    for exp in EXPERIMENTS:
+        if selected_names is not None and exp.name not in selected_names:
+            continue
+        if exp.data_fn and not args.plots_only:
+            print(f"=== [{exp.name}] collecting data ===")
+            exp.data_fn()
+        if exp.plot_fn and not args.data_only:
+            print(f"=== [{exp.name}] plotting ===")
+            exp.plot_fn()
+
+
 if __name__ == "__main__":
-    run_preeval_zac()
-    #run_preeval_pachinqo()
-    #run_zac_layout_preeval()
+    main()

@@ -156,7 +156,8 @@ def run_zac_single_benchmarks(benchmark_file, settings_file, output_file):
                              'total_coherence_fidelity',
                              'total_transfer_fidelity',
                              'total_2q_on_idle',
-                             'cir_duration'])
+                             'cir_duration',
+                             'compilation_time'])
     
     #for i, benchmark in enumerate(benchmark_set):
 
@@ -177,7 +178,8 @@ def run_zac_single_benchmarks(benchmark_file, settings_file, output_file):
                            fid_res['cir_fidelity_coherence'],
                            fid_res['cir_fidelity_atom_transfer'],
                            fid_res['cir_fidelity_2q_gate_for_idle'],
-                           fid_res['cir_duration']]
+                           fid_res['cir_duration'],
+                           time_res['total']]
     
     os.remove(fid_file)
     os.remove(time_file)

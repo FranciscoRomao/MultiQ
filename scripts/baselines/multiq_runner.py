@@ -242,7 +242,13 @@ def run_multiq(benchmarks:list[str], config_file:str = "../../config/multiq/conf
                                  'n_rows',
                                  'selector_algo',
                                  'selector_weight',
-                                 'set_size'])
+                                 'set_size',
+                                 'compilation_time',
+                                 'planning_time',
+                                 'bundling_time',
+                                 'scheduling_time',
+                                 'placement_time',
+                                 'routing_time'])
 
     mq = MultiQ(config_file=config_file)
 
@@ -290,7 +296,13 @@ def run_multiq(benchmarks:list[str], config_file:str = "../../config/multiq/conf
                                    mq.config.grid_rows,
                                    mq.config.selection_algorithm,
                                    mq.config.perf_weight_selector,
-                                   len(benchmarks)]
+                                   len(benchmarks),
+                                   mq.timing["total"],
+                                   mq.timing["planning"],
+                                   mq.timing["bundling"],
+                                   mq.timing["scheduling"],
+                                   mq.timing["placement"],
+                                   mq.timing["routing"]]
     
     if not os.path.isfile(output_file):
         data.to_csv(output_file, index=False)

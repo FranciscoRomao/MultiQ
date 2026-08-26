@@ -16,10 +16,170 @@ import numpy as np
 # import random
 import copy
 import logging
+import os
+from multiprocessing import get_context
 from typing import Any, List
 from qiskit.qasm3 import loads, dumps
 
 logger = logging.getLogger("multiq")
+
+
+def _load_and_layer_circuit(path: str, layer_split_window: int, optimization_level: int):
+    """
+    Runs the per-circuit half of `Planner.set_input_circuits`. Pure function of
+    its arguments (no shared state), which is what makes it safe to run in a
+    worker process.
+    """
+    circuit = QuantumCircuit.from_qasm_file(path)
+    circuit = transpile(circuit, basis_gates=['cz', 'u3'], optimization_level=optimization_level)
+    circuit.remove_final_measurements()
+    circuit = Planner.remove_barriers(circuit)
+    dag = circuit_to_dag(circuit)
+    layers = Planner._split_DAG_into_execution_layers(dag, layer_split_window)
+    return circuit, dag, layers, path
+
+
+def _build_architecture_json(config: MultiQConfig, entanglement_rows, entanglement_cols, storage_rows, storage_cols, arch_file: str) -> str:
+    """
+    Generates a JSON representation of the architecture using ZACs format and
+    writes it to `arch_file`. A free function (rather than a `Planner` method)
+    so each per-circuit worker process can write to its own file instead of
+    racing on a single shared path.
+    """
+
+    # zone_centering: 1:1 means that the entanglement zone is centered on the storage zone,
+    # (1:2) means that the left side (difference between x coordinate of
+    # entanglement zone and storage zone) is twice as large as the right side
+    zone_centering = config.zone_centering
+
+    entanglement_separation = config.entanglement_site_separation
+    storage_separation = config.storage_site_separation
+
+    ent_x_dimension = (entanglement_cols-1) * entanglement_separation[1] + (entanglement_separation[0] - entanglement_separation[1])
+
+    # If there is only one row, the entanglement zone height would be calculated as 0,
+    # in that we set to one has the size minimum size just to contain one row of atoms
+    ent_y_dimension = (entanglement_rows-1) * \
+        entanglement_separation[1] if entanglement_rows > 1 else 1
+
+    sto_x_dimension = (storage_cols-1) * storage_separation[0]
+    sto_y_dimension = (storage_rows-1) * storage_separation[1]
+
+    # Padding ensures that the architecture is padded by half of the necessary separation to avoid crosstalk with other layouts
+    arch_width = max(sto_x_dimension, ent_x_dimension)
+    min_ent_padding = 0 if arch_width - ent_x_dimension - entanglement_separation[1]/2 >= 0 else abs(arch_width - ent_x_dimension - entanglement_separation[1]/2)
+    min_sto_padding = 0 if arch_width - sto_x_dimension - storage_separation[0]/2 >= 0 else abs(arch_width - sto_x_dimension - storage_separation[0]/2)
+    padding = max(min_ent_padding, min_sto_padding)
+
+    architecture = {
+        "name": "tile_architecture",
+        "operation_duration": {
+            "rydberg": config.time_rydberg,
+            "1qGate": config.time_1qGate,
+            "atom_transfer": config.time_atom_transfer
+            },
+        "operation_fidelity": {
+            "two_qubit_gate": config.fidelity_2q_gate,
+            "single_qubit_gate": config.fidelity_1q_gate,
+            "atom_transfer": config.fidelity_atom_transfer
+            },
+            "qubit_spec":{
+                "T": config.time_coherence,
+                },
+        "storage_zones": [{
+            "zone_id": 0,
+            "slms": [{
+                "id": 0,
+                "site_seperation": config.storage_site_separation,
+                "r": storage_rows,
+                "c": storage_cols,
+                "location": [max(0, ((ent_x_dimension - sto_x_dimension) * zone_centering[0])/sum(zone_centering)), 0]}],
+            "offset": [0, 0],
+            "dimension": [sto_x_dimension, sto_y_dimension]}], # Min padding on both sides
+        "entanglement_zones": [{
+            "zone_id": 0,
+            "slms": [{
+                "id": 1,
+                "site_seperation": config.entanglement_site_separation,
+                "r": entanglement_rows,
+                "c": entanglement_cols,
+                "location": [max(0, ((sto_x_dimension - ent_x_dimension) * zone_centering[0])/sum(zone_centering)), (storage_rows-1)*storage_separation[1]+config.zone_separation]},
+                {"id": 2,
+                 "site_seperation": config.entanglement_site_separation,
+                 "r": entanglement_rows,
+                 "c": entanglement_cols,
+                 "location": [(entanglement_separation[0]-entanglement_separation[1])+max(0,((sto_x_dimension - ent_x_dimension) * zone_centering[0])/sum(zone_centering)), (storage_rows-1)*storage_separation[1]+config.zone_separation]}],
+            "offset": [0, 0],
+            "dimension": [ent_x_dimension, ent_y_dimension]}], # Min padding on both sides
+        "aods": [{
+            "id": i,
+            "site_seperation": config.aod_minimum_separation,
+            "r": 10,  # Hardcoded for now, it's not being used
+            "c": 10  # Hardcoded for now, it's not being used
+        } for i in range(config.num_aods)
+        ],
+        'arch_range': [[0-padding, 0-1],
+                       [max(sto_x_dimension+padding, ent_x_dimension+padding),
+                        sto_y_dimension+config.zone_separation+ent_y_dimension+entanglement_separation[1]/2]],
+        'rydberg_range': [[[0, sto_y_dimension+config.zone_separation/2],
+                           [ent_x_dimension, sto_y_dimension+config.zone_separation+ent_y_dimension]]]
+    }
+
+    dump(architecture, open(arch_file, 'w'), indent=1)
+
+    logger.debug(f'Arch range: {architecture["arch_range"]}')
+
+    return arch_file
+
+
+def _compute_tile_layout(circuit: QuantumCircuit, dag: DAGCircuit, circuit_file: str, idx: int,
+                          config: MultiQConfig, grid_rows: int, perf_weight: float,
+                          layer_split_window: int, arch_file: str):
+    """
+    Runs the per-circuit half of `Planner.set_best_architectures` (everything
+    except constructing the live `Tile`/mutating shared config) as a pure
+    function, safe to run in a worker process. Returns the values the caller
+    needs to reconstruct the `Tile` in the main process, in original order.
+    """
+    zone_diff_tolerance = 2  # um
+
+    entanglement_pair_spacing = config.entanglement_site_separation[1]
+    entanglement_atom_spacing = config.entanglement_site_separation[0] - entanglement_pair_spacing
+    storage_atom_spacing = config.storage_site_separation[0]  # um
+
+    per_circuit_entanglement_row_height = (
+        config.entanglement_height // grid_rows) // entanglement_pair_spacing + 1
+
+    execution_layers = Planner._split_DAG_into_execution_layers(dag, layer_split_window)
+
+    storage_rows = (config.qpu_height -
+                    config.entanglement_height) // grid_rows // storage_atom_spacing
+
+    largest_entanglement = Planner._largest_entanglement_op(execution_layers)
+
+    minimun_entanglement_width = (largest_entanglement-1) * entanglement_pair_spacing + entanglement_atom_spacing
+    minimun_storage_width = (circuit.num_qubits//storage_rows) * storage_atom_spacing
+
+    best_storage_width = max(minimun_entanglement_width, (circuit.num_qubits-1) * storage_atom_spacing)
+
+    # Weighted average of the best and minimum storage width with the weights defined in the configuration
+    selected_storage_width = ceil(best_storage_width * perf_weight + minimun_storage_width * (1-perf_weight))
+
+    storage_zone_cols = (selected_storage_width // storage_atom_spacing) + 1
+
+    # The cols have one added because you have one less spacing for a given number of cols
+    _build_architecture_json(
+        config,
+        entanglement_rows=per_circuit_entanglement_row_height,
+        entanglement_cols=((selected_storage_width+zone_diff_tolerance-2) // entanglement_pair_spacing)+1,
+        storage_rows=storage_rows,
+        storage_cols=(selected_storage_width // storage_atom_spacing)+1,
+        arch_file=arch_file,
+    )
+
+    logger.debug(f'{circuit_file} \n Best storage width: {(best_storage_width // storage_atom_spacing)+1},\n selected storage width: {(selected_storage_width // storage_atom_spacing)+1},\n storage rows: {storage_rows},\n entanglement rows: {per_circuit_entanglement_row_height},\n minimun entanglement width: {((minimun_entanglement_width-2) // entanglement_pair_spacing)+1},\n selected entanglement width: {((selected_storage_width-2) // entanglement_pair_spacing)+1},\n largest entanglement: {largest_entanglement}')
+
+    return idx, circuit_file, arch_file, storage_rows, storage_zone_cols, len(execution_layers)
 
 
 class Planner:
@@ -44,19 +204,25 @@ class Planner:
 
     def set_input_circuits(self, input_circuits: list[str], optimization_level: int = 3) -> None:
 
-        for i in input_circuits:
-            circuit = QuantumCircuit.from_qasm_file(i)
-            circuit = transpile(circuit, basis_gates=['cz', 'u3'], optimization_level=optimization_level)
-            circuit.remove_final_measurements()
-            circuit = self.remove_barriers(circuit)
-            dag = circuit_to_dag(circuit)
-            self.circuit_files.append(i)
+        if not input_circuits:
+            return
+
+        tasks = [(path, self.config.layer_split_window, optimization_level) for path in input_circuits]
+
+        if len(tasks) == 1:
+            results = [_load_and_layer_circuit(*tasks[0])]
+        else:
+            with get_context("fork").Pool(processes=min(len(tasks), os.cpu_count() or 1)) as pool:
+                results = pool.starmap(_load_and_layer_circuit, tasks)
+
+        for circuit, dag, layers, path in results:
+            self.circuit_files.append(path)
             self.input_circuits.append(circuit)
             self.input_dags.append(dag)
-            self.input_layers.append(self._split_DAG_into_execution_layers(
-                dag, self.config.layer_split_window))
+            self.input_layers.append(layers)
 
-    def _fetch_window_from_zero(self, array, window) -> list[Any]:
+    @staticmethod
+    def _fetch_window_from_zero(array, window) -> list[Any]:
         # Calculate the end index for the current window
         end_index = window
 
@@ -65,8 +231,9 @@ class Planner:
             return copy.deepcopy(array[0:len(array)])
         else:
             return copy.deepcopy(array[0:end_index])
-        
-    def remove_barriers(self, circuit: QuantumCircuit) -> QuantumCircuit:
+
+    @staticmethod
+    def remove_barriers(circuit: QuantumCircuit) -> QuantumCircuit:
         """
         Removes barriers from the circuit.
         """
@@ -75,7 +242,8 @@ class Planner:
                 circuit.data.remove(gate)
         return circuit
 
-    def _split_DAG_into_execution_layers(self, dag: DAGCircuit, window_size) -> list[Any]:
+    @staticmethod
+    def _split_DAG_into_execution_layers(dag: DAGCircuit, window_size) -> list[Any]:
         removed_nodes = []
         layers = []
         dag_layers = [i for i in dag.multigraph_layers()]
@@ -104,7 +272,7 @@ class Planner:
         index = 0
 
         while len(dag_layers) > 0:
-            window_slice = self._fetch_window_from_zero(
+            window_slice = Planner._fetch_window_from_zero(
                 dag_layers, window_size)
 
             # Starting a new layer
@@ -165,7 +333,8 @@ class Planner:
                 dag_layers.pop(index)  # Remove empty layers
         return layers
 
-    def _largest_entanglement_op(self, execution_layers: list[list]) -> int:
+    @staticmethod
+    def _largest_entanglement_op(execution_layers: list[list]) -> int:
         """
         Returns the largest entanglement operation in the layer.
         If there are no entanglement operations, returns 0.
@@ -178,104 +347,7 @@ class Planner:
                 max_entanglement = n_entanglement
 
         return max_entanglement
-    
-    def _generate_arch_json(self, entanglement_rows, entanglement_cols, storage_rows, storage_cols) -> str:
-        """
-        Generates a JSON representation of the architecture using ZACs format.
-        """
 
-        # zone_centering: 1:1 means that the entanglement zone is centered on the storage zone,
-        # (1:2) means that the left side (difference between x coordinate of
-        # entanglement zone and storage zone) is twice as large as the right side
-        zone_centering = self.config.zone_centering
-
-        entanglement_separation = self.config.entanglement_site_separation
-        storage_separation = self.config.storage_site_separation
-
-        ent_x_dimension = (entanglement_cols-1) * entanglement_separation[1] + (entanglement_separation[0] - entanglement_separation[1])
-
-        # If there is only one row, the entanglement zone height would be calculated as 0,
-        # in that we set to one has the size minimum size just to contain one row of atoms
-        ent_y_dimension = (entanglement_rows-1) * \
-            entanglement_separation[1] if entanglement_rows > 1 else 1
-
-        sto_x_dimension = (storage_cols-1) * storage_separation[0]
-        sto_y_dimension = (storage_rows-1) * storage_separation[1]
-
-        # Padding ensures that the architecture is padded by half of the necessary separation to avoid crosstalk with other layouts
-        arch_width = max(sto_x_dimension, ent_x_dimension)
-        min_ent_padding = 0 if arch_width - ent_x_dimension - entanglement_separation[1]/2 >= 0 else abs(arch_width - ent_x_dimension - entanglement_separation[1]/2)
-        min_sto_padding = 0 if arch_width - sto_x_dimension - storage_separation[0]/2 >= 0 else abs(arch_width - sto_x_dimension - storage_separation[0]/2)
-        padding = max(min_ent_padding, min_sto_padding)
-
-        architecture = {
-            "name": "tile_architecture",
-            "operation_duration": {
-                "rydberg": self.config.time_rydberg,
-                "1qGate": self.config.time_1qGate,
-                "atom_transfer": self.config.time_atom_transfer
-                },
-            "operation_fidelity": {
-                "two_qubit_gate": self.config.fidelity_2q_gate,
-                "single_qubit_gate": self.config.fidelity_1q_gate,
-                "atom_transfer": self.config.fidelity_atom_transfer
-                },
-                "qubit_spec":{
-                    "T": self.config.time_coherence,
-                    },
-            "storage_zones": [{
-                "zone_id": 0,
-                "slms": [{
-                    "id": 0,
-                    "site_seperation": self.config.storage_site_separation,
-                    "r": storage_rows,
-                    "c": storage_cols,
-                    "location": [max(0, ((ent_x_dimension - sto_x_dimension) * zone_centering[0])/sum(zone_centering)), 0]}],
-                "offset": [0, 0],
-                "dimension": [sto_x_dimension, sto_y_dimension]}], # Min padding on both sides
-            "entanglement_zones": [{
-                "zone_id": 0,
-                "slms": [{
-                    "id": 1,
-                    "site_seperation": self.config.entanglement_site_separation,
-                    "r": entanglement_rows,
-                    "c": entanglement_cols,
-                    "location": [max(0, ((sto_x_dimension - ent_x_dimension) * zone_centering[0])/sum(zone_centering)), (storage_rows-1)*storage_separation[1]+self.config.zone_separation]},
-                    {"id": 2,
-                     "site_seperation": self.config.entanglement_site_separation,
-                     "r": entanglement_rows,
-                     "c": entanglement_cols,
-                     "location": [(entanglement_separation[0]-entanglement_separation[1])+max(0,((sto_x_dimension - ent_x_dimension) * zone_centering[0])/sum(zone_centering)), (storage_rows-1)*storage_separation[1]+self.config.zone_separation]}],
-                "offset": [0, 0],
-                "dimension": [ent_x_dimension, ent_y_dimension]}], # Min padding on both sides
-            "aods": [{
-                "id": i,
-                "site_seperation": self.config.aod_minimum_separation,
-                "r": 10,  # Hardcoded for now, it's not being used
-                "c": 10  # Hardcoded for now, it's not being used
-            } for i in range(self.config.num_aods)
-            # {
-            #     "id": 1,
-            #     "site_seperation": self.config.aod_minimum_separation,
-            #     "r": 10,  # Hardcoded for now, it's not being used
-            #     "c": 10  # Hardcoded for now, it's not being used
-            # }
-            ],
-            'arch_range': [[0-padding, 0-1],
-                           [max(sto_x_dimension+padding, ent_x_dimension+padding),
-                            sto_y_dimension+self.config.zone_separation+ent_y_dimension+entanglement_separation[1]/2]],
-            'rydberg_range': [[[0, sto_y_dimension+self.config.zone_separation/2],
-                               [ent_x_dimension, sto_y_dimension+self.config.zone_separation+ent_y_dimension]]]
-        }
-
-        #print(f"Generated architecture: {architecture}")
-
-        dump(architecture, open(self.config.tmp_arch_file, 'w'), indent=1)
-
-        logger.debug(f'Arch range: {architecture["arch_range"]}')
-
-        return self.config.tmp_arch_file
-    
     def set_best_architectures(self) -> List[Tile]:
         '''
         Simple version of the best_layouts function.
@@ -283,74 +355,48 @@ class Planner:
         Entanglement and storage zone heights is predefined by the architecture and the number of rows in the grid.
         The width of the entanglement zone is defined by the floor of closest it can be to the width of the storage zone
         '''
-        # If the selected storage zone is just 2 um (tolerance) short of including another entanglement collumn, we add it
-        # This is to avoid layouts with little entanglement width to a large storage width
-        zone_diff_tolerance = 2 #um
+        if not self.input_circuits:
+            return self.tiles
 
-        for circuit, dag, circuit_file in zip(self.input_circuits, self.input_dags, self.circuit_files):
+        # These only depend on config-level constants (qpu_width/height, grid_rows,
+        # zone_separation, physical_cell_width_um), not on any per-circuit data, so
+        # they were being recomputed identically on every loop iteration. Compute
+        # once, up front.
+        self.config.grid_cols = int(self.config.qpu_width // self.config.physical_cell_width_um)
+        self.config.physical_cell_height_um = (self.config.qpu_height -
+                                               self.config.entanglement_height -
+                                               self.grid_rows * self.config.zone_separation) // self.grid_rows
 
-            tile = Tile(self.config)
-            logger.debug(
-                f"Processing best layout for circuit with #: {circuit.num_qubits} qubits")
-
-            entanglement_pair_spacing = self.config.entanglement_site_separation[1]
-            entanglement_atom_spacing = self.config.entanglement_site_separation[
-                0] - entanglement_pair_spacing
-            storage_atom_spacing = self.config.storage_site_separation[0]  # um
-
-            per_circuit_entanglement_row_height = (
-                self.config.entanglement_height // self.grid_rows) // entanglement_pair_spacing + 1
-
-            execution_layers = self._split_DAG_into_execution_layers(
-                dag, self.config.layer_split_window)
-
-            storage_rows = (self.config.qpu_height -
-                            self.config.entanglement_height) // self.grid_rows // storage_atom_spacing
-
-            tile.config.storage_zone_rows = storage_rows
-
-            largest_entanglement = self._largest_entanglement_op(execution_layers)
-            
-            #minimun_entanglement_width = ((largest_entanglement-1)//per_circuit_entanglement_row_height) * entanglement_pair_spacing + entanglement_atom_spacing
-            minimun_entanglement_width = (largest_entanglement-1) * entanglement_pair_spacing + entanglement_atom_spacing
-            
-            #minimun_storage_width = max(minimun_entanglement_width, (circuit.num_qubits//storage_rows) * storage_atom_spacing)
-            minimun_storage_width = (circuit.num_qubits//storage_rows) * storage_atom_spacing
-
-            #minimun_width = max(minimun_entanglement_width, minimun_storage_width)
-            #
-            #best_storage_width = max(minimun_entanglement_width, (circuit.num_qubits-1) * storage_atom_spacing)
-            #
-            ## Weighted average of the best and minimum storage width with the weights defined in the configuration
-            #selected_storage_width = ceil(best_storage_width * self.perf_weight + minimun_width * (1-self.perf_weight) / 2)
-            #
-            #tile.config.storage_zone_cols = (selected_storage_width // storage_atom_spacing) + 1
-            
-            best_storage_width = max(minimun_entanglement_width, (circuit.num_qubits-1) * storage_atom_spacing)
-
-            # Weighted average of the best and minimum storage width with the weights defined in the configuration
-            selected_storage_width = ceil(best_storage_width * self.perf_weight + minimun_storage_width * (1-self.perf_weight))
-
-            tile.config.storage_zone_cols = (selected_storage_width // storage_atom_spacing) + 1
-            self.config.grid_cols = int(self.config.qpu_width // tile.config.physical_cell_width_um)
-            self.config.physical_cell_height_um = (self.config.qpu_height - 
-                                                   self.config.entanglement_height -
-                                                   self.grid_rows * self.config.zone_separation) // self.grid_rows
-
-            # The cols have one added because you have one less spacing for a given number of cols
-            out = self._generate_arch_json(
-                entanglement_rows=per_circuit_entanglement_row_height,
-                entanglement_cols=((selected_storage_width+zone_diff_tolerance-2) // entanglement_pair_spacing)+1,
-                storage_rows=storage_rows,
-                storage_cols=(selected_storage_width // storage_atom_spacing)+1
+        tasks = [
+            (
+                self.input_circuits[i],
+                self.input_dags[i],
+                self.circuit_files[i],
+                i,
+                self.config,
+                self.grid_rows,
+                self.perf_weight,
+                self.config.layer_split_window,
+                f"{self.config.tmp_arch_file}.{i}",
             )
+            for i in range(len(self.input_circuits))
+        ]
 
-            logger.debug(f'{circuit_file} \n Best storage width: {(best_storage_width // storage_atom_spacing)+1},\n selected storage width: {(selected_storage_width // storage_atom_spacing)+1},\n storage rows: {storage_rows},\n entanglement rows: {per_circuit_entanglement_row_height},\n minimun entanglement width: {((minimun_entanglement_width-2) // entanglement_pair_spacing)+1},\n selected entanglement width: {((selected_storage_width-2) // entanglement_pair_spacing)+1},\n largest entanglement: {largest_entanglement}')
+        if len(tasks) == 1:
+            results = [_compute_tile_layout(*tasks[0])]
+        else:
+            with get_context("fork").Pool(processes=min(len(tasks), os.cpu_count() or 1)) as pool:
+                results = pool.starmap(_compute_tile_layout, tasks)
 
-            tile._set_architecture(out)
+        for idx, circuit_file, arch_file, storage_rows, storage_zone_cols, best_nlayers in results:
+            tile = Tile(self.config)
+            tile.config.storage_zone_rows = storage_rows
+            tile.config.storage_zone_cols = storage_zone_cols
+            tile._set_architecture(arch_file)
+            os.remove(arch_file)
             tile.source_name = circuit_file
-            tile.circuit = circuit
-            tile.best_nlayers = len(execution_layers)
+            tile.circuit = self.input_circuits[idx]
+            tile.best_nlayers = best_nlayers
             self.tiles.append(tile)
 
         return self.tiles

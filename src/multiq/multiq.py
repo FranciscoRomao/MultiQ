@@ -1,6 +1,7 @@
 import logging
 import os
 import json
+import time
 
 from multiq.compiler.planner import Planner
 from multiq.compiler.orchestrator import Orchestrator
@@ -17,18 +18,24 @@ class MultiQ:
         self.config = MultiQConfig.from_config_file(config_file)
 
     def set_inputs(self, input_files: list[str]) -> list[list]:
-        
+
+        total_start = time.perf_counter()
+
+        planning_start = time.perf_counter()
         self.planner = Planner(self.config)
         self.planner.set_input_circuits(input_files, optimization_level=3)
         tiles = self.planner.set_best_architectures()
+        planning_time = time.perf_counter() - planning_start
 
+        bundling_start = time.perf_counter()
         self.selector = CircuitSelector(self.config)
 
         # There is a bug on the selector where the cost starts to be negative at some point,
         # although it should not be possible it doesnt seem to affect the results.
         # There is no time now to fix it, I will leave it for later.
         self.bins = self.selector.select(tiles)
-        
+        bundling_time = time.perf_counter() - bundling_start
+
         logger.debug("Bundled tiles:")
         for i, result in enumerate(self.bins):
             logger.info(f"Result bin {i}: {[tile.source_name.split('/')[-1] for tile in result if tile is not None]}")
@@ -36,13 +43,20 @@ class MultiQ:
         output_files:list[list] = []
 
         print(f"---------------------Number of grid cols: {self.config.grid_cols}")
-        
+
+        scheduling_time = 0.0
+        placement_time = 0.0
+        routing_time = 0.0
+
         for idx, bin in enumerate(self.bins):
             logger.info(f"Starting compilation for bin {idx} with {len(bin)} tiles")
             logger.debug("-" * 50)
             compiler = Orchestrator(self.config)
             compiler.set_programs(bin)
             compiler.compile()
+            scheduling_time += compiler.timing.get("scheduling", 0.0)
+            placement_time += compiler.timing.get("placement", 0.0)
+            routing_time += compiler.timing.get("routing", 0.0)
             json_files = compiler.write_output(os.path.join(self.config.results_dir, f"test_bin{idx}"))
             output_files.append([])
 
@@ -80,6 +94,15 @@ class MultiQ:
                 logger.info(f"Producing animation...")
                 anim = Animator(self.config, self.config.grid_rows, self.config.grid_cols)
                 anim.multi_animate(compiler.tiles, os.path.join(self.config.results_dir, f"test_bin{idx}"))
+
+        self.timing = {
+            "planning": planning_time,
+            "bundling": bundling_time,
+            "scheduling": scheduling_time,
+            "placement": placement_time,
+            "routing": routing_time,
+            "total": time.perf_counter() - total_start,
+        }
 
         return output_files
 

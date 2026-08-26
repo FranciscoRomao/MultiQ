@@ -1,5 +1,6 @@
 import os
 import sys
+import time
 
 import pandas as pd
 from qiskit import QuantumCircuit, transpile
@@ -20,6 +21,8 @@ STORAGE_ENABLED = True
 
 
 def _compile_one(benchmark_path: str, target: dict) -> dict:
+    compile_start = time.perf_counter()
+
     circuit = QuantumCircuit.from_qasm_file(benchmark_path)
     n = circuit.num_qubits
 
@@ -42,6 +45,8 @@ def _compile_one(benchmark_path: str, target: dict) -> dict:
         num_movement_stage,
     ) = mm.mvqc(cz_blocks, target["grid_rows"], n, STORAGE_ENABLED, target["num_aods"], sg_blocks=sg_blocks)
 
+    compilation_time = time.perf_counter() - compile_start
+
     return {
         "nqubits": n,
         "total_fidelity": cir_fidelity,
@@ -52,6 +57,7 @@ def _compile_one(benchmark_path: str, target: dict) -> dict:
         "total_1q_gate_fidelity": cir_fidelity_1q_gate,
         "cir_duration": transfer_duration + movement_duration,
         "num_movement_stage": num_movement_stage,
+        "compilation_time": compilation_time,
     }
 
 
@@ -88,6 +94,7 @@ def run_powermove_single_benchmarks(benchmark_file: str, arch_spec_path: str, ou
             "total_1q_gate_fidelity",
             "cir_duration",
             "num_movement_stage",
+            "compilation_time",
         ]
     )
 
@@ -102,6 +109,7 @@ def run_powermove_single_benchmarks(benchmark_file: str, arch_spec_path: str, ou
         metrics["total_1q_gate_fidelity"],
         metrics["cir_duration"],
         metrics["num_movement_stage"],
+        metrics["compilation_time"],
     ]
 
     if not os.path.isfile(output_file):

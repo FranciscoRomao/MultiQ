@@ -4,12 +4,14 @@ import yaml
 import numpy as np
 import pandas as pd
 import warnings
+from scipy.stats import gmean
 from scripts.plotting import bar_plot, line_plot
 from scripts.plotting import utils, defaults
 import ast
 import seaborn as sns
 import random
 import matplotlib.pyplot as plt
+import matplotlib.transforms
 
 warnings.simplefilter(action='ignore', category=UserWarning)
 warnings.simplefilter(action='ignore', category=RuntimeWarning)
@@ -1265,7 +1267,7 @@ def plot_controler_execution_time(ax, title, zac_results_file="results/zac/contr
                              higher_lower_is_better_loc=(0.67, 1.02),
                              xlabel='Sets of benchmarks',
                              legend=False,
-                             legend_loc=(0.5, -0.38),
+                             legend_loc=(0.6, -0.38),
                              ylabel='Execution time (ms)',)
     
     ax.set_ylim(0, max(df['total_duration']) + 2)  # Set y-axis limits to 0-100% for utilization
@@ -1502,7 +1504,7 @@ def plot_e2e_results_fidelity(ax, set_size, title, multiq_results_file="results/
                              ylabel='Fidelity')
     
     xtick_labels = df['benchmark'].unique().tolist()
-    ax.set_xticklabels(xtick_labels, rotation=20 if include_pachinqo else 15, ha='right')  # Rotate x-tick labels for better readability
+    ax.set_xticklabels(xtick_labels, fontsize=11)  # Rotate x-tick labels for better readability
     ax.set_ylim(0.3, 0.9)  # Set y-axis limits to 0-1 for fidelity
     print(f'Mean ratios: \n \
           \t MultiQ (1 Row): {df[df['compiler']=='MultiQ (1 Row)']['total_fidelity'].mean()},\n \
@@ -1532,7 +1534,7 @@ def plot_e2e_results_fidelity(ax, set_size, title, multiq_results_file="results/
             
     print(df)
     
-def plot_e2e_results_duration(ax, set_size, title,multiq_results_file="results/multiq/e2e_results.csv", zac_results_file="results/zac/e2e_results.csv", pachinqo_results_file="results/pachinqo/e2e_results.csv", powermove_results_file="results/powermove/e2e_results.csv", qmap_results_file="results/qmap/e2e_results.csv", zap_results_file="results/zap/e2e_results.csv", include_pachinqo=False, include_powermove=False, include_qmap=False, include_zap=False):
+def plot_e2e_results_duration(ax, set_size, title,multiq_results_file="results/multiq/e2e_results.csv", zac_results_file="results/zac/e2e_results.csv", pachinqo_results_file="results/pachinqo/e2e_results.csv", powermove_results_file="results/powermove/e2e_results.csv", qmap_results_file="results/qmap/e2e_results.csv", zap_results_file="results/zap/e2e_results.csv", include_pachinqo=False, include_powermove=False, include_qmap=False, include_zap=False, higher_lower_is_better='lower'):
     data_multiq = pd.read_csv(multiq_results_file)
     data_zac = pd.read_csv(zac_results_file)
     data_pachinqo = pd.read_csv(pachinqo_results_file)
@@ -1612,7 +1614,7 @@ def plot_e2e_results_duration(ax, set_size, title,multiq_results_file="results/m
                              errorbar=None,
                              linewidth=1.75,
                              legend_ncol=5,
-                             higher_lower_is_better='lower',
+                             higher_lower_is_better=higher_lower_is_better,
                              higher_lower_is_better_loc=higher_lower_is_better_loc,
                              xlabel='Benchmarks',
                              legend=False,
@@ -1647,8 +1649,18 @@ def plot_e2e_results_duration(ax, set_size, title,multiq_results_file="results/m
     # Add Mean to the x-ticks
     xtick_labels = df['benchmark'].unique().tolist()
     ax.set_ylim(0, max(df['cir_duration']+0.5))  # Set y-axis limits to 0-1000ms for circuit duration
-    ax.set_xticklabels(xtick_labels, rotation=20 if include_pachinqo else 15, ha='right')  # Rotate x-tick labels for better readability
+    ax.set_xticklabels(xtick_labels, fontsize=11)  # Rotate x-tick labels for better readability
     print(f'Mean ratios: \n \t MultiQ (1 Row): {df[df["compiler"] == "MultiQ (1 Row)"]["cir_duration"].mean()} \n \t MultiQ (2 Row): {df[df["compiler"] == "MultiQ (2 Row)"]["cir_duration"].mean()}, \n\t ZAC: {df[df["compiler"] == "ZAC"]["cir_duration"].mean()}')
+
+    # PachinQo's grid solver never terminates on bv_n19 (times out); mark the
+    # placeholder zero-height bar as timed out instead of leaving it blank.
+    if include_pachinqo and 'bv_n19' in xtick_labels:
+        # Pachinqo is always the last hue group in compiler_order when included.
+        pachinqo_bars = ax.containers[-1]
+        bar = pachinqo_bars[xtick_labels.index('bv_n19')]
+        trans = matplotlib.transforms.blended_transform_factory(ax.transData, ax.transAxes)
+        ax.text(bar.get_x() + bar.get_width() / 2, 0, 'x',
+                transform=trans, ha='center', va='bottom', rotation=90, fontsize=12, color='black', fontweight='bold')
 
 def plot_e2e_results_fidelity_means(ax, title, set_sizes, multiq_results_file="results/multiq/e2e_results.csv", zac_results_file="results/zac/e2e_results.csv", pachinqo_results_file="results/pachinqo/e2e_results.csv"):
     data_zac = pd.read_csv(zac_results_file)
@@ -2033,3 +2045,149 @@ def plot_e2e_results_total_runtime(ax, title, set_size, include_pachinqo=False, 
     #Set the x-ticks to the specific labels for MultiQ and ZAC
     #ax.set_xticks(range(1, 6))
     #ax.set_xticklabels(labels, ha='right', rotation=45)  # Rotate x-tick labels for better readability
+
+def _plot_multiq_overhead_breakdown(df, ax, title, xcol, xlabel):
+    """
+    Shared renderer for the three MultiQ overhead-breakdown plots (vs set
+    size / circuit size / QPU size). `df` columns: [xcol, 'row_config',
+    'stage', 'duration']. Stacks MultiQ's own stages (planning, bundling,
+    placement, routing) with the embedded/swappable backend compiler's own
+    per-circuit compilation step ("compilation (backend)") capping the top
+    as its own labeled segment -- MultiQ accepts any NA compiler as that
+    backend, so its cost is shown separately rather than folded into
+    MultiQ's own overhead.
+    """
+    stage_order = ['planning', 'bundling', 'compilation (backend)', 'placement', 'routing']
+    row_order = ['MultiQ\n1 Row', 'MultiQ\n2 Row']
+
+    df['stage'] = pd.Categorical(df['stage'], categories=stage_order, ordered=True)
+    df['row_config'] = pd.Categorical(df['row_config'], categories=row_order, ordered=True)
+
+    ax = bar_plot.stacked_grouped_barplot(df,
+                                          ax=ax,
+                                          grouping_column='row_config',
+                                          stacking_column='stage',
+                                          xcol=xcol,
+                                          ycol='duration',
+                                          title=title,
+                                          title_loc='left',
+                                          linewidth=1.75,
+                                          higher_lower_is_better='lower',
+                                          xlabel=xlabel,
+                                          legend=True,
+                                          legend_loc=(0.5, -0.3),
+                                          legend_ncol=3,
+                                          ylabel='Overhead [s]',
+                                          higher_lower_is_better_loc=(0.62, 1.02))
+
+    return df
+
+
+def plot_multiq_overhead_vs_set_size(ax, title, set_sizes,
+                                      results_file="results/multiq/overhead_by_set_size.csv"):
+    data = pd.read_csv(results_file)
+
+    stage_cols = {
+        'planning': 'planning_time',
+        'bundling': 'bundling_time',
+        'compilation (backend)': 'scheduling_time',
+        'placement': 'placement_time',
+        'routing': 'routing_time',
+    }
+
+    df = pd.DataFrame(columns=['set_size', 'row_config', 'stage', 'duration'])
+    for size in set_sizes:
+        label = f'Set {size}'
+        for row in [1, 2]:
+            row_data = data[(data['set_size'] == size) & (data['n_rows'] == row)]
+            if row_data.empty:
+                continue
+            for stage_label, col in stage_cols.items():
+                df.loc[len(df)] = [label, f'MultiQ\n{row} Row', stage_label, row_data[col].iloc[0]]
+
+    df['set_size'] = pd.Categorical(df['set_size'], categories=[f'Set {s}' for s in set_sizes], ordered=True)
+
+    return _plot_multiq_overhead_breakdown(df, ax, title, xcol='set_size', xlabel='Benchmark set size')
+
+
+def plot_multiq_overhead_vs_circuit_size(ax, title, circuit_sizes,
+                                          results_file_template="results/multiq/overhead_by_circuit_size_{size}q.csv"):
+    stage_cols = {
+        'planning': 'planning_time',
+        'bundling': 'bundling_time',
+        'compilation (backend)': 'scheduling_time',
+        'placement': 'placement_time',
+        'routing': 'routing_time',
+    }
+
+    df = pd.DataFrame(columns=['group', 'row_config', 'stage', 'duration'])
+    for size in circuit_sizes:
+        label = f'~{size}q'
+        data = pd.read_csv(results_file_template.format(size=size))
+        for row in [1, 2]:
+            row_data = data[data['n_rows'] == row]
+            if row_data.empty:
+                continue
+            for stage_label, col in stage_cols.items():
+                df.loc[len(df)] = [label, f'MultiQ\n{row} Row', stage_label, row_data[col].iloc[0]]
+
+    df['group'] = pd.Categorical(df['group'], categories=[f'~{s}q' for s in circuit_sizes], ordered=True)
+
+    return _plot_multiq_overhead_breakdown(df, ax, title, xcol='group', xlabel='Circuit size (6 circuits, fixed QPU)')
+
+
+def plot_multiq_overhead_vs_qpu_size(ax, title, qpu_capacities,
+                                      results_file_template="results/multiq/overhead_by_qpu_size_{capacity}q.csv"):
+    stage_cols = {
+        'planning': 'planning_time',
+        'bundling': 'bundling_time',
+        'compilation (backend)': 'scheduling_time',
+        'placement': 'placement_time',
+        'routing': 'routing_time',
+    }
+
+    df = pd.DataFrame(columns=['group', 'row_config', 'stage', 'duration'])
+    for capacity in qpu_capacities:
+        label = f'~{capacity}q'
+        data = pd.read_csv(results_file_template.format(capacity=capacity))
+        for row in [1, 2]:
+            row_data = data[data['n_rows'] == row]
+            if row_data.empty:
+                continue
+            for stage_label, col in stage_cols.items():
+                df.loc[len(df)] = [label, f'MultiQ\n{row} Row', stage_label, row_data[col].iloc[0]]
+
+    df['group'] = pd.Categorical(df['group'], categories=[f'~{c}q' for c in qpu_capacities], ordered=True)
+
+    return _plot_multiq_overhead_breakdown(df, ax, title, xcol='group', xlabel='QPU capacity (6x30q circuits, fixed)')
+
+
+def plot_e2e_rows_sweep_fidelity(ax, title, row_values,
+                                  results_file_template="results/multiq/rows_sweep_{rows}rows.csv"):
+    """
+    Grouped bar chart: one group per storage-zone row count (`row_values`),
+    one bar per benchmark within each group. MultiQ only -- baselines have
+    no equivalent "storage zone rows" axis.
+    """
+    df = pd.DataFrame(columns=['rows', 'benchmark', 'fidelity'])
+    for rows in row_values:
+        data = pd.read_csv(results_file_template.format(rows=rows))
+        for benchmark in data['benchmark'].unique():
+            df.loc[len(df)] = [str(rows), benchmark, data[data['benchmark'] == benchmark]['cir_fidelity'].item()]
+
+    df['rows'] = pd.Categorical(df['rows'], categories=[str(r) for r in row_values], ordered=True)
+
+    bar_plot.grouped_barplot(df,
+                             ax=ax,
+                             grouping_column='benchmark',
+                             xcol='rows',
+                             ycol='fidelity',
+                             title=title,
+                             title_loc='left',
+                             errorbar=None,
+                             linewidth=1.75,
+                             xlabel='Storage zone rows',
+                             legend=False,
+                             ylabel='Fidelity',
+                             legend_ncol=2)
+    ax.grid(True)

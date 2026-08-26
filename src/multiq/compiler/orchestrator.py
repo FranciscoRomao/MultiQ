@@ -3,6 +3,8 @@ import math
 import os
 import json
 import heapq
+import time
+from multiprocessing import get_context
 
 import networkx as nx
 
@@ -14,6 +16,42 @@ from .placement import PlacementOptimiser
 from .movement import Movement, row_compatible, column_compatible, diagonal_compatible, TileMovement, global_movement
 
 logger = logging.getLogger("multiq")
+
+
+def _schedule_and_place_tile(tile: Tile) -> Tile:
+    """
+    Runs the per-tile half of `Orchestrator.compile()` -- scheduling, initial/
+    intermediate qubit placement, and width/height sizing. The code's own
+    comment already notes this stage has "no cross-tile considerations": the
+    zac scheduler/placer mixins (`Tile.scheduling`/`place_qubit_initial`/
+    `place_qubit_intermedeiate`) and `Tile.collect_reuse_qubit` only ever
+    mutate the tile's own attributes, never `tile.config` or anything shared
+    across tiles, which is what makes this safe to run in a worker process.
+    """
+    tile.scheduling()
+    tile.collect_reuse_qubit()
+    tile.place_qubit_initial()
+    tile.place_qubit_intermedeiate()
+    # placement.py's PlacementOptimiser._get_tile_width_in_cells has
+    # always assumed "tile.width is set by Orchestrator as number of
+    # grid cells" -- it never was (Tile.__init__ only ever
+    # initialises it to 1, and nothing else in the codebase
+    # reassigns it), so every tile was placed as if it were exactly
+    # 1 grid cell wide regardless of its real footprint. Deriving it
+    # here from the tile's own arch_range is what that comment
+    # already assumed happened. Uses arch_range[1][0] (not
+    # arch_range[1][0] - arch_range[0][0]) to stay consistent with
+    # CircuitSelector._simple_fit_check, which already used that
+    # same (padding-blind) width to decide these tiles fit in one
+    # bin together -- a separate, pre-existing padding-accounting
+    # issue, not something to fix here. floor (not the more
+    # physically-conservative ceil) so no single tile's rounding can
+    # push an otherwise-fitting bin over the grid's real capacity.
+    tile.width = max(1, math.floor(
+        tile.architecture.arch_range[1][0] / tile.config.physical_cell_width_um))
+    true_height = tile.architecture.arch_range[1][1] - tile.architecture.arch_range[0][1]
+    tile.height = max(1, math.floor(true_height / tile.config.physical_cell_height_um))
+    return tile
 
 
 class Orchestrator:
@@ -39,6 +77,8 @@ class Orchestrator:
         # currently active tiles. Should never refer to "None" tiles
         # (r,c) indices of the active tiles. It refers to the top-left corner of the tile
         self.active_tiles: list[tuple[int, int]] = []
+
+        self.timing: dict[str, float] = {}
 
     def route(self):
         """ Routes all movements, gate ops, rydberg ops across all of the tiles. """
@@ -408,41 +448,32 @@ class Orchestrator:
     def compile(self):
         # Target compilation per-tile with no cross-tile considerations
         # ZAC compilation
-        for tile in self.tiles_to_place:
-            if tile is None:
-                continue
-            # gate scheduling with graph colouring
-            tile.scheduling()
-            tile.collect_reuse_qubit()
-            tile.place_qubit_initial()
-            tile.place_qubit_intermedeiate()
-            # placement.py's PlacementOptimiser._get_tile_width_in_cells has
-            # always assumed "tile.width is set by Orchestrator as number of
-            # grid cells" -- it never was (Tile.__init__ only ever
-            # initialises it to 1, and nothing else in the codebase
-            # reassigns it), so every tile was placed as if it were exactly
-            # 1 grid cell wide regardless of its real footprint. Deriving it
-            # here from the tile's own arch_range is what that comment
-            # already assumed happened. Uses arch_range[1][0] (not
-            # arch_range[1][0] - arch_range[0][0]) to stay consistent with
-            # CircuitSelector._simple_fit_check, which already used that
-            # same (padding-blind) width to decide these tiles fit in one
-            # bin together -- a separate, pre-existing padding-accounting
-            # issue, not something to fix here. floor (not the more
-            # physically-conservative ceil) so no single tile's rounding can
-            # push an otherwise-fitting bin over the grid's real capacity.
-            tile.width = max(1, math.floor(
-                tile.architecture.arch_range[1][0] / self.config.physical_cell_width_um))
-            true_height = tile.architecture.arch_range[1][1] - tile.architecture.arch_range[0][1]
-            tile.height = max(1, math.floor(true_height / self.config.physical_cell_height_um))
+        scheduling_start = time.perf_counter()
+
+        active_indices = [i for i, tile in enumerate(self.tiles_to_place) if tile is not None]
+        active_tiles = [self.tiles_to_place[i] for i in active_indices]
+
+        if len(active_tiles) <= 1:
+            processed_tiles = [_schedule_and_place_tile(t) for t in active_tiles]
+        else:
+            with get_context("fork").Pool(processes=min(len(active_tiles), os.cpu_count() or 1)) as pool:
+                processed_tiles = pool.map(_schedule_and_place_tile, active_tiles)
+
+        for i, tile in zip(active_indices, processed_tiles):
+            self.tiles_to_place[i] = tile
         # ----
+        self.timing["scheduling"] = time.perf_counter() - scheduling_start
 
         # Only once we have scheduling info, do we place on the tile grid
+        placement_start = time.perf_counter()
         optim = PlacementOptimiser(self.config, self.tiles_to_place)
         self.tiles = optim.optimise_placement()
+        self.timing["placement"] = time.perf_counter() - placement_start
 
         # Routing must be done globally
+        routing_start = time.perf_counter()
         self.route()
+        self.timing["routing"] = time.perf_counter() - routing_start
 
         logger.info("Total runtimes:")
         for i, row in enumerate(self.tiles):

@@ -2,6 +2,7 @@ import json
 import os
 import queue
 import re
+import time
 from itertools import chain
 from multiprocessing import get_context
 
@@ -230,6 +231,8 @@ def _compile_worker(q, benchmark_path: str, arch_json_str: str, placement_method
         arch = ZonedNeutralAtomArchitecture.from_json_string(arch_json_str)
         circuit = QuantumCircuit.from_qasm_file(benchmark_path)
         n = circuit.num_qubits
+        compile_start = time.perf_counter()
+
         qc = load_qc(_transpile(circuit))
 
         compiler = RoutingAwareCompiler(
@@ -244,8 +247,11 @@ def _compile_worker(q, benchmark_path: str, arch_json_str: str, placement_method
         )
         code = compiler.compile(qc)
 
+        compilation_time = time.perf_counter() - compile_start
+
         metrics = _NavizEvaluator(arch_dict).evaluate(code)
         metrics["nqubits"] = n
+        metrics["compilation_time"] = compilation_time
         q.put(("ok", metrics))
     except Exception as e:  # noqa: BLE001 - reported to the parent, not raised here
         q.put(("err", repr(e)))
@@ -337,6 +343,7 @@ def run_qmap_single_benchmarks(benchmark_file: str, arch_spec_path: str, output_
             "total_1q_gate_fidelity",
             "cir_duration",
             "placement_method_used",
+            "compilation_time",
         ]
     )
 
@@ -350,6 +357,7 @@ def run_qmap_single_benchmarks(benchmark_file: str, arch_spec_path: str, output_
         metrics["total_1q_gate_fidelity"],
         metrics["cir_duration"],
         metrics["placement_method_used"],
+        metrics["compilation_time"],
     ]
 
     if not os.path.isfile(output_file):

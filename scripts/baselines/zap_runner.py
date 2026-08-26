@@ -1,5 +1,6 @@
 import os
 import sys
+import time
 
 import pandas as pd
 from qiskit import QuantumCircuit, transpile
@@ -108,6 +109,8 @@ def _build_g_q(circuit: QuantumCircuit) -> tuple:
 
 
 def _compile_one(benchmark_path: str, architecture: dict) -> dict:
+    compile_start = time.perf_counter()
+
     circuit = QuantumCircuit.from_qasm_file(benchmark_path)
     g_q, n_1q_gate, n_2q_gate, n_q = _build_g_q(circuit)
 
@@ -148,6 +151,8 @@ def _compile_one(benchmark_path: str, architecture: dict) -> dict:
     )
     results_code = router.results_code
 
+    compilation_time = time.perf_counter() - compile_start
+
     simulator = Simulator(results_code=results_code, architecture=architecture)
 
     return {
@@ -159,6 +164,7 @@ def _compile_one(benchmark_path: str, architecture: dict) -> dict:
         "total_2q_gate_fidelity": simulator.cir_fidelity_2q_gate,
         "total_1q_gate_fidelity": simulator.cir_fidelity_1q_gate,
         "cir_duration": simulator.total_duration,
+        "compilation_time": compilation_time,
     }
 
 
@@ -190,6 +196,7 @@ def run_zap_single_benchmarks(benchmark_file: str, arch_spec_path: str, output_f
             "total_2q_gate_fidelity",
             "total_1q_gate_fidelity",
             "cir_duration",
+            "compilation_time",
         ]
     )
 
@@ -203,6 +210,7 @@ def run_zap_single_benchmarks(benchmark_file: str, arch_spec_path: str, output_f
         metrics["total_2q_gate_fidelity"],
         metrics["total_1q_gate_fidelity"],
         metrics["cir_duration"],
+        metrics["compilation_time"],
     ]
 
     if not os.path.isfile(output_file):

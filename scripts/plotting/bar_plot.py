@@ -311,7 +311,9 @@ def stacked_grouped_barplot(data,
                            higher_lower_is_better_loc=(0.85, 1.2),
                            yscale=None,
                            normalize=False,
-                           xticks=True):
+                           xticks=True,
+                           group_legend_loc=None,
+                           group_legend_ncol=None):
     """
     Create a grouped stacked barplot
     
@@ -465,17 +467,40 @@ def stacked_grouped_barplot(data,
         # Create legend for stacking categories only
         stack_handles = []
         for j, category in enumerate(categories):
-            handle = plt.Rectangle((0,0), 1, 1, 
-                                 color=colors[j], 
-                                 edgecolor='black', 
+            handle = plt.Rectangle((0,0), 1, 1,
+                                 color=colors[j],
+                                 edgecolor='black',
                                  linewidth=linewidth)
             stack_handles.append(handle)
 
         # Create the main legend for categories
-        ax.legend(stack_handles, categories, 
-                  loc=legend_loc, 
+        stage_legend = ax.legend(stack_handles, categories,
+                  loc=legend_loc,
                   ncol=legend_ncol,
-                  fontsize=12, 
+                  fontsize=12,
+                  title='')
+        # ax.legend() replaces any existing legend on the axes -- keep this
+        # one around as a plain artist so the group (hatch) legend added
+        # below doesn't clobber it.
+        ax.add_artist(stage_legend)
+
+        # Second legend distinguishing the hatch-per-group bars (e.g. "1
+        # Row" vs "2 Row") -- previously missing entirely, since the block
+        # above only ever labeled the stacking colors.
+        group_handles = [
+            plt.Rectangle((0, 0), 1, 1,
+                         facecolor='white',
+                         edgecolor='black',
+                         linewidth=linewidth,
+                         hatch=hatch_map.get(group, hatches[i % len(hatches)]))
+            for i, group in enumerate(groups)
+        ]
+        resolved_group_legend_loc = group_legend_loc if group_legend_loc is not None else (legend_loc[0], legend_loc[1] - 0.18)
+        resolved_group_legend_ncol = group_legend_ncol if group_legend_ncol is not None else len(groups)
+        ax.legend(group_handles, groups,
+                  loc=resolved_group_legend_loc,
+                  ncol=resolved_group_legend_ncol,
+                  fontsize=12,
                   title='')
 
         if xticks:
