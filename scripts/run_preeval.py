@@ -26,6 +26,7 @@ import eval_functions as ppfunctions
 from plotting import utils, bar_plot, defaults
 from matplotlib import gridspec, figure
 
+'''
 def compute_fidelity(returned_values,cir_qubits):
     layers  = returned_values[0]
     total_move_distance = returned_values[1]
@@ -791,6 +792,7 @@ def run_zac_layout_preeval():
         data.to_csv(f"results/preeval/zac_results.csv", index=False)
     else:
         data.to_csv(f"results/preeval/zac_results.csv", mode='a', header=False, index=False)
+'''
 
 # ----- Motivation / preliminary-eval plots -----
 # Folded in from the former scripts/plot_preeval.py and
@@ -799,6 +801,7 @@ def run_zac_layout_preeval():
 # here so they can be registered as experiments below.
 
 
+'''
 def plot_preeval_motivation():
     # Was scripts/plot_preeval.py. `legend_handles_scatter`/`legend_labels_scatter`
     # were referenced below without being defined -- the call that produces
@@ -835,6 +838,7 @@ def plot_preeval_motivation():
     fig.tight_layout(rect=(0.005, 0.07, 1, 1), h_pad=0.005)
 
     fig.savefig('results/preeval/preeval.pdf', format='pdf')
+'''
 
 
 def plot_introduction_figures():
@@ -867,14 +871,9 @@ EXPERIMENTS = [
         "Paper introduction/motivation figure (fidelity/init-time/exec-time vs. ZAC/PachinQo/Atomique)",
         plot_fn=plot_introduction_figures,
     ),
-    Experiment(
-        "preeval_zac",
-        "Preliminary ZAC single-benchmark fidelity sweep",
-        data_fn=run_preeval_zac,
-        plot_fn=plot_preeval_motivation,
-    ),
-    Experiment("preeval_pachinqo", "Preliminary PachinQo single-benchmark fidelity sweep", data_fn=run_preeval_pachinqo),
-    Experiment("preeval_zac_layouts", "Preliminary ZAC layout-ratio fidelity sweep", data_fn=run_zac_layout_preeval),
+    # Other experiments (preeval_zac, preeval_pachinqo, preeval_zac_layouts)
+    # commented out along with their functions above -- not needed for the
+    # current plot set.
 ]
 
 

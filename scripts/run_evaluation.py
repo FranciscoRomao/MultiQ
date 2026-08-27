@@ -1,6 +1,7 @@
 import argparse
 import os
 import sys
+import time
 from dataclasses import dataclass
 
 # Makes this runnable both as `python scripts/run_evaluation.py` (from repo root)
@@ -41,7 +42,10 @@ import pandas as pd
 import matplotlib.gridspec as gridspec
 
 # Set up logging only for multiq messages
-logging.basicConfig(level=logging.INFO, format="[%(levelname)s] %(name)s: %(message)s")
+# %(asctime)s so every logger.info(...) call (here and in the baseline
+# runner modules) is timestamped -- otherwise a 3-hour run's log looks
+# identical whether it's progressing or stuck.
+logging.basicConfig(level=logging.INFO, format="[%(asctime)s] [%(levelname)s] %(name)s: %(message)s", datefmt="%H:%M:%S")
 logging.getLogger("qiskit").setLevel(logging.WARNING)
 logging.getLogger("fontTools").setLevel(logging.WARNING)
 logging.getLogger("matplotlib").setLevel(logging.WARNING)
@@ -49,6 +53,13 @@ logging.getLogger("stevedore").setLevel(logging.WARNING)
 logging.getLogger("PIL").setLevel(logging.WARNING)
 
 logger = logging.getLogger("multiq.evaluation")
+
+
+def _progress(msg):
+    # Long sweeps (hours) otherwise print nothing per-benchmark -- every
+    # progress line gets a wall-clock timestamp so a stalled/hung run is
+    # visible from the gap between timestamps, not just silence.
+    print(f"[{time.strftime('%H:%M:%S')}] {msg}", flush=True)
 
 # Base configs/architectures in config/multiq and config/zac are read-only
 # templates -- every sweep below derives a per-run working copy instead of
@@ -95,10 +106,16 @@ def run_end_to_end_evaluation():
     multiq_results_file = os.path.join(os.path.dirname(__file__), f"../results/multiq/e2e_results.csv")
 
     # Running baselines (ZAC, Pachinqo, PowerMove, qmap and ZAP) on single benchmarks
-    for _, bench in enumerate(multi_benchmark_set_pachinqo):
+    n_pachinqo = len(multi_benchmark_set_pachinqo)
+    _progress(f"Baseline sweep (PachinQo): {n_pachinqo} benchmarks")
+    for i, bench in enumerate(multi_benchmark_set_pachinqo):
+        _progress(f"  [{i + 1}/{n_pachinqo}] PachinQo: {bench}")
         run_pachiqo_single_benchmark(bench, zac_settings_file, pachinqo_results_file)
 
-    for _, bench in enumerate(multi_benchmark_set):
+    n_single = len(multi_benchmark_set)
+    _progress(f"Baseline sweep (ZAC/PowerMove/QMAP/ZAP): {n_single} benchmarks")
+    for i, bench in enumerate(multi_benchmark_set):
+        _progress(f"  [{i + 1}/{n_single}] {bench}")
         run_zac_single_benchmarks(bench, zac_settings_file, zac_results_file)
         run_powermove_single_benchmarks(bench, general_arch_file, powermove_results_file)
         run_qmap_single_benchmarks(bench, general_arch_file, qmap_results_file)
@@ -109,8 +126,10 @@ def run_end_to_end_evaluation():
     random.seed(42)  # For reproducibility
     multi_benchmark_sets = [random.sample(multi_benchmark_set, size) for size in set_sizes]
 
+    n_multiq_configs = len(multi_benchmark_sets) * 2
+    multiq_config_idx = 0
     for benchmark_set in multi_benchmark_sets:
-        print(f"Running MultiQ with benchmark set of size {len(benchmark_set)}")
+        _progress(f"Running MultiQ with benchmark set of size {len(benchmark_set)}")
 
         for rows in [1, 2]:
             with open(base_config_file, "r") as file:
@@ -158,13 +177,16 @@ def run_end_to_end_evaluation():
                 config, f"e2e_config_set{len(benchmark_set)}_rows{rows}.yaml"
             )
 
-            print(f"Running MultiQ with {rows} rows")
+            multiq_config_idx += 1
+            _progress(f"  [{multiq_config_idx}/{n_multiq_configs}] MultiQ, set size {len(benchmark_set)}, {rows} row(s)")
 
             run_multiq(
                 benchmarks=benchmark_set,
                 config_file=generated_config_file,
                 output_file=multiq_results_file,
             )
+
+    _progress("run_end_to_end_evaluation done")
 
 
 # ----- 2. MultiQ overhead evaluation -----
@@ -187,7 +209,16 @@ def run_end_to_end_evaluation():
 OVERHEAD_ALGORITHMS = ["dj", "ghz", "qft", "bv", "qpeinexact", "graphstate"]
 
 
+'''
 def run_multiq_overhead_vs_set_size():
+    # Redundant with run_end_to_end_evaluation: same seed(42), same
+    # set_sizes, same perf_weight table -- it re-runs the identical 12 MultiQ
+    # configs (6 sizes x 2 rows) just to write them to a separate CSV.
+    # run_multiq() already records planning/bundling/scheduling/placement/
+    # routing_time on every call, so plot_multiq_overhead_vs_set_size now
+    # reads those columns straight out of results/multiq/e2e_results.csv
+    # instead. Left here commented in case the e2e sweep's config/benchmark
+    # pool ever diverges from this one and a dedicated run is needed again.
     multi_benchmark_set = open("data/multi_eval_bench_list.txt").read().splitlines()
     set_sizes = [4, 6, 8, 10, 12, 14]
 
@@ -227,6 +258,7 @@ def run_multiq_overhead_vs_set_size():
                 config_file=tmp_config_path,
                 output_file=results_file,
             )
+'''
 
 
 def run_multiq_overhead_vs_circuit_size():
@@ -272,6 +304,8 @@ def run_multiq_overhead_vs_circuit_size():
     fixed_arch, _, _ = generate_scaled_arch(largest_demand, out_arch_path=arch_path, target_utilization=0.1)
     fixed_qpu_width, fixed_qpu_height = fixed_arch["arch_range"][1]
 
+    n_configs = len(circuit_sizes) * 2
+    config_idx = 0
     for size in circuit_sizes:
         benchmark_set = [f"single/{algo}-{size}.qasm" for algo in OVERHEAD_ALGORITHMS]
 
@@ -289,13 +323,16 @@ def run_multiq_overhead_vs_circuit_size():
             with open(tmp_config_path, "w") as file:
                 yaml.dump(config, file)
 
-            print(f"Running MultiQ overhead eval for circuit size {size}q with {rows} rows (fixed QPU)")
+            config_idx += 1
+            _progress(f"  [{config_idx}/{n_configs}] MultiQ overhead eval for circuit size {size}q with {rows} rows (fixed QPU)")
 
             run_multiq(
                 benchmarks=benchmark_set,
                 config_file=tmp_config_path,
                 output_file=results_file,
             )
+
+    _progress("run_multiq_overhead_vs_circuit_size done")
 
 
 def run_multiq_overhead_vs_qpu_size():
@@ -322,6 +359,8 @@ def run_multiq_overhead_vs_qpu_size():
         for capacity in qpu_capacities
     }
 
+    n_configs = len(qpu_capacities) * 2
+    config_idx = 0
     for capacity in qpu_capacities:
         arch, actual_r, actual_c = group_archs[capacity]
         qpu_width, qpu_height = arch["arch_range"][1]
@@ -349,13 +388,16 @@ def run_multiq_overhead_vs_qpu_size():
             with open(tmp_config_path, "w") as file:
                 yaml.dump(config, file)
 
-            print(f"Running MultiQ overhead eval for QPU capacity {capacity}q (actual {actual_r}x{actual_c}) with {rows} rows")
+            config_idx += 1
+            _progress(f"  [{config_idx}/{n_configs}] MultiQ overhead eval for QPU capacity {capacity}q (actual {actual_r}x{actual_c}) with {rows} rows")
 
             run_multiq(
                 benchmarks=benchmark_set,
                 config_file=tmp_config_path,
                 output_file=results_file,
             )
+
+    _progress("run_multiq_overhead_vs_qpu_size done")
 
 
 # ----- 3. Storage-zone rows sweep (reviewer request) -----
@@ -416,7 +458,7 @@ def run_multiq_rows_sweep():
             if os.path.isfile(results_file):
                 os.remove(results_file)  # run_multiq appends -- start fresh per point
 
-            print(f"Running MultiQ rows sweep: target storage rows={target_rows}, actual={actual_rows} (qpu_height={qpu_height})")
+            _progress(f"Running MultiQ rows sweep: target storage rows={target_rows}, actual={actual_rows} (qpu_height={qpu_height})")
             try:
                 run_multiq(
                     benchmarks=benchmark_set,
@@ -425,18 +467,19 @@ def run_multiq_rows_sweep():
                 )
                 nbins = pd.read_csv(results_file)["nbins"].iloc[0]
                 if nbins != 1:
-                    print(f"rows={actual_rows} bundled into {nbins} bins (expected 1) with perf_weight={config['perf_weight']} -- "
+                    _progress(f"rows={actual_rows} bundled into {nbins} bins (expected 1) with perf_weight={config['perf_weight']} -- "
                           f"add a lower override to perf_weight_by_rows for this point to force a single bin")
                 achieved_rows.append(actual_rows)
                 break
             except Exception as e:
-                print(f"rows={actual_rows} infeasible ({e}); bumping up and retrying")
+                _progress(f"rows={actual_rows} infeasible ({e}); bumping up and retrying")
                 actual_rows += 5
 
-    print(f"Rows sweep complete. Achieved row counts: {achieved_rows}")
+    _progress(f"Rows sweep complete. Achieved row counts: {achieved_rows}")
     return achieved_rows
 
 
+'''
 def plot_e2e_detailed_half():
     # ----- Plot end-to-end evaluation results fidelity and exection time for MultiQ and baselines
 
@@ -482,6 +525,7 @@ def plot_e2e_detailed_half():
         fig.legend(loc='lower center', bbox_to_anchor=(0.52, 0), ncol=5, fontsize=11, frameon=True, labels=['MultiQ (1 Row)', 'MultiQ (2 Row)', 'ZAC'], title_fontsize=11)
 
     fig.savefig("results/plots/e2e_plot_detailed.pdf", format="pdf")
+'''
 
 def plot_e2e_detailed(rows_sweep_values=ROWS_SWEEP_TARGETS):
     # ----- Plot end-to-end evaluation results fidelity and exection time for MultiQ and baselines
@@ -598,6 +642,7 @@ def plot_e2e_detailed(rows_sweep_values=ROWS_SWEEP_TARGETS):
 
     fig.savefig("results/plots/e2e_plot_detailed.pdf", format="pdf")
 
+'''
 def plot_e2e_detailed_full():
     # ----- Plot end-to-end evaluation results fidelity and exection time for MultiQ and baselines
 
@@ -662,6 +707,7 @@ def plot_e2e_detailed_full():
     )
 
     fig.savefig("results/plots/e2e_plot_detailed_full.pdf", format="pdf")
+'''
 
 
 def plot_e2e_total_runtime(include_powermove=True, include_qmap=True, include_zap=True):
@@ -943,6 +989,7 @@ def plot_e2e_total_runtime(include_powermove=True, include_qmap=True, include_za
     fig.savefig("results/plots/e2e_durations.pdf", format="pdf")
 
 
+'''
 def plot_e2e_total_runtime_complete():
     # ----- Plot end-to-end evaluation results total runtime for MultiQ and baselines
 
@@ -1049,6 +1096,7 @@ def plot_e2e_means():
     )
 
     fig.savefig("results/plots/e2e_plot_means.pdf", format="pdf")
+'''
 
 '''
 def plot_planner_bundler():
@@ -1248,9 +1296,10 @@ def run_bundler_eval(set_sizes=None, perf_weights=None, config_file=None, result
 
     multiq_results_file = os.path.join(os.path.dirname(__file__), f"../results/multiq/bundler_results.csv")
 
-    for benchmark_set in benchmark_sets:
+    n_fifo = len(benchmark_sets)
+    for i, benchmark_set in enumerate(benchmark_sets):
         bench = "-".join([os.path.basename(b).split(".")[0] for b in benchmark_set])
-        logger.info(f"Running MultiQ with FIFO selection algorithm on benchmark set: {bench}")
+        logger.info(f"[{i + 1}/{n_fifo}] Running MultiQ with FIFO selection algorithm on benchmark set: {bench}")
         run_multiq(
             benchmarks=benchmark_set,
             config_file=fifo_config_file,
@@ -1258,6 +1307,8 @@ def run_bundler_eval(set_sizes=None, perf_weights=None, config_file=None, result
         )
 
     temporal_util_weights = [0, 0.2, 0.4, 0.6, 0.8, 1][::-1]  # Performance selection weights for bundler evaluation
+    n_sa_configs = len(temporal_util_weights) * len(benchmark_sets)
+    sa_config_idx = 0
 
     for weight in temporal_util_weights:
         # Setting up config for fifo selection evaluation
@@ -1273,14 +1324,17 @@ def run_bundler_eval(set_sizes=None, perf_weights=None, config_file=None, result
 
         for benchmark_set in benchmark_sets:
             bench = "-".join([os.path.basename(b).split(".")[0] for b in benchmark_set])
+            sa_config_idx += 1
             logger.info(
-                f"Running MultiQ with bundler evaluation on benchmark: {bench} with temporal utilization weight: {weight}"
+                f"[{sa_config_idx}/{n_sa_configs}] Running MultiQ with bundler evaluation on benchmark: {bench} with temporal utilization weight: {weight}"
             )
             run_multiq(
                 benchmarks=benchmark_set,
                 config_file=sa_config_file,
                 output_file=multiq_results_file,
             )
+
+    _progress("run_bundler_eval done")
 
     """
     # Plot bundler evaluation results
@@ -1391,12 +1445,16 @@ def run_controller_eval():
             run_multiq(benchmarks=benchmark_set, config_file=multiq_config_file, output_file=multiq_results_file)
     """
 
-    for benchmark_set in multi_benchmark_sets:
+    n_sets = len(multi_benchmark_sets)
+    for i, benchmark_set in enumerate(multi_benchmark_sets):
+        _progress(f"[{i + 1}/{n_sets}] Controller baselines (ZAC/PowerMove/QMAP/ZAP) on merged set of size {len(benchmark_set)}")
         run_zac_merge_benchmarks(benchmark_set, zac_settings_file, zac_results_file)
         run_powermove_merge_benchmarks(benchmark_set, general_arch_file, powermove_results_file)
         run_qmap_merge_benchmarks(benchmark_set, general_arch_file, qmap_results_file)
         run_zap_merge_benchmarks(benchmark_set, general_arch_file, zap_results_file)
         # run_pachiqo_single_benchmarks(benchmark_set, pachinqo_settings_file, output_file="results/pachinqo_results.csv")
+
+    _progress("run_controller_eval done")
 
 
 def plot_controller_eval(include_powermove=True, include_qmap=True, include_zap=True):
@@ -1439,6 +1497,7 @@ def plot_controller_eval(include_powermove=True, include_qmap=True, include_zap=
     fig.savefig("results/plots/controller_plot.pdf", format="pdf")
 
 
+'''
 def plot_controller_eval_half(include_powermove=True, include_qmap=True, include_zap=True):
     fig, [ax0] = utils.gen_subplots(1, 1, figsize=(7, 3))
 
@@ -1540,6 +1599,7 @@ def plot_e2e_multiq_overhead_vs_qpu_size():
     )
 
     _finish_overhead_plot(fig, ax, "results/plots/multiq_overhead_vs_qpu_size.pdf")
+'''
 
 
 def plot_e2e_multiq_overhead_combined():
@@ -1551,6 +1611,12 @@ def plot_e2e_multiq_overhead_combined():
         ax=axes[0],
         title="vs set size",
         set_sizes=[4, 6, 8, 10, 12, 14],
+        # Reuses "e2e"'s output instead of a dedicated overhead_by_set_size.csv
+        # sweep -- run_multiq() already records the same timing columns on
+        # every call, and the e2e sweep covers the identical 6 sizes x 2 rows
+        # configs (same seed, same perf_weight table). See
+        # run_multiq_overhead_vs_set_size's comment for the full rationale.
+        results_file="results/multiq/e2e_results.csv",
     )
     eval.plot_multiq_overhead_vs_circuit_size(
         ax=axes[1],
@@ -1610,36 +1676,26 @@ EXPERIMENTS = [
         data_fn=run_end_to_end_evaluation,
         plot_fn=plot_e2e_detailed,
     ),
-    Experiment("e2e_half", "e2e figure, fidelity-only single-panel variant", plot_fn=plot_e2e_detailed_half),
-    Experiment("e2e_full", "e2e figure, all set sizes variant", plot_fn=plot_e2e_detailed_full),
     Experiment("e2e_total_runtime", "e2e total runtime (broken y-axis)", plot_fn=plot_e2e_total_runtime),
-    Experiment(
-        "e2e_total_runtime_complete",
-        "e2e total runtime, full set-size range",
-        plot_fn=plot_e2e_total_runtime_complete,
-    ),
-    Experiment("e2e_means", "e2e fidelity/duration means across set sizes", plot_fn=plot_e2e_means),
-    Experiment(
-        "overhead_set_size",
-        "MultiQ's own compilation overhead vs. circuit-set size",
-        data_fn=run_multiq_overhead_vs_set_size,
-        plot_fn=plot_e2e_multiq_overhead_vs_set_size,
-    ),
+    # Data-only entries below: no plot_fn since their own individual plot
+    # functions are commented out for now, but their data still feeds
+    # "overhead_combined" below. overhead_set_size has no entry here anymore
+    # -- it's redundant with "e2e"'s data (see run_multiq_overhead_vs_set_size's
+    # comment); plot_e2e_multiq_overhead_combined now reads e2e_results.csv
+    # for that panel instead.
     Experiment(
         "overhead_circuit_size",
-        "MultiQ's own compilation overhead vs. circuit size (fixed QPU)",
+        "MultiQ's own compilation overhead vs. circuit size (fixed QPU) (data only)",
         data_fn=run_multiq_overhead_vs_circuit_size,
-        plot_fn=plot_e2e_multiq_overhead_vs_circuit_size,
     ),
     Experiment(
         "overhead_qpu_size",
-        "MultiQ's own compilation overhead vs. QPU size (fixed circuits)",
+        "MultiQ's own compilation overhead vs. QPU size (fixed circuits) (data only)",
         data_fn=run_multiq_overhead_vs_qpu_size,
-        plot_fn=plot_e2e_multiq_overhead_vs_qpu_size,
     ),
     Experiment(
         "overhead_combined",
-        "All three overhead sweeps side by side (needs the three overhead_* experiments' data)",
+        "All three overhead sweeps side by side (needs 'e2e' and the two overhead_* experiments' data)",
         plot_fn=plot_e2e_multiq_overhead_combined,
     ),
     Experiment("planner", "MultiQ planner evaluation", data_fn=run_planner_eval, plot_fn=plot_planner),
@@ -1647,7 +1703,6 @@ EXPERIMENTS = [
     Experiment(
         "controller", "Controller evaluation vs. baselines", data_fn=run_controller_eval, plot_fn=plot_controller_eval
     ),
-    Experiment("controller_half", "Controller figure, decoherence-only single-panel variant", plot_fn=plot_controller_eval_half),
 ]
 
 
@@ -1686,15 +1741,22 @@ def main():
         if unknown:
             raise SystemExit(f"Unknown experiment(s): {', '.join(sorted(unknown))}. Use --list to see available names.")
 
+    run_start = time.time()
     for exp in EXPERIMENTS:
         if selected_names is not None and exp.name not in selected_names:
             continue
         if exp.data_fn and not args.plots_only:
-            print(f"=== [{exp.name}] collecting data ===")
+            _progress(f"=== [{exp.name}] collecting data ===")
+            stage_start = time.time()
             exp.data_fn()
+            _progress(f"=== [{exp.name}] data done in {time.time() - stage_start:.1f}s (total elapsed {time.time() - run_start:.1f}s) ===")
         if exp.plot_fn and not args.data_only:
-            print(f"=== [{exp.name}] plotting ===")
+            _progress(f"=== [{exp.name}] plotting ===")
+            stage_start = time.time()
             exp.plot_fn()
+            _progress(f"=== [{exp.name}] plot done in {time.time() - stage_start:.1f}s (total elapsed {time.time() - run_start:.1f}s) ===")
+
+    _progress(f"All selected experiments done in {time.time() - run_start:.1f}s")
 
 
 if __name__ == "__main__":
