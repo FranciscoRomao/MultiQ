@@ -17,6 +17,27 @@ pdm.lock
 
 baselines/atomique
 data/benchmarks
+# Exceptions: the fixed corpus referenced by data/*_bench_list*.txt (used by
+# run_evaluation.py's multi-circuit experiments). Committed because it's not
+# reproducibly regenerable -- it's a mix of QASMBench circuits and an old
+# (v1.0.0) MQT Bench snapshot, and current mqt.bench no longer has several
+# of these benchmark names.
+!data/benchmarks/
+!data/benchmarks/single/
+!data/benchmarks/single/bv_n14.qasm
+!data/benchmarks/single/bv_n19.qasm
+!data/benchmarks/single/cat_n22.qasm
+!data/benchmarks/single/dj_n16.qasm
+!data/benchmarks/single/dj_n26.qasm
+!data/benchmarks/single/ghz_n23.qasm
+!data/benchmarks/single/graphstate_n20.qasm
+!data/benchmarks/single/hamsim_n18.qasm
+!data/benchmarks/single/knn_n25.qasm
+!data/benchmarks/single/multiply_n13.qasm
+!data/benchmarks/single/qaoa_maxcut_n14.qasm
+!data/benchmarks/single/swap_test_n25.qasm
+!data/benchmarks/single/wstate_n24.qasm
+!data/benchmarks/single/wstate_n27.qasm
 organize
 figures/
 results/zac
@@ -24,3 +45,9 @@ results/zac
 results
 
 lixo
+
+# Per-run configs derived from the tracked base configs/architectures in
+# config/multiq and config/zac (written by scripts/run_evaluation.py and
+# scripts/run_preeval.py) -- never hand-edit, always regenerated.
+config/multiq/_generated/
+config/zac/_generated/
