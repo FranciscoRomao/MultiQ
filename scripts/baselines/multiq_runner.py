@@ -146,11 +146,16 @@ def run_multiq_bundler_eval(set_sizes:list[int] = [5, 6], perf_weights:list[floa
                                    float(avg_transfer_fidelity),
                                    avg_circuit_duration,
                                    cummulative_duration]
+
+            if not os.path.isfile(results_file):
+                data.to_csv(results_file, index=False)
+            else:
+                data.to_csv(results_file, mode='a', header=False, index=False)
     
-            data.to_csv(results_file, mode='a', header=False, index=False)
+            data.drop(data.index[-1], inplace=True)
+            #data.to_csv(results_file, mode='a', header=False, index=False)
 
             # Clean data because it was already saved
-            data.drop(data.index[-1], inplace=True)
 
 def run_multiq(benchmarks:list[str], config_file:str = "../../config/multiq/config.yaml", output_file:str = "../../results/multiq/results.csv"):
 

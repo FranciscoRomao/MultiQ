@@ -374,21 +374,21 @@ class CircuitSASelector:
             #raise ValueError("Cannot evaluate cost for empty bin")
         
         if len(tiles) == 1:
-            merged_circuit = circuits[0]
+            ##merged_circuit = circuits[0]
             performance_cost = 0.0
         else:
-            merged_circuit = self.merge_circuits(circuits)
+            ##merged_circuit = self.merge_circuits(circuits)
         
-            merged_dag = circuit_to_dag(merged_circuit)
-            layers = self.split_dag_into_layers(merged_dag, self.window)
+            ##merged_dag = circuit_to_dag(merged_circuit)
+            ##layers = self.split_dag_into_layers(merged_dag, self.window)
 
-            entanglement_layers = 0
+            ##entanglement_layers = 0
             
-            for layer_nodes in layers:
-                if any(i.num_qubits > 1 for i in layer_nodes):  # Fixed: should be > 1, not > 0
-                    entanglement_layers += 1
+            ##for layer_nodes in layers:
+            ##    if any(i.num_qubits > 1 for i in layer_nodes):  # Fixed: should be > 1, not > 0
+            ##        entanglement_layers += 1
 
-            #layers_cost = self.circuit_layer_cost(layers)
+            ##layers_cost = self.circuit_layer_cost(layers)
 
             # This is the minimum number of layers needed to execute the merged circuit
             # equivalent to the longest circuit execution 
@@ -399,8 +399,10 @@ class CircuitSASelector:
             
             max_layer_diff = max_layers - fastest_circuit
 
-            performance_cost = (((len(layers) - best_layers)/(best_layers)) + max_layer_diff/best_layers) * performance_scaling_factor 
-            logger.debug(f"Bin {bin_idx} cost evaluation: max_layers={max_layers}, bin_layers={len(layers)}, best_layers={best_layers}, max_layer_diff={max_layer_diff}, perfor_cost = {performance_cost}")
+            ##performance_cost = (((len(layers) - best_layers)/(best_layers)) + max_layer_diff/best_layers) * performance_scaling_factor 
+            performance_cost = max_layer_diff/best_layers * performance_scaling_factor 
+            logger.debug(f"Bin {bin_idx} cost evaluation: max_layers={max_layers}, fastest_circuit={fastest_circuit}, best_layers={best_layers}, max_layer_diff={max_layer_diff}, performance_cost = {performance_cost}")
+            ##logger.debug(f"Bin {bin_idx} cost evaluation: max_layers={max_layers}, bin_layers={len(layers)}, best_layers={best_layers}, max_layer_diff={max_layer_diff}, perfor_cost = {performance_cost}")
 
         summed_layout_width = sum([i.architecture.arch_range[1][0] for i in tiles])
         #avg_layout_width = summed_layout_width / len(tiles)
