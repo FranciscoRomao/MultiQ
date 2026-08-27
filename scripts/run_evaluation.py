@@ -70,8 +70,10 @@ def _progress(msg):
 # pipeline output.
 GENERATED_CONFIG_DIR = os.path.join(os.path.dirname(__file__), "..", "config/multiq/_generated")
 GENERATED_ARCH_DIR = os.path.join(os.path.dirname(__file__), "..", "config/zac/_generated")
+PLOTS_DIR = os.path.join(os.path.dirname(__file__), "..", "results/plots")
 os.makedirs(GENERATED_CONFIG_DIR, exist_ok=True)
 os.makedirs(GENERATED_ARCH_DIR, exist_ok=True)
+os.makedirs(PLOTS_DIR, exist_ok=True)
 
 
 def _write_generated_config(config, filename):
