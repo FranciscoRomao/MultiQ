@@ -14,7 +14,6 @@ import random
 # In PachinQo's source code it is called "framework"
 from framework.grid import Grid
 
-
 def save_circuit(circuit, filename):
     qasm_str = dumps(circuit)
 
@@ -27,20 +26,18 @@ def compute_fidelity(returned_values,cir_qubits):
     nsequential_transfers = returned_values[2]
     total_trap_changes = nsequential_transfers * cir_qubits
 
-    gate_1q_fidelity = 0.999
+    gate_1q_fidelity = 0.9991
     gate_2q_fidelity = 0.995
-    gate_1q_time = 0.5 #us
-    gate_2q_time = 0.2 #us
-    decoherence_T2 = 1500000 #us
-    transfer_time = 20 #us
+    gate_1q_time = 52 #us
+    gate_2q_time = 0.36 #us
+    decoherence_T2 = 1.5e6 #us
+    transfer_time = 15 #us
     transfer_fid = 0.999
     move_speed = 0.55 #um/us
 
     total_transfer_fidelity = transfer_fid**total_trap_changes
     total_transfer_time = transfer_time*nsequential_transfers
     total_shuttling_time = total_move_distance/move_speed
-    total_idling_time = total_transfer_time + total_move_distance/move_speed
-    total_decoherence_fidelity = np.exp(-total_idling_time/decoherence_T2)
 
     #Compute number of 1q and 2q gates from the layers
     total_u3_gates = 0
@@ -54,8 +51,14 @@ def compute_fidelity(returned_values,cir_qubits):
     gate_2q_fidelity = gate_2q_fidelity**total_cz_gates
     total_1q_time = gate_1q_time*total_u3_gates
     total_2q_time = gate_2q_time*total_cz_gates
+    
+    total_busy_time = total_transfer_time + total_1q_time + total_2q_time
 
     total_execution_time = total_transfer_time + total_move_distance/move_speed + total_1q_time + total_2q_time
+
+    total_idling_time = total_execution_time*cir_qubits - total_busy_time
+    
+    total_decoherence_fidelity = np.exp(-total_idling_time/decoherence_T2)
 
     total_fidelity = gate_1q_fidelity*gate_2q_fidelity*total_transfer_fidelity*total_decoherence_fidelity
 
@@ -83,7 +86,26 @@ def transpile_all_benchmarks(benchmark_set) -> list:
 
     return transpiled_set
 
-def run_pachiqo_single_benchmarks(benchmark, settings_file, output_file="results/pachinqo_results.csv", transpiled_dir="data/benchmarks/transpiled/"):
+def transpile_single_benchmark(benchmark) -> str:
+    """
+    Transpile all benchmarks in the benchmark set.
+    """
+    # Load the benchmark set
+    dir = "data/benchmarks/"
+    
+    file_path = os.path.join(os.path.dirname(__file__), "../../data/benchmarks/", benchmark)
+    name = os.path.join(os.path.dirname(__file__), "../../data/benchmarks/transpiled/", benchmark.split('/')[-1].split('.')[0] + "_transpiled.qasm")
+
+    if not os.path.exists(name):
+        transpiled_circuit = QuantumCircuit.from_qasm_file(file_path)
+        transpiled_circuit = transpile(transpiled_circuit, optimization_level=3, basis_gates=['u3', 'cz'])
+        transpiled_circuit.remove_final_measurements()
+        print(f"Saving {name}...")
+        save_circuit(transpiled_circuit, name)
+
+    return name
+
+def run_pachiqo_single_benchmark(benchmark, settings_file, output_file="results/pachinqo_results.csv", transpiled_dir="data/benchmarks/transpiled/"):
     """
     Run single benchmarks using PachinQo.
     """
@@ -100,7 +122,7 @@ def run_pachiqo_single_benchmarks(benchmark, settings_file, output_file="results
                                  'cir_shuttling_time',
                                  'execution_time'])
     
-    transpiled_benchmark = transpile_all_benchmarks(benchmark)[0]
+    transpiled_benchmark = transpile_single_benchmark(benchmark)
     
     #for algo in benchmark_set:
         #file_path = os.path.join(os.path.dirname(__file__), "../../data/benchmark/", algo)
@@ -109,9 +131,9 @@ def run_pachiqo_single_benchmarks(benchmark, settings_file, output_file="results
 
     zone_specs = [
             {'type': 'StorageZone', 'bottom_left_x': 0, 'bottom_left_y': 0, 'width': 230, 'height': 100},
-            {'type': 'EntanglementZone', 'bottom_left_x': 62, 'bottom_left_y': 120, 'width': 100, 'height': 35, 'col_size': 4},
-            {'type': 'ReadoutZone', 'bottom_left_x': 0, 'bottom_left_y': 120, 'width': 42, 'height': 35},
-            {'type': 'ReadoutZone', 'bottom_left_x': 182, 'bottom_left_y': 120, 'width': 42, 'height':35}
+            {'type': 'EntanglementZone', 'bottom_left_x': 65, 'bottom_left_y': 110, 'width': 100, 'height': 40, 'col_size': 10},
+            {'type': 'ReadoutZone', 'bottom_left_x': 0, 'bottom_left_y': 110, 'width': 55, 'height': 40},
+            {'type': 'ReadoutZone', 'bottom_left_x': 175, 'bottom_left_y': 110, 'width': 55, 'height':40}
     ]
 
     print(f"Running {transpiled_benchmark}...")
@@ -128,7 +150,7 @@ def run_pachiqo_single_benchmarks(benchmark, settings_file, output_file="results
 
     total_fidelity, total_transfer_fidelity, total_coherence_fidelity, total_1q_fidelity, total_2q_fidelity, cir_shuttling_time, execution_time, total_transfer_fidelity = compute_fidelity(ret_vals, nqubits)
 
-    data.loc[len(data)] = [transpiled_benchmark.split('/')[-1].split('-')[0],
+    data.loc[len(data)] = [benchmark.split('/')[-1].split('.')[0],
                            nqubits,
                            total_fidelity,
                            ret_vals[3],

@@ -1,5 +1,18 @@
 {
  "name": "tile_architecture",
+ "operation_duration": {
+  "rydberg": 0.36,
+  "1qGate": 52,
+  "atom_transfer": 15
+ },
+ "operation_fidelity": {
+  "two_qubit_gate": 0.9955,
+  "single_qubit_gate": 0.9991,
+  "atom_transfer": 0.999
+ },
+ "qubit_spec": {
+  "T": "1.5e6"
+ },
  "storage_zones": [
   {
    "zone_id": 0,
@@ -38,11 +51,11 @@
       12,
       10
      ],
-     "r": 2,
+     "r": 3,
      "c": 4,
      "location": [
-      2.0,
-      77
+      0,
+      64
      ]
     },
     {
@@ -51,11 +64,11 @@
       12,
       10
      ],
-     "r": 2,
+     "r": 3,
      "c": 4,
      "location": [
-      4.0,
-      77
+      2,
+      64
      ]
     }
    ],
@@ -65,7 +78,7 @@
    ],
    "dimension": [
     32,
-    10
+    20
    ]
   }
  ],
@@ -83,19 +96,19 @@
    -1
   ],
   [
-   37.5,
-   92.0
+   40.5,
+   89.0
   ]
  ],
  "rydberg_range": [
   [
    [
     0,
-    67.0
+    59.0
    ],
    [
     32,
-    87
+    84
    ]
   ]
  ]

@@ -11,7 +11,7 @@ import logging
 
 logger = logging.getLogger("multiq")
 
-class CircuitSASelector:
+class CircuitSelector:
     
     def __init__(self, 
                  config: MultiQConfig,
@@ -27,6 +27,7 @@ class CircuitSASelector:
         self.config = config
         self.bin_costs = []
         self.positions = []  # List[List[List[int]]] - bin, row, column (tile indices)
+        self.selection_algorith = config.selection_algorithm
         
         # SA parameters
         self.initial_temperature = config.initial_temperature
@@ -36,8 +37,31 @@ class CircuitSASelector:
         self.max_iterations_per_temp = config.max_iterations_per_temp
 
         self.bin_counter = 0
+
+    def select(self, tiles, seed: Optional[int] = None,) -> List[List[Tile]]:
+        """Selects the best circuits based on the configured selection algorithm."""
+        if self.selection_algorith == "fifo":
+            return self.fifo_select(tiles)
+        elif self.selection_algorith == "sa":
+            return self.sa_select(tiles, seed=seed)
+        else:
+            raise ValueError(f"Unknown selection algorithm: {self.selection_algorith}")
+
+    def fifo_select(self, 
+                    tiles: List[Tile],
+                    seed: Optional[int] = None) -> List[List[Tile]]:
+
+        self.tiles = tiles
+
+        # Distribute  positions and perform first fit
+        self.positions = []
+        self.bin_costs = []
+        first_fit_distribution = self._first_fit_distribution()
+        self.bin_counter = copy.deepcopy(first_fit_distribution)
+
+        return self._convert_tile_idx_to_tile()
         
-    def select(self, 
+    def sa_select(self, 
                tiles: List[Tile], 
                seed: Optional[int] = None) -> List[List[Tile]]:
 
@@ -53,7 +77,8 @@ class CircuitSASelector:
         # Initialize positions and perform first fit
         self.positions = []
         self.bin_costs = []
-        self.bin_counter = self._first_fit_distribution()
+        first_fit_distribution = self._first_fit_distribution()
+        self.bin_counter = copy.deepcopy(first_fit_distribution)
 
         logger.debug(f"Initial bin count: {self.bin_counter}")
 
@@ -86,7 +111,6 @@ class CircuitSASelector:
         logger.debug(f"Number of bins: {self.bin_counter}")
         logger.debug(f"Starting optimization with SA...")
 
-        
         while (temperature > self.final_temperature and iteration < self.max_iterations):
             
             temp_accepted = 0
@@ -145,7 +169,7 @@ class CircuitSASelector:
                     if current_cost < best_cost:
                         best_positions = copy.deepcopy(self.positions)
                         best_cost = current_cost
-                        logger.debug(f"New best solution at iteration {iteration}: cost = {best_cost:.3f} (Δ = {delta_cost:.3f})")
+                        logger.debug(f"🏆 New best solution at iteration {iteration}: cost = {best_cost:.3f} (Δ = {delta_cost:.3f})")
                 else:
                     # Reject: revert changes
                     logger.debug(f"-------Iteration {iteration}: Rejecting neighbor with Δ = {delta_cost:.3f}, acceptance prob = {acceptance_prob:.3f}")
@@ -262,7 +286,7 @@ class CircuitSASelector:
                 continue
 
         # There can only be one empty bin at a time, so we can safely only pop the first one
-        if empty_bin:
+        if empty_bin != None:
             self.bin_costs.pop(empty_bin)
             self.positions.pop(empty_bin)
 
@@ -359,8 +383,8 @@ class CircuitSASelector:
     def _evaluate_bin_cost(self, bin_idx: int) -> float:
         """Merge all circuits in a bin and evaluate the cost."""
 
-        performance_scaling_factor = 1/0.6
-        utilization_scaling_factor = 1/0.9
+        performance_scaling_factor = 1/0.3
+        utilization_scaling_factor = 1
 
         tiles = [self.tiles[tile_idx] 
                    for row in self.positions[bin_idx] 
@@ -393,18 +417,26 @@ class CircuitSASelector:
             # This is the minimum number of layers needed to execute the merged circuit
             # equivalent to the longest circuit execution 
 
-            max_layers = sum([tiles.best_nlayers for tiles in tiles if tiles.best_nlayers is not None])
-            fastest_circuit = min([tiles.best_nlayers for tiles in tiles if tiles.best_nlayers is not None])
-            best_layers = max([tiles.best_nlayers for tiles in tiles if tiles.best_nlayers is not None])
+            #max_layers = sum([tiles.best_nlayers for tiles in tiles if tiles.best_nlayers is not None])
+            #sum_durations = min([tile.best_nlayers for tile in tiles if tile.best_nlayers is not None])
+            sum_durations = sum([tile.best_nlayers for tile in tiles])
+            sum_tile_widths = sum([tile.architecture.arch_range[1][0] for tile in tiles])
+            weighted_sum_durations = sum([tile.best_nlayers * tile.architecture.arch_range[1][0] for tile in tiles])
+
+            weighted_avg_sum_durations = (weighted_sum_durations/sum_tile_widths)
             
-            max_layer_diff = max_layers - fastest_circuit
+            #longest_circuit = max([tile.best_nlayers for tile in tiles if tiles.best_nlayers is not None])
+            longest_circuit = max([tile.best_nlayers for tile in tiles])
+
+            temporal_cost = 1 - weighted_avg_sum_durations/longest_circuit
 
             ##performance_cost = (((len(layers) - best_layers)/(best_layers)) + max_layer_diff/best_layers) * performance_scaling_factor 
-            performance_cost = max_layer_diff/best_layers * performance_scaling_factor 
-            logger.debug(f"Bin {bin_idx} cost evaluation: max_layers={max_layers}, fastest_circuit={fastest_circuit}, best_layers={best_layers}, max_layer_diff={max_layer_diff}, performance_cost = {performance_cost}")
+            #performance_cost = max_layer_diff/fastest_circuit * performance_scaling_factor 
+            performance_cost = temporal_cost * performance_scaling_factor
+            #logger.debug(f"Bin {bin_idx} cost evaluation: fastest_circuit={fastest_circuit}, slowest_circuit={slowest_circuit}, max_layer_diff={max_layer_diff}, performance_cost = {performance_cost}")
             ##logger.debug(f"Bin {bin_idx} cost evaluation: max_layers={max_layers}, bin_layers={len(layers)}, best_layers={best_layers}, max_layer_diff={max_layer_diff}, perfor_cost = {performance_cost}")
 
-        summed_layout_width = sum([i.architecture.arch_range[1][0] for i in tiles])
+        summed_layout_width = sum([tile.architecture.arch_range[1][0] for tile in tiles])
         #avg_layout_width = summed_layout_width / len(tiles)
         
         max_qpu_width = self.config.qpu_width * self.config.grid_rows
@@ -416,7 +448,7 @@ class CircuitSASelector:
 
         utilization_cost = (unused_width/max_qpu_width) * utilization_scaling_factor
 
-        logger.debug(f"Bin {bin_idx} cost evaluation: unused_width={unused_width}, perf_cost = {utilization_cost}")
+        logger.debug(f"Bin {bin_idx} cost evaluation: utilization_cost={utilization_cost}, perf_cost = {performance_cost}")
 
         cost = performance_cost  * self.config.perf_weight_selector + utilization_cost * (1-self.config.perf_weight_selector)
         
@@ -455,8 +487,8 @@ class CircuitSASelector:
         # Decide on move type based on temperature
         temp_ratio = temperature / self.initial_temperature
 
-        move_probability = temp_ratio * 0.4  # High temp = higher swap probability
-        create_bin_probability = temp_ratio * 0.6  # High temp = higher bin creation probability
+        move_probability = temp_ratio * 0.5  # High temp = higher swap probability
+        create_bin_probability = temp_ratio * 0.5  # High temp = higher bin creation probability
 
         try:
             rand_val = random.random()
@@ -465,13 +497,16 @@ class CircuitSASelector:
             # and a 50%+30% chance of moving a single circuit, otherwise we just swap tiles which is more times valid than moving a single circuit
             # When the temperature gets to near zero the chance to create a new bin goes to zero and the move and swap probabilities become 100%
             if rand_val < create_bin_probability:
-                # Create new bin operation
+                # Move to a new bin operation
+                logger.debug(f"Creating new bin at temperature {temperature:.2f}")
                 return self._move_to_new_bin()
             elif rand_val < move_probability + create_bin_probability:
                 # Swap move: exchange positions of two tiles
+                logger.debug(f"Moving a circuit at temperature {temperature:.2f}")
                 return self._circuit_swap()
             else:
                 # Move: relocate a single tile (without creating new bins)
+                logger.debug(f"Swapping circuits at temperature {temperature:.2f}")
                 return self._circuit_move()
         except Exception as e:
             logger.debug(f"Neighbor generation failed: {e}")
@@ -484,6 +519,11 @@ class CircuitSASelector:
         Returns list of affected bin indices.
         """
         # Find all tiles and their current positions
+        
+        if len(self.positions) == 1:
+            logger.debug("Only one bin available, moving doesn't make sense")
+            return None
+
         tile_positions = []
         for bin_idx, bin_rows in enumerate(self.positions):
             for row_idx, row in enumerate(bin_rows):
@@ -523,6 +563,11 @@ class CircuitSASelector:
         Swap positions of two random circuits.
         If valid returns list of affected bin indices.
         """
+
+        if len(self.positions) < 2:
+            logger.debug("Only one bin available, swapping doesn't make sense")
+            return None
+        
         # Find all tiles and their positions
         tile_positions = []
         for bin_idx, bin_rows in enumerate(self.positions):

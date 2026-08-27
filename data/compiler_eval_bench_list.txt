@@ -1,2 +1,0 @@
-QASMBench/adder/adder_n18.qasm
-QASMBench/adder/adder_n28.qasm

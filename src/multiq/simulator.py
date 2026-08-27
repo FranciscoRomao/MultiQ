@@ -33,6 +33,7 @@ class Simulator():
         self.cir_fidelity_atom_transfer = 1
         self.cir_fidelity_coherence = 1
         self.cir_qubit_busy_time = []
+        self.on_going_1qrow_gate = False # During multiple 1q gates we can use the global rotation only in the beginning and on the end of the 1q gate sequence
     
 #    def set_arch_spec(self, spec: dict):
 #        if "operation_fidelity" in spec:
@@ -103,7 +104,6 @@ class Simulator():
         # calculate the fidelity of idle qubits affected by Rydberg laser
         for gate_info in list_gates:
             self.cir_qubit_busy_time[gate_info["q"]] += self.time_1q_gate
-            # self.cir_qubit_busy_time[gate_info["q"]] += self.time_1q_gate
 
     def process_arrangement(self, instruction, set_qubit_in_rydberg):
         # get instruction duration
@@ -172,6 +172,8 @@ class Simulator():
             idle_t = circuit_end_time - t
             #self.cir_fidelity_coherence *= (1 - idle_t/self.time_coherence)
             self.cir_fidelity_coherence *= e**(-idle_t/float(self.time_coherence))
+            #self.cir_fidelity_coherence *= (1 - idle_t/float(self.time_coherence))
+            
         self.cir_fidelity = self.cir_fidelity_1q_gate * self.cir_fidelity_2q_gate * self.cir_fidelity_2q_gate_for_idle \
                             * self.cir_fidelity_atom_transfer * self.cir_fidelity_coherence
         results = { "cir_fidelity" : self.cir_fidelity,

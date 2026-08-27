@@ -270,7 +270,6 @@ class Instructions_mixin:
 
         return details
 
-
     def write_gate_instruction(self, inst_idx: int, rydberg_idx: int, result_gate: list, dependency: dict):
         self.result_json['instructions'].append(
             {

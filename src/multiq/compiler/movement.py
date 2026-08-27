@@ -4,7 +4,7 @@ from multiq.configuration import MultiQConfig
 from .tile import Tile
 
 from multiq.types import Movement, TileMovement
-   
+
 def global_movement(config: MultiQConfig, tile_anchor_r: int, tile_anchor_c: int, m: Movement) -> Movement:
     """ 
     Convert a tile-local movement (physical coords within tile) into QPU-global physical coordinates.
@@ -14,7 +14,6 @@ def global_movement(config: MultiQConfig, tile_anchor_r: int, tile_anchor_c: int
     y_offset = tile_anchor_r * config.physical_cell_height_um
 
     return Movement(m.qubit_index, m.start_x + x_offset, m.end_x + x_offset, m.start_y + y_offset, m.end_y + y_offset)
-
 
 # Across multiple tiles, only moves that share row coords can be done in parallel
 def row_compatible(a: Movement, b: Movement) -> bool:

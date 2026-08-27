@@ -1,5 +1,5 @@
 from mqt import qcec
-from mqt.qcec import configuration
+#from mqt.qcec import configuration
 from qiskit import QuantumCircuit
 from typing import List, Dict
 from multiq.configuration import MultiQConfig
@@ -59,7 +59,6 @@ class Checker:
             else:
                 logger.error(f"Unknown instruction type: {op}")
                 raise ValueError(f"Unknown instruction type: {op}")
-
 
         return circuit
 

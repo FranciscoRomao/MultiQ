@@ -1,0 +1,10 @@
+single/cat_n22.qasm
+single/ghz_n23.qasm
+single/wstate_n27.qasm
+single/dj_n26.qasm
+single/swap_test_n25.qasm
+single/qaoa_maxcut_n14.qasm
+single/dj_n16.qasm
+single/graphstate_n20.qasm
+single/knn_n25.qasm
+single/wstate_n24.qasm
