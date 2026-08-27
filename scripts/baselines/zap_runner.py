@@ -213,6 +213,7 @@ def run_zap_single_benchmarks(benchmark_file: str, arch_spec_path: str, output_f
         metrics["compilation_time"],
     ]
 
+    os.makedirs(os.path.dirname(output_file), exist_ok=True)
     if not os.path.isfile(output_file):
         data.to_csv(output_file, index=False)
     else:
@@ -314,6 +315,7 @@ def run_zap_merge_benchmarks(benchmark_set: list[str], arch_spec_path: str, outp
         metrics["cir_duration"] / 1000,
     ]
 
+    os.makedirs(os.path.dirname(output_file), exist_ok=True)
     if not os.path.isfile(output_file):
         data.to_csv(output_file, index=False)
     else:

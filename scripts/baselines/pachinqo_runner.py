@@ -161,6 +161,7 @@ def run_pachiqo_single_benchmark(benchmark, settings_file, output_file="results/
                            cir_shuttling_time,
                            execution_time]
 
+    os.makedirs(os.path.dirname(output_file), exist_ok=True)
     if not os.path.isfile(output_file):
         data.to_csv(output_file, index=False)
     else:
@@ -305,6 +306,7 @@ def run_pachinqo_merged_benchmarks():
     
         results_file = os.path.join(os.path.dirname(__file__), '../../results/zac/compiled_results.csv')
 
+    os.makedirs(os.path.dirname(results_file), exist_ok=True)
     if not os.path.isfile(results_file):
         data.to_csv(results_file, index=False)
     else:

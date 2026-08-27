@@ -184,6 +184,7 @@ def run_zac_single_benchmarks(benchmark_file, settings_file, output_file):
     os.remove(fid_file)
     os.remove(time_file)
 
+    os.makedirs(os.path.dirname(output_file), exist_ok=True)
     if not os.path.isfile(output_file):
         data.to_csv(output_file, index=False)
     else:
@@ -256,6 +257,7 @@ def run_zac_merge_benchmarks(benchmark_set, settings_file, output_file):
     
         results_file = os.path.join(os.path.dirname(__file__), output_file)
 
+    os.makedirs(os.path.dirname(results_file), exist_ok=True)
     if not os.path.isfile(results_file):
         data.to_csv(results_file, index=False)
     else:

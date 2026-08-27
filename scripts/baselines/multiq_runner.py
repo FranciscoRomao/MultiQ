@@ -68,6 +68,7 @@ def run_multiq_planner_eval(config_file:str = "../../config/multiq/planner_confi
                                    stats['cir_duration']]
 
     results_file = os.path.join(os.path.dirname(__file__), '../../results/multiq/planner_results.csv')
+    os.makedirs(os.path.dirname(results_file), exist_ok=True)
     data.to_csv(results_file, mode='a', header=True, index=False)
 
 def run_multiq_bundler_eval(set_sizes:list[int] = [5, 6], perf_weights:list[float] = [0.4, 1.0], config_file:str = "../../config/multiq/bundler_config.yaml", results_file:str = "../../results/multiq/bundler_results.csv"):
@@ -148,6 +149,7 @@ def run_multiq_bundler_eval(set_sizes:list[int] = [5, 6], perf_weights:list[floa
                                avg_circuit_duration,
                                sum_tile_durations/total_bins_time]
     
+        os.makedirs(os.path.dirname(results_file), exist_ok=True)
         if not os.path.isfile(results_file):
             data.to_csv(results_file, index=False)
         else:
@@ -304,6 +306,7 @@ def run_multiq(benchmarks:list[str], config_file:str = "../../config/multiq/conf
                                    mq.timing["placement"],
                                    mq.timing["routing"]]
     
+    os.makedirs(os.path.dirname(output_file), exist_ok=True)
     if not os.path.isfile(output_file):
         data.to_csv(output_file, index=False)
     else:
@@ -375,6 +378,7 @@ def run_controler_set_multiq(benchmarks:list[str], config_file:str = "../../conf
                                cummulative_duration,
                                mq.config.grid_rows]
     
+        os.makedirs(os.path.dirname(output_file), exist_ok=True)
         if not os.path.isfile(output_file):
             data.to_csv(output_file, index=False)
         else:
