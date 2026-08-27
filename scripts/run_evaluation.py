@@ -2,6 +2,7 @@ import argparse
 import os
 import sys
 import time
+import traceback
 from dataclasses import dataclass
 
 # Makes this runnable both as `python scripts/run_evaluation.py` (from repo root)
@@ -25,7 +26,7 @@ from baselines.multiq_runner import (
     run_multiq,
     run_controler_set_multiq,
 )
-from tools.gen_benchmarks import gen_single_benchmarks
+from tools.gen_benchmarks import gen_single_benchmarks, gen_benchmarks_from_list
 from tools.gen_architectures import generate_scaled_arch
 import eval_functions as eval
 
@@ -439,9 +440,26 @@ def run_multiq_rows_sweep():
     perf_weight_by_rows = {5: 0.6}
     default_perf_weight = 0.7
 
+    # Starting actual_rows per target, once known to be feasible on the
+    # machine this is run on (found empirically the same way
+    # perf_weight_by_rows was: run once, let the retry loop below discover
+    # a working value, then pin it here so future runs don't redo the
+    # search). Not portable across machines/environments -- feasibility at
+    # a given qpu_height depends on the placer's behavior, which we've seen
+    # can differ between machines for reasons not yet root-caused. Leave a
+    # target out of this dict to fall back to target_rows and let the retry
+    # loop search for it again.
+    actual_rows_by_target = {}
+
+    # Safety net, not the primary fix: if a target isn't pinned above (or
+    # its pinned value stops being feasible), bail out after this many
+    # bumps instead of retrying forever.
+    max_retries = 10
+
     achieved_rows = []
     for target_rows in ROWS_SWEEP_TARGETS:
-        actual_rows = target_rows
+        actual_rows = actual_rows_by_target.get(target_rows, target_rows)
+        retries = 0
         while True:
             qpu_height = entanglement_height + actual_rows * storage_atom_spacing
             with open(base_config_file, "r") as file:
@@ -471,8 +489,16 @@ def run_multiq_rows_sweep():
                           f"add a lower override to perf_weight_by_rows for this point to force a single bin")
                 achieved_rows.append(actual_rows)
                 break
-            except Exception as e:
-                _progress(f"rows={actual_rows} infeasible ({e}); bumping up and retrying")
+            except Exception:
+                retries += 1
+                _progress(f"rows={actual_rows} infeasible (attempt {retries}/{max_retries}):\n{traceback.format_exc()}")
+                if retries >= max_retries:
+                    raise RuntimeError(
+                        f"rows sweep: target_rows={target_rows} still infeasible after {max_retries} bumps "
+                        f"(last actual_rows={actual_rows}); pin a working actual_rows_by_target[{target_rows}] "
+                        f"or investigate the traceback above"
+                    )
+                _progress(f"bumping actual_rows from {actual_rows} to {actual_rows + 5} and retrying")
                 actual_rows += 5
 
     _progress(f"Rows sweep complete. Achieved row counts: {achieved_rows}")
@@ -1740,6 +1766,17 @@ def main():
         unknown = set(selected_names) - {exp.name for exp in EXPERIMENTS}
         if unknown:
             raise SystemExit(f"Unknown experiment(s): {', '.join(sorted(unknown))}. Use --list to see available names.")
+
+    if not args.plots_only:
+        # data/benchmarks is gitignored -- every experiment below reads circuits
+        # out of it by name, so generate anything a fresh checkout is missing
+        # before any data_fn runs (was previously only ever populated by hand,
+        # which made every multi_eval_bench_list*-driven experiment fail --
+        # e.g. infinitely, in the rows sweep's retry loop -- on a machine that
+        # never had the corpus generated on it).
+        _progress("=== preparing benchmark corpus ===")
+        gen_benchmarks_from_list("data/multi_eval_bench_list.txt")
+        gen_benchmarks_from_list("data/multi_eval_bench_list_pachinqo.txt")
 
     run_start = time.time()
     for exp in EXPERIMENTS:

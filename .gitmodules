@@ -1,6 +1,6 @@
 [submodule "compilers/powermove"]
 	path = compilers/powermove
-	url = git@github.com:Scarlett0815/PowerMove.git
+	url = git@github.com:FranciscoRomao/PowerMove.git
 [submodule "compilers/qmap"]
 	path = compilers/qmap
 	url = git@github.com:munich-quantum-toolkit/qmap.git

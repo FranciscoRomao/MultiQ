@@ -407,6 +407,38 @@ def random_circuit(
                 qc._append(CircuitInstruction(operation=operation, qubits=qubits[q_start:q_end]))
     return qc
 
+def gen_benchmarks_from_list(list_file, regen=False):
+    """Generate any data/benchmarks/single/<name>_n<qubits>.qasm files listed in
+    list_file that don't already exist on disk. Used by experiments (e.g. the
+    rows sweep) that reference a fixed benchmark list rather than a
+    (sizes x algorithms) grid -- data/benchmarks is gitignored, so this
+    corpus has to be (re)generated on any machine that doesn't already have
+    it checked out/copied over.
+    """
+    benchmarks_set = []
+    with open(list_file) as f:
+        entries = [line.strip() for line in f if line.strip()]
+
+    for entry in entries:
+        path = os.path.join("data/benchmarks", entry)
+        if os.path.exists(path) and not regen:
+            benchmarks_set.append(path)
+            continue
+
+        stem = os.path.splitext(os.path.basename(entry))[0]
+        name, _, size = stem.rpartition("_n")
+        if not name or not size.isdigit():
+            raise ValueError(f"can't infer benchmark/size from {entry!r} (expected <name>_n<qubits>.qasm)")
+
+        tmp = get_benchmark(benchmark=name, level=BenchmarkLevel.INDEP, circuit_size=int(size))
+        tmp = transpile(tmp, basis_gates=["cz", "id", "u2", "u1", "u3"], optimization_level=3, seed_transpiler=0)
+
+        os.makedirs(os.path.dirname(path), exist_ok=True)
+        save_circuit(tmp, path)
+        benchmarks_set.append(path)
+
+    return benchmarks_set
+
 def gen_single_benchmarks(circuit_sizes, benchmarks, regen=False):
 
     benchmarks_set = []
