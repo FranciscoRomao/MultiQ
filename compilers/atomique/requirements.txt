@@ -1,0 +1,11 @@
+matplotlib>=3.3.2
+numpy>=1.19.2
+qiskit==0.38.0
+scipy>=1.5.2
+setuptools>=52.0.0
+tensorflow>=2.4.1
+torch>=1.8.0
+torchpack>=0.3.0
+z3-solver>=4.12.1.0
+python-sat>=0.1.7.dev21
+networkx>=3.0

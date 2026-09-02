@@ -313,7 +313,10 @@ def stacked_grouped_barplot(data,
                            normalize=False,
                            xticks=True,
                            group_legend_loc=None,
-                           group_legend_ncol=None):
+                           group_legend_ncol=None,
+                           stack_hatch_map=None,
+                           per_bar_group_labels=False,
+                           group_label_formatter=str):
     """
     Create a grouped stacked barplot
     
@@ -367,10 +370,10 @@ def stacked_grouped_barplot(data,
     # regardless of which subset of compilers (and therefore which group
     # index) is present in a given plot.
     hatch_map = {
-        "MultiQ\n1 Row": hatches[7],
+        "MultiQ(1 Row)": hatches[7],
         "MultiQ 1 Row": hatches[7],
         "MultiQ (1 Row)": hatches[7],
-        "MultiQ\n2 Row": hatches[8],
+        "MultiQ(2 Row)": hatches[8],
         "MultiQ 2 Row": hatches[8],
         "MultiQ (2 Row)": hatches[8],
         "ZAC": hatches[2],
@@ -386,43 +389,63 @@ def stacked_grouped_barplot(data,
     
     sns.set_theme()
     sns.set_style("whitegrid")
-    
+
+    ax.grid(axis="y", linestyle="--")
+    ax.set_axisbelow(True)
+
+    # Bar x-positions per group/x-label, stashed on the axes so callers can
+    # add their own annotations (value labels, comparison arrows, ...)
+    # without re-deriving the exact same layout math.
+    ax._grouped_bar_positions = {}
+    ax._grouped_bar_width = group_width * 0.9
+
     # Plot each group
     for i, group in enumerate(groups):
         # Get data for this group
         group_data = pivot_data[group].fillna(0)
-        
+
         # Normalize if requested
         if normalize:
             group_data = group_data.div(group_data.sum(axis=1), axis=0) * 100
-        
+
         # Calculate positions for this group
         positions = bar_positions + (i - n_groups/2 + 0.5) * group_width
-        
+        ax._grouped_bar_positions[group] = dict(zip(x_labels, positions))
+
         # Create stacked bars for this group
         bottom = np.zeros(len(x_labels))
-        
+
+        group_hatch = hatch_map.get(group, hatches[i % len(hatches)])
+
         for j, category in enumerate(categories):
             if category in group_data.columns:
                 values = group_data[category].values
-                
+
                 # Create label that combines both category and group info
                 if i == 0:
                     label = f'{category}'  # First group shows category
                 else:
                     label = ""  # Other groups don't show in legend
-                
-                bars = ax.bar(positions, values, 
+
+                # When a per-stage hatch is supplied, it takes over the
+                # bar's hatch entirely (so a stage stays identifiable by
+                # pattern alone even in grayscale) instead of combining with
+                # the group's own hatch -- group identification then comes
+                # from the per-bar text labels (per_bar_group_labels)
+                # instead of a second hatch layered into the same bar.
+                combined_hatch = stack_hatch_map.get(category, '') if stack_hatch_map else group_hatch
+
+                bars = ax.bar(positions, values,
                             width=group_width * 0.9,  # Slightly narrower for visual separation
                             bottom=bottom,
                             color=colors[j],
                             edgecolor='black',
                             linewidth=2,
                             label=label,
-                            hatch=hatch_map.get(group, hatches[i % len(hatches)]),)
-                
+                            hatch=combined_hatch,)
+
                 bottom += values
-    
+
     # Set x-axis labels and ticks
     if xticks:
         ax.set_xticks(bar_positions)
@@ -468,9 +491,10 @@ def stacked_grouped_barplot(data,
         stack_handles = []
         for j, category in enumerate(categories):
             handle = plt.Rectangle((0,0), 1, 1,
-                                 color=colors[j],
+                                 facecolor=colors[j],
                                  edgecolor='black',
-                                 linewidth=linewidth)
+                                 linewidth=linewidth,
+                                 hatch=stack_hatch_map.get(category) if stack_hatch_map else None)
             stack_handles.append(handle)
 
         # Create the main legend for categories
@@ -479,29 +503,33 @@ def stacked_grouped_barplot(data,
                   ncol=legend_ncol,
                   fontsize=12,
                   title='')
-        # ax.legend() replaces any existing legend on the axes -- keep this
-        # one around as a plain artist so the group (hatch) legend added
-        # below doesn't clobber it.
-        ax.add_artist(stage_legend)
-
         # Second legend distinguishing the hatch-per-group bars (e.g. "1
-        # Row" vs "2 Row") -- previously missing entirely, since the block
-        # above only ever labeled the stacking colors.
-        group_handles = [
-            plt.Rectangle((0, 0), 1, 1,
-                         facecolor='white',
-                         edgecolor='black',
-                         linewidth=linewidth,
-                         hatch=hatch_map.get(group, hatches[i % len(hatches)]))
-            for i, group in enumerate(groups)
-        ]
-        resolved_group_legend_loc = group_legend_loc if group_legend_loc is not None else (legend_loc[0], legend_loc[1] - 0.18)
-        resolved_group_legend_ncol = group_legend_ncol if group_legend_ncol is not None else len(groups)
-        ax.legend(group_handles, groups,
-                  loc=resolved_group_legend_loc,
-                  ncol=resolved_group_legend_ncol,
-                  fontsize=12,
-                  title='')
+        # Row" vs "2 Row"). Skipped when per_bar_group_labels puts that same
+        # identification directly under each bar instead.
+        if not per_bar_group_labels:
+            # ax.legend() replaces any existing legend on the axes -- keep
+            # this one around as a plain artist so the group (hatch) legend
+            # added below doesn't clobber it. (Only needed when that second
+            # legend is actually created -- add_artist-ing it unconditionally
+            # double-registers it as a child, and the second .remove() call
+            # from a caller gathering it back out raises.)
+            ax.add_artist(stage_legend)
+
+            group_handles = [
+                plt.Rectangle((0, 0), 1, 1,
+                             facecolor='white',
+                             edgecolor='black',
+                             linewidth=linewidth,
+                             hatch=hatch_map.get(group, hatches[i % len(hatches)]))
+                for i, group in enumerate(groups)
+            ]
+            resolved_group_legend_loc = group_legend_loc if group_legend_loc is not None else (legend_loc[0], legend_loc[1] - 0.18)
+            resolved_group_legend_ncol = group_legend_ncol if group_legend_ncol is not None else len(groups)
+            ax.legend(group_handles, groups,
+                      loc=resolved_group_legend_loc,
+                      ncol=resolved_group_legend_ncol,
+                      fontsize=12,
+                      title='')
 
         if xticks:
             # Handle group labels in the x-axis area
@@ -509,26 +537,29 @@ def stacked_grouped_barplot(data,
                 # Clear existing x-axis labels
                 ax.set_xticklabels([])
 
-                # Create custom x-axis with both category and group labels
+                # Category label sits below the per-bar labels when those
+                # are shown, otherwise right under the axis as before.
+                category_y = -0.14 if per_bar_group_labels else -0.03
+
+                per_bar_fontsize = 11
+
                 for x_idx, x_label in enumerate(x_labels):
-                    # Main x-axis label (category) #-0.13
-                    ax.text(x_idx, -0.03, str(x_label), 
-                           ha='center', va='top', 
+                    if per_bar_group_labels:
+                        # One label per bar (e.g. "1 Row" / "2 Row"),
+                        # directly under its own bar.
+                        for i, group in enumerate(groups):
+                            bar_pos = x_idx + (i - n_groups / 2 + 0.5) * group_width
+                            ax.text(bar_pos, -0.03, group_label_formatter(group),
+                                   ha='center', va='top',
+                                   transform=ax.get_xaxis_transform(),
+                                   fontsize=per_bar_fontsize, fontweight='bold',
+                                   color='black')
+
+                    # Main x-axis label (category)
+                    ax.text(x_idx, category_y, str(x_label),
+                           ha='center', va='top',
                            transform=ax.get_xaxis_transform(),
                            fontsize=11, fontweight='bold')
-
-                    '''
-                    # Group labels for each bar in this x-category
-                    for i, group in enumerate(groups):
-                        bar_pos = x_idx + (i - n_groups/2 + 0.5) * group_width
-
-                        ax.text(bar_pos, -0.03, f'{group}', 
-                               ha='center', va='top', 
-                               transform=ax.get_xaxis_transform(),
-                               fontsize=9, 
-                               color='black',
-                               style='italic')
-                    '''
 
     else:
         if ax.legend_:

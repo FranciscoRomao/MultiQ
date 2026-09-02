@@ -1,0 +1,17 @@
+# Minimal dependency set for running only the FPQAC compiler (the "Atomique"
+# baseline) through scripts/baselines/atomique_runner.py, in an isolated venv
+# (compilers/atomique/.venv) kept separate from MultiQ's own environment
+# because this code was written against Qiskit 0.38 and relies on APIs
+# (e.g. Qubit.index) removed in the Qiskit 2.x MultiQ itself uses.
+#
+# This is a subset of the original requirements.txt: the other pinned deps
+# there (torch, tensorflow, z3-solver, python-sat) are only needed by the
+# other baseline compilers bundled in the upstream artifact (Geyser, Tan
+# solver/heuristic, baker, SuperConducting), which were removed from this
+# trimmed copy since MultiQ's evaluation only runs FPQAC.
+qiskit==0.38.0
+# qiskit-terra 0.21.2 (pulled in by qiskit==0.38.0) still calls np.product,
+# removed in numpy 2.0 -- pin below that.
+numpy<2
+scipy
+pyyaml

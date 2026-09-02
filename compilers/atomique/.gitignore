@@ -1,0 +1,11 @@
+.ipynb_checkpoints/
+__pycache__/
+test.ipynb
+test.py
+**/.DS_Store
+.vscode
+.vscode-upload.json
+*.DS_Store
+
+*.pkl
+

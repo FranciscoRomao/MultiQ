@@ -738,7 +738,7 @@ def plot_e2e_detailed_full():
 '''
 
 
-def plot_e2e_total_runtime(include_powermove=True, include_qmap=True, include_zap=True):
+def plot_e2e_total_runtime(include_powermove=True, include_qmap=True, include_zap=True, include_pachinqo=True):
     # ----- Plot end-to-end evaluation results total runtime for MultiQ and baselines
 
     fig, [ax0, ax1] = utils.gen_subplots(1, 2, figsize=(13, 3), height_ratios=[0.8, 1])
@@ -763,6 +763,7 @@ def plot_e2e_total_runtime(include_powermove=True, include_qmap=True, include_za
         include_powermove=include_powermove,
         include_qmap=include_qmap,
         include_zap=include_zap,
+        include_pachinqo=include_pachinqo,
     )
     df = eval.plot_e2e_results_total_runtime(
         ax=ax1,
@@ -773,13 +774,14 @@ def plot_e2e_total_runtime(include_powermove=True, include_qmap=True, include_za
         include_powermove=include_powermove,
         include_qmap=include_qmap,
         include_zap=include_zap,
+        include_pachinqo=include_pachinqo,
     )
 
     plt.annotate(
         "",
         xy=(
             ax1.containers[2][0].get_x() + ax1.containers[2][0]._width / 2,
-            df[df["compiler"] == "MultiQ\n2 Row"][df["set_size"] == "Set 6"]["phase_duration"].sum() + 1,
+            df[df["compiler"] == "MultiQ(2 Row)"][df["set_size"] == "Set 6"]["phase_duration"].sum() + 1,
         ),
         xytext=(
             ax1.containers[2][0].get_x() + ax1.containers[2][0]._width / 2,
@@ -800,8 +802,8 @@ def plot_e2e_total_runtime(include_powermove=True, include_qmap=True, include_za
             + 0.8
             * scale
             * (df[df["compiler"] == "ZAC"][df["set_size"] == "Set 6"]["phase_duration"].sum() - second_interval[0])
-            + break_interval)/2 + df[df['compiler']=='MultiQ\n2 Row'][df['set_size']=='Set 6']['phase_duration'].sum() / 2,
-        f'-{(df[df['compiler']=='ZAC'][df['set_size']=='Set 6']['phase_duration'].sum()/df[df['compiler']=='MultiQ\n2 Row'][df['set_size']=='Set 6']['phase_duration'].sum()):.1f}x',
+            + break_interval)/2 + df[df['compiler']=='MultiQ(2 Row)'][df['set_size']=='Set 6']['phase_duration'].sum() / 2,
+        f'-{(df[df['compiler']=='ZAC'][df['set_size']=='Set 6']['phase_duration'].sum()/df[df['compiler']=='MultiQ(2 Row)'][df['set_size']=='Set 6']['phase_duration'].sum()):.1f}x',
         fontsize=11,
         color="green",
     )
@@ -810,7 +812,7 @@ def plot_e2e_total_runtime(include_powermove=True, include_qmap=True, include_za
         "",
         xy=(
             ax1.containers[2][1].get_x() + ax1.containers[2][1]._width / 2,
-            df[df["compiler"] == "MultiQ\n2 Row"][df["set_size"] == "Set 8"]["phase_duration"].sum() + 2,
+            df[df["compiler"] == "MultiQ(2 Row)"][df["set_size"] == "Set 8"]["phase_duration"].sum() + 2,
         ),
         xytext=(
             ax1.containers[2][1].get_x() + ax1.containers[2][1]._width / 2,
@@ -831,8 +833,8 @@ def plot_e2e_total_runtime(include_powermove=True, include_qmap=True, include_za
             + 0.8
             * scale
             * (df[df["compiler"] == "ZAC"][df["set_size"] == "Set 8"]["phase_duration"].sum() - second_interval[0])
-            + break_interval)/2 + df[df['compiler']=='MultiQ\n2 Row'][df['set_size']=='Set 8']['phase_duration'].sum() / 2,
-        f'-{(df[df['compiler']=='ZAC'][df['set_size']=='Set 8']['phase_duration'].sum()/df[df['compiler']=='MultiQ\n2 Row'][df['set_size']=='Set 8']['phase_duration'].sum()):.1f}x',
+            + break_interval)/2 + df[df['compiler']=='MultiQ(2 Row)'][df['set_size']=='Set 8']['phase_duration'].sum() / 2,
+        f'-{(df[df['compiler']=='ZAC'][df['set_size']=='Set 8']['phase_duration'].sum()/df[df['compiler']=='MultiQ(2 Row)'][df['set_size']=='Set 8']['phase_duration'].sum()):.1f}x',
         fontsize=11,
         color="green",
     )
@@ -841,7 +843,7 @@ def plot_e2e_total_runtime(include_powermove=True, include_qmap=True, include_za
         "",
         xy=(
             ax1.containers[2][2].get_x() + ax1.containers[2][2]._width / 2,
-            df[df["compiler"] == "MultiQ\n2 Row"][df["set_size"] == "Set 10"]["phase_duration"].sum() + 1,
+            df[df["compiler"] == "MultiQ(2 Row)"][df["set_size"] == "Set 10"]["phase_duration"].sum() + 1,
         ),
         xytext=(
             ax1.containers[2][2].get_x() + ax1.containers[2][2]._width / 2,
@@ -862,8 +864,8 @@ def plot_e2e_total_runtime(include_powermove=True, include_qmap=True, include_za
             + 0.8
             * scale
             * (df[df["compiler"] == "ZAC"][df["set_size"] == "Set 10"]["phase_duration"].sum() - second_interval[0])
-            + break_interval)/2 + df[df['compiler']=='MultiQ\n2 Row'][df['set_size']=='Set 10']['phase_duration'].sum() / 2,
-        f'-{(df[df['compiler']=='ZAC'][df['set_size']=='Set 10']['phase_duration'].sum()/df[df['compiler']=='MultiQ\n2 Row'][df['set_size']=='Set 10']['phase_duration'].sum()):.1f}x',
+            + break_interval)/2 + df[df['compiler']=='MultiQ(2 Row)'][df['set_size']=='Set 10']['phase_duration'].sum() / 2,
+        f'-{(df[df['compiler']=='ZAC'][df['set_size']=='Set 10']['phase_duration'].sum()/df[df['compiler']=='MultiQ(2 Row)'][df['set_size']=='Set 10']['phase_duration'].sum()):.1f}x',
         fontsize=11,
         color="green",
     )
@@ -872,7 +874,7 @@ def plot_e2e_total_runtime(include_powermove=True, include_qmap=True, include_za
         "",
         xy=(
             ax1.containers[2][3].get_x() + ax1.containers[2][3]._width / 2,
-            df[df["compiler"] == "MultiQ\n2 Row"][df["set_size"] == "Set 12"]["phase_duration"].sum() + 1,
+            df[df["compiler"] == "MultiQ(2 Row)"][df["set_size"] == "Set 12"]["phase_duration"].sum() + 1,
         ),
         xytext=(
             ax1.containers[2][3].get_x() + ax1.containers[2][3]._width / 2,
@@ -893,8 +895,8 @@ def plot_e2e_total_runtime(include_powermove=True, include_qmap=True, include_za
             + 0.8
             * scale
             * (df[df["compiler"] == "ZAC"][df["set_size"] == "Set 12"]["phase_duration"].sum() - second_interval[0])
-            + break_interval)/2 + df[df['compiler']=='MultiQ\n2 Row'][df['set_size']=='Set 12']['phase_duration'].sum() / 2,
-        f'-{(df[df['compiler']=='ZAC'][df['set_size']=='Set 12']['phase_duration'].sum()/df[df['compiler']=='MultiQ\n2 Row'][df['set_size']=='Set 12']['phase_duration'].sum()):.1f}x',
+            + break_interval)/2 + df[df['compiler']=='MultiQ(2 Row)'][df['set_size']=='Set 12']['phase_duration'].sum() / 2,
+        f'-{(df[df['compiler']=='ZAC'][df['set_size']=='Set 12']['phase_duration'].sum()/df[df['compiler']=='MultiQ(2 Row)'][df['set_size']=='Set 12']['phase_duration'].sum()):.1f}x',
         fontsize=11,
         color="green",
     )
@@ -903,7 +905,7 @@ def plot_e2e_total_runtime(include_powermove=True, include_qmap=True, include_za
         "",
         xy=(
             ax1.containers[2][4].get_x() + ax1.containers[2][4]._width / 2,
-            df[df["compiler"] == "MultiQ\n2 Row"][df["set_size"] == "Set 14"]["phase_duration"].sum() + 1,
+            df[df["compiler"] == "MultiQ(2 Row)"][df["set_size"] == "Set 14"]["phase_duration"].sum() + 1,
         ),
         xytext=(
             ax1.containers[2][4].get_x() + ax1.containers[2][4]._width / 2,
@@ -924,8 +926,8 @@ def plot_e2e_total_runtime(include_powermove=True, include_qmap=True, include_za
             + 0.8
             * scale
             * (df[df["compiler"] == "ZAC"][df["set_size"] == "Set 14"]["phase_duration"].sum() - second_interval[0])
-            + break_interval)/2 + df[df['compiler']=='MultiQ\n2 Row'][df['set_size']=='Set 14']['phase_duration'].sum() / 2,
-        f'-{(df[df['compiler']=='ZAC'][df['set_size']=='Set 14']['phase_duration'].sum()/df[df['compiler']=='MultiQ\n2 Row'][df['set_size']=='Set 14']['phase_duration'].sum()):.1f}x',
+            + break_interval)/2 + df[df['compiler']=='MultiQ(2 Row)'][df['set_size']=='Set 14']['phase_duration'].sum() / 2,
+        f'-{(df[df['compiler']=='ZAC'][df['set_size']=='Set 14']['phase_duration'].sum()/df[df['compiler']=='MultiQ(2 Row)'][df['set_size']=='Set 14']['phase_duration'].sum()):.1f}x',
         fontsize=11,
         color="green",
     )
@@ -937,8 +939,22 @@ def plot_e2e_total_runtime(include_powermove=True, include_qmap=True, include_za
 
     ax1.grid(axis="x", visible=False)
 
-    ax0.get_legend().set(bbox_to_anchor=(0.35, 0.99), loc="upper left")
-    ax1.get_legend().remove()  # Remove legend from the first plot
+    # stacked_grouped_barplot attaches two legends per axes (a stage/phase
+    # legend added via ax.add_artist, plus a group/hatch legend that becomes
+    # ax.legend_). ax.get_legend() only ever sees the latter, so touching
+    # just that one leaves the other stray legend on the figure. Gather both
+    # via findobj instead (same pattern as plot_controller_eval_half).
+    ax0_legends = [c for c in ax0.get_children() if isinstance(c, mlegend.Legend)]
+    ax1_legends = [c for c in ax1.get_children() if isinstance(c, mlegend.Legend)]
+
+    # Keep only the stage/phase legend (Execution vs Initialization) once,
+    # repositioned on ax0; the compiler/hatch legend is redundant with the
+    # custom fig.legend built below from custom_handles, so drop it here.
+    stage_legend = min(ax0_legends, key=lambda l: len(l.get_texts()))
+    stage_legend.set(bbox_to_anchor=(0.37, 0.99), loc="upper left")
+    for legend in ax0_legends + ax1_legends:
+        if legend is not stage_legend:
+            legend.remove()
     ax0.set_ylabel("")
     ax1.set_ylabel("")
     fig.text(
@@ -986,6 +1002,11 @@ def plot_e2e_total_runtime(include_powermove=True, include_qmap=True, include_za
             mpatches.Patch(label="ZAP", hatch="+", facecolor="none", edgecolor="black")
         )
         legend_labels.append("ZAP")
+    if include_pachinqo:
+        custom_handles.append(
+            mpatches.Patch(label="PachinQo", hatch=defaults.hatches[3], facecolor="none", edgecolor="black")
+        )
+        legend_labels.append("PachinQo")
 
     d = 0.5  # proportion of vertical to horizontal extent of the slanted line
     kwargs = dict(
@@ -1049,23 +1070,23 @@ def plot_e2e_total_runtime_complete():
         ),
     ]
 
-    plt.annotate('', xy=(ax0.containers[2][0].get_x() + ax0.containers[2][0]._width/2, df[df['compiler']=='MultiQ\n2 Row'][df['set_size']=='Set 4']['phase_duration'].sum()+1), xytext=(ax0.containers[2][0].get_x() + ax0.containers[2][0]._width/2, df[df['compiler']=='ZAC'][df['set_size']=='Set 4']['phase_duration'].sum()), fontsize=11, color='red', ha='center', arrowprops=dict(arrowstyle='fancy', color='green'))
-    ax0.text(ax0.containers[0][0].get_x()+ ax0.containers[0][0]._width/4, df[df['compiler']=='ZAC'][df['set_size']=='Set 4']['phase_duration'].sum()/2, f'-{(df[df['compiler']=='ZAC'][df['set_size']=='Set 4']['phase_duration'].sum()/df[df['compiler']=='MultiQ\n2 Row'][df['set_size']=='Set 4']['phase_duration'].sum()):.1f}x', fontsize=11, color='green')
+    plt.annotate('', xy=(ax0.containers[2][0].get_x() + ax0.containers[2][0]._width/2, df[df['compiler']=='MultiQ(2 Row)'][df['set_size']=='Set 4']['phase_duration'].sum()+1), xytext=(ax0.containers[2][0].get_x() + ax0.containers[2][0]._width/2, df[df['compiler']=='ZAC'][df['set_size']=='Set 4']['phase_duration'].sum()), fontsize=11, color='red', ha='center', arrowprops=dict(arrowstyle='fancy', color='green'))
+    ax0.text(ax0.containers[0][0].get_x()+ ax0.containers[0][0]._width/4, df[df['compiler']=='ZAC'][df['set_size']=='Set 4']['phase_duration'].sum()/2, f'-{(df[df['compiler']=='ZAC'][df['set_size']=='Set 4']['phase_duration'].sum()/df[df['compiler']=='MultiQ(2 Row)'][df['set_size']=='Set 4']['phase_duration'].sum()):.1f}x', fontsize=11, color='green')
 
-    plt.annotate('', xy=(ax0.containers[2][1].get_x() + ax0.containers[2][1]._width/2, df[df['compiler']=='MultiQ\n2 Row'][df['set_size']=='Set 6']['phase_duration'].sum()+2), xytext=(ax0.containers[2][1].get_x() + ax0.containers[2][1]._width/2, df[df['compiler']=='ZAC'][df['set_size']=='Set 6']['phase_duration'].sum()), fontsize=11, color='red', ha='center', arrowprops=dict(arrowstyle='fancy', color='green'))
-    ax0.text(ax0.containers[0][1].get_x()+ ax0.containers[0][1]._width/4, df[df['compiler']=='ZAC'][df['set_size']=='Set 6']['phase_duration'].sum()/2, f'-{(df[df['compiler']=='ZAC'][df['set_size']=='Set 6']['phase_duration'].sum()/df[df['compiler']=='MultiQ\n2 Row'][df['set_size']=='Set 6']['phase_duration'].sum()):.1f}x', fontsize=11, color='green')
+    plt.annotate('', xy=(ax0.containers[2][1].get_x() + ax0.containers[2][1]._width/2, df[df['compiler']=='MultiQ(2 Row)'][df['set_size']=='Set 6']['phase_duration'].sum()+2), xytext=(ax0.containers[2][1].get_x() + ax0.containers[2][1]._width/2, df[df['compiler']=='ZAC'][df['set_size']=='Set 6']['phase_duration'].sum()), fontsize=11, color='red', ha='center', arrowprops=dict(arrowstyle='fancy', color='green'))
+    ax0.text(ax0.containers[0][1].get_x()+ ax0.containers[0][1]._width/4, df[df['compiler']=='ZAC'][df['set_size']=='Set 6']['phase_duration'].sum()/2, f'-{(df[df['compiler']=='ZAC'][df['set_size']=='Set 6']['phase_duration'].sum()/df[df['compiler']=='MultiQ(2 Row)'][df['set_size']=='Set 6']['phase_duration'].sum()):.1f}x', fontsize=11, color='green')
 
-    plt.annotate('', xy=(ax0.containers[2][2].get_x() + ax0.containers[2][2]._width/2, df[df['compiler']=='MultiQ\n2 Row'][df['set_size']=='Set 8']['phase_duration'].sum()+1), xytext=(ax0.containers[2][2].get_x() + ax0.containers[2][2]._width/2, df[df['compiler']=='ZAC'][df['set_size']=='Set 8']['phase_duration'].sum()), fontsize=11, color='red', ha='center', arrowprops=dict(arrowstyle='fancy', color='green'))
-    ax0.text(ax0.containers[0][2].get_x()+ ax0.containers[0][2]._width/4, df[df['compiler']=='ZAC'][df['set_size']=='Set 8']['phase_duration'].sum()/2, f'-{(df[df['compiler']=='ZAC'][df['set_size']=='Set 8']['phase_duration'].sum()/df[df['compiler']=='MultiQ\n2 Row'][df['set_size']=='Set 8']['phase_duration'].sum()):.1f}x', fontsize=11, color='green')
+    plt.annotate('', xy=(ax0.containers[2][2].get_x() + ax0.containers[2][2]._width/2, df[df['compiler']=='MultiQ(2 Row)'][df['set_size']=='Set 8']['phase_duration'].sum()+1), xytext=(ax0.containers[2][2].get_x() + ax0.containers[2][2]._width/2, df[df['compiler']=='ZAC'][df['set_size']=='Set 8']['phase_duration'].sum()), fontsize=11, color='red', ha='center', arrowprops=dict(arrowstyle='fancy', color='green'))
+    ax0.text(ax0.containers[0][2].get_x()+ ax0.containers[0][2]._width/4, df[df['compiler']=='ZAC'][df['set_size']=='Set 8']['phase_duration'].sum()/2, f'-{(df[df['compiler']=='ZAC'][df['set_size']=='Set 8']['phase_duration'].sum()/df[df['compiler']=='MultiQ(2 Row)'][df['set_size']=='Set 8']['phase_duration'].sum()):.1f}x', fontsize=11, color='green')
 
-    plt.annotate('', xy=(ax0.containers[2][3].get_x() + ax0.containers[2][3]._width/2, df[df['compiler']=='MultiQ\n2 Row'][df['set_size']=='Set 10']['phase_duration'].sum()+1), xytext=(ax0.containers[2][3].get_x() + ax0.containers[2][3]._width/2, df[df['compiler']=='ZAC'][df['set_size']=='Set 10']['phase_duration'].sum()), fontsize=11, color='red', ha='center', arrowprops=dict(arrowstyle='fancy', color='green'))
-    ax0.text(ax0.containers[0][3].get_x(), df[df['compiler']=='ZAC'][df['set_size']=='Set 10']['phase_duration'].sum()/2, f'-{(df[df['compiler']=='ZAC'][df['set_size']=='Set 10']['phase_duration'].sum()/df[df['compiler']=='MultiQ\n2 Row'][df['set_size']=='Set 10']['phase_duration'].sum()):.1f}x', fontsize=11, color='green')
+    plt.annotate('', xy=(ax0.containers[2][3].get_x() + ax0.containers[2][3]._width/2, df[df['compiler']=='MultiQ(2 Row)'][df['set_size']=='Set 10']['phase_duration'].sum()+1), xytext=(ax0.containers[2][3].get_x() + ax0.containers[2][3]._width/2, df[df['compiler']=='ZAC'][df['set_size']=='Set 10']['phase_duration'].sum()), fontsize=11, color='red', ha='center', arrowprops=dict(arrowstyle='fancy', color='green'))
+    ax0.text(ax0.containers[0][3].get_x(), df[df['compiler']=='ZAC'][df['set_size']=='Set 10']['phase_duration'].sum()/2, f'-{(df[df['compiler']=='ZAC'][df['set_size']=='Set 10']['phase_duration'].sum()/df[df['compiler']=='MultiQ(2 Row)'][df['set_size']=='Set 10']['phase_duration'].sum()):.1f}x', fontsize=11, color='green')
 
-    plt.annotate('', xy=(ax0.containers[2][4].get_x() + ax0.containers[2][4]._width/2, df[df['compiler']=='MultiQ\n2 Row'][df['set_size']=='Set 12']['phase_duration'].sum()+1), xytext=(ax0.containers[2][4].get_x() + ax0.containers[2][4]._width/2, df[df['compiler']=='ZAC'][df['set_size']=='Set 12']['phase_duration'].sum()), fontsize=11, color='red', ha='center', arrowprops=dict(arrowstyle='fancy', color='green'))
-    ax0.text(ax0.containers[0][4].get_x(), df[df['compiler']=='ZAC'][df['set_size']=='Set 12']['phase_duration'].sum()/2, f'-{(df[df['compiler']=='ZAC'][df['set_size']=='Set 12']['phase_duration'].sum()/df[df['compiler']=='MultiQ\n2 Row'][df['set_size']=='Set 12']['phase_duration'].sum()):.1f}x', fontsize=11, color='green')
+    plt.annotate('', xy=(ax0.containers[2][4].get_x() + ax0.containers[2][4]._width/2, df[df['compiler']=='MultiQ(2 Row)'][df['set_size']=='Set 12']['phase_duration'].sum()+1), xytext=(ax0.containers[2][4].get_x() + ax0.containers[2][4]._width/2, df[df['compiler']=='ZAC'][df['set_size']=='Set 12']['phase_duration'].sum()), fontsize=11, color='red', ha='center', arrowprops=dict(arrowstyle='fancy', color='green'))
+    ax0.text(ax0.containers[0][4].get_x(), df[df['compiler']=='ZAC'][df['set_size']=='Set 12']['phase_duration'].sum()/2, f'-{(df[df['compiler']=='ZAC'][df['set_size']=='Set 12']['phase_duration'].sum()/df[df['compiler']=='MultiQ(2 Row)'][df['set_size']=='Set 12']['phase_duration'].sum()):.1f}x', fontsize=11, color='green')
 
-    plt.annotate('', xy=(ax0.containers[2][5].get_x() + ax0.containers[2][5]._width/2, df[df['compiler']=='MultiQ\n2 Row'][df['set_size']=='Set 14']['phase_duration'].sum()+1), xytext=(ax0.containers[2][5].get_x() + ax0.containers[2][5]._width/2, df[df['compiler']=='ZAC'][df['set_size']=='Set 14']['phase_duration'].sum()), fontsize=11, color='red', ha='center', arrowprops=dict(arrowstyle='fancy', color='green'))
-    ax0.text(ax0.containers[0][5].get_x(), df[df['compiler']=='ZAC'][df['set_size']=='Set 14']['phase_duration'].sum()/2, f'-{(df[df['compiler']=='ZAC'][df['set_size']=='Set 14']['phase_duration'].sum()/df[df['compiler']=='MultiQ\n2 Row'][df['set_size']=='Set 14']['phase_duration'].sum()):.1f}x', fontsize=11, color='green')
+    plt.annotate('', xy=(ax0.containers[2][5].get_x() + ax0.containers[2][5]._width/2, df[df['compiler']=='MultiQ(2 Row)'][df['set_size']=='Set 14']['phase_duration'].sum()+1), xytext=(ax0.containers[2][5].get_x() + ax0.containers[2][5]._width/2, df[df['compiler']=='ZAC'][df['set_size']=='Set 14']['phase_duration'].sum()), fontsize=11, color='red', ha='center', arrowprops=dict(arrowstyle='fancy', color='green'))
+    ax0.text(ax0.containers[0][5].get_x(), df[df['compiler']=='ZAC'][df['set_size']=='Set 14']['phase_duration'].sum()/2, f'-{(df[df['compiler']=='ZAC'][df['set_size']=='Set 14']['phase_duration'].sum()/df[df['compiler']=='MultiQ(2 Row)'][df['set_size']=='Set 14']['phase_duration'].sum()):.1f}x', fontsize=11, color='green')
 
     #print(f'Mean ratios: \n \t MultiQ (1 Row) vs ZAC {df[df["compiler"] == "MultiQ (1 Row)"][""].mean() - df[df["compiler"] == "ZAC"]["cir_duration"].mean()} \n \t MultiQ (2 Row) vs ZAC {df[df["compiler"] == "MultiQ (2 Row)"]["cir_duration"].mean() - df[df["compiler"] == "ZAC"]["cir_duration"].mean()}')
 
@@ -1562,7 +1583,7 @@ def plot_controller_eval_half(include_powermove=True, include_qmap=True, include
 
 def _finish_overhead_plot(fig, ax, output_path):
     # stacked_grouped_barplot's ax.legend(loc=<tuple>) doesn't reserve figure
-    # width for a 5-category legend row (the "compilation (backend)" label is
+    # width for a 5-category legend row (the "Backend compilation (ZAC)" label is
     # long enough to overflow a 7-inch figure and gets silently clipped).
     # Pull it out to a figure-level anchor instead, which sizes correctly.
     #
@@ -1633,11 +1654,11 @@ def plot_e2e_multiq_overhead_vs_qpu_size():
 def plot_e2e_multiq_overhead_combined():
     # ----- All three MultiQ overhead-breakdown plots side by side in one figure
 
-    fig, axes = plt.subplots(1, 3, figsize=(18, 4.5))
+    fig, axes = plt.subplots(1, 3, figsize=(13, 2.7))
 
     eval.plot_multiq_overhead_vs_set_size(
         ax=axes[0],
-        title="vs set size",
+        title="(a) vs set size",
         set_sizes=[4, 6, 8, 10, 12, 14],
         # Reuses "e2e"'s output instead of a dedicated overhead_by_set_size.csv
         # sweep -- run_multiq() already records the same timing columns on
@@ -1648,16 +1669,20 @@ def plot_e2e_multiq_overhead_combined():
     )
     eval.plot_multiq_overhead_vs_circuit_size(
         ax=axes[1],
-        title="vs circuit size (fixed QPU)",
+        title="(b) vs circuit size",
         circuit_sizes=[20, 50, 100],
     )
     eval.plot_multiq_overhead_vs_qpu_size(
         ax=axes[2],
-        title="vs QPU size (6x30q, fixed)",
-        qpu_capacities=[180, 300, 500, 1000, 1200],
+        title="(c) vs QPU size",
+        # Dropped 1200q here (still available via the standalone
+        # plot_e2e_multiq_overhead_vs_qpu_size) -- with the new "Backend"
+        # reference bar this panel now has 3 bars per x-group instead of 2,
+        # and 5 groups' worth didn't fit legibly in a 13/3in-wide panel.
+        qpu_capacities=[180, 300, 500, 1000],
     )
 
-    fig.suptitle("MultiQ overhead breakdown", fontweight="bold")
+    fig.suptitle("MultiQ overhead breakdown", fontweight="bold", fontsize=12, y=0.97)
 
     # Each subplot's stacked_grouped_barplot call added its own pair of
     # on-axis legends (stage colors + row-config hatches, same categories
@@ -1676,8 +1701,18 @@ def plot_e2e_multiq_overhead_combined():
         for legend in legends:
             legend.remove()
 
+    # Without an explicit tight_layout call, the 3 subplots sit inside
+    # matplotlib's default (fairly generous) margins/wspace and only cover
+    # the middle chunk of the 13x3 figure -- same fix as plot_controller_eval
+    # (search "rect=(-0.01" in this file), squeezing the rect slightly
+    # beyond [0,1] to trim margins tighter than tight_layout's own default
+    # padding. Called after the per-axes legends are removed above (so it
+    # doesn't reserve space for 3 legends that no longer exist) and before
+    # subplots_adjust below (so that call's bottom= still gets the final
+    # say on room for the one shared fig-level legend).
+    fig.tight_layout(rect=(-0.01, 0.04, 1.01, 1.12), w_pad=-0.3)
     fig.subplots_adjust(bottom=0.32)
-    fig.legend(handles, labels, loc="lower center", ncol=5, bbox_to_anchor=(0.5, 0.01))
+    fig.legend(handles, labels, loc="lower center", ncol=7, bbox_to_anchor=(0.5, 0.02))
 
     fig.savefig("results/plots/multiq_overhead_combined.pdf", format="pdf")
 
