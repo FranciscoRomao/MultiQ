@@ -30,7 +30,7 @@ from tools.gen_benchmarks import gen_single_benchmarks, gen_benchmarks_from_list
 from tools.gen_architectures import generate_scaled_arch
 import eval_functions as eval
 
-from eval_functions import plot_planner_eval_fidelity_multiq, plot_planner_eval_utilization_multiq, plot_e2e_results_duration, plot_e2e_results_fidelity, plot_e2e_results_total_runtime, plot_bundler_temporal_util, plot_bundler_space_util, plot_multiq_overhead_vs_set_size, plot_multiq_overhead_vs_circuit_size, plot_multiq_overhead_vs_qpu_size
+from eval_functions import plot_planner_eval_fidelity_multiq, plot_planner_eval_utilization_multiq, plot_e2e_results_duration, plot_e2e_results_fidelity, plot_e2e_results_total_runtime, plot_bundler_temporal_util, plot_bundler_space_util, plot_multiq_overhead_vs_set_size, plot_multiq_overhead_vs_circuit_size, plot_multiq_overhead_vs_qpu_size, generate_e2e_means_table
 import matplotlib.pyplot as plt
 import matplotlib.patches as mpatches
 import matplotlib.legend as mlegend
@@ -591,7 +591,7 @@ def plot_e2e_detailed(rows_sweep_values=ROWS_SWEEP_TARGETS):
     eval.plot_e2e_results_fidelity(
         ax=fidelity_ax,
         set_size=set_size,
-        title=f"(a) Fidelity (Set size: {set_size})",
+        title=f"(a) Fidelity (Set {set_size})",
         multiq_results_file=multiq_results_file,
         zac_results_file=zac_results_file,
         pachinqo_results_file=pachinqo_results_file,
@@ -610,7 +610,7 @@ def plot_e2e_detailed(rows_sweep_values=ROWS_SWEEP_TARGETS):
     eval.plot_e2e_results_duration(
         ax=duration_ax,
         set_size=set_size,
-        title=f"(b) Execution time (Set size: {set_size})",
+        title=f"(b) Execution time (Set {set_size})",
         multiq_results_file=multiq_results_file,
         zac_results_file=zac_results_file,
         pachinqo_results_file=pachinqo_results_file,
@@ -632,14 +632,26 @@ def plot_e2e_detailed(rows_sweep_values=ROWS_SWEEP_TARGETS):
         results_file_template=rows_sweep_results_template,
     )
     rows_ax.set_title(rows_ax.get_title(loc='left'), fontweight='bold', loc='left', fontsize=11)
-    rows_handles, rows_labels = rows_ax.get_legend_handles_labels()
-    rows_ax.legend(rows_handles, rows_labels, loc='upper left',
-                    ncol=1, fontsize=8, frameon=True, title="Benchmark", title_fontsize=8)
+    # get_legend_handles_labels() returns hatch-less proxy rectangles for
+    # seaborn's hue-grouped bars, so build the legend keys ourselves from the
+    # actual (already-hatched) bar patches to keep them consistent with the plot.
+    _, rows_labels = rows_ax.get_legend_handles_labels()
+    rows_handles = [
+        mpatches.Patch(facecolor=bars.patches[0].get_facecolor(), hatch=bars.patches[0].get_hatch(),
+                        edgecolor='black', label=label)
+        for bars, label in zip(rows_ax.containers, rows_labels)
+    ]
+    # Bars top out around 0.8; stretch the y-axis so they sit in the lower
+    # half of the panel, leaving clear space above them for the legend.
+    rows_ax.set_ylim(0, 1.6)
+    rows_ax.set_yticks([0, 0.2, 0.4, 0.6, 0.8, 1.0])
+    rows_ax.legend(rows_handles, rows_labels, loc='upper center', bbox_to_anchor=(0.5, 1.02),
+                    ncol=2, fontsize=8, frameon=True, title="Benchmark", title_fontsize=10)
 
     duration_ax.set_ylabel("Execution time (s)", fontsize=11)
     fidelity_ax.set_ylabel("Fidelity", fontsize=11)
 
-    fig.tight_layout(w_pad=-1, rect=(-0.013, 0.06, 1.005, 1.045))
+    fig.tight_layout(w_pad=-0.8, rect=(-0.013, 0.06, 1.005, 1.045))
 
     #ylim(0, 35)
     duration_ax.set_ylim(0, 32)
@@ -655,7 +667,7 @@ def plot_e2e_detailed(rows_sweep_values=ROWS_SWEEP_TARGETS):
             height = bar.get_height()
             if height > duration_ylim_top:
                 duration_ax.text(bar.get_x(), duration_ylim_top * 0.92, f'{height:.0f}',
-                                  ha='right', va='top', fontsize=10, rotation=90)
+                                  ha='right', va='top', fontsize=11, fontweight='bold', rotation=90)
 
     legend_labels = ['MultiQ (1 Row)', 'MultiQ (2 Row)', 'ZAC']
     if include_powermove:
@@ -666,21 +678,27 @@ def plot_e2e_detailed(rows_sweep_values=ROWS_SWEEP_TARGETS):
         legend_labels.append('ZAP')
     if include_pachinqo:
         legend_labels.append('PachinQo')
-    fig.legend(loc='lower center', bbox_to_anchor=(0.5, 0.035), ncol=len(legend_labels), fontsize=11, frameon=True, labels=legend_labels, title_fontsize=11)
+    # fig.legend()'s auto-collected handles are seaborn's hatch-less legend
+    # proxies (see the panel (c) legend above); build real ones from the
+    # actual bar patches instead. fidelity_ax's hue order (compiler_order in
+    # plot_e2e_results_fidelity) matches legend_labels exactly.
+    compiler_handles = [
+        mpatches.Patch(facecolor=bars.patches[0].get_facecolor(), hatch=bars.patches[0].get_hatch(),
+                        edgecolor='black', label=label)
+        for bars, label in zip(fidelity_ax.containers, legend_labels)
+    ]
+    fig.legend(handles=compiler_handles, loc='lower center', bbox_to_anchor=(0.42, 0.035), ncol=len(legend_labels), fontsize=11, frameon=True, title_fontsize=11)
 
     fig.savefig("results/plots/e2e_plot_detailed.pdf", format="pdf")
 
-'''
-def plot_e2e_detailed_full():
+def plot_e2e_detailed_full(detailed_set_sizes=(4, 8, 12), include_pachinqo=True, include_powermove=True, include_qmap=True, include_zap=True):
     # ----- Plot end-to-end evaluation results fidelity and exection time for MultiQ and baselines
-
-    #detailed_set_sizes = [4, 6, 8, 10, 12, 14]
-    detailed_set_sizes = [4, 8, 12]
-
-    zac_results_file = os.path.join(os.path.dirname(__file__), f"../results/zac/e2e_results.csv")
 
     zac_results_file = os.path.join(os.path.dirname(__file__), f"../results/zac/e2e_results.csv")
     pachinqo_results_file = os.path.join(os.path.dirname(__file__), f"../results/pachinqo/e2e_results.csv")
+    powermove_results_file = os.path.join(os.path.dirname(__file__), f"../results/powermove/e2e_results.csv")
+    qmap_results_file = os.path.join(os.path.dirname(__file__), f"../results/qmap/e2e_results.csv")
+    zap_results_file = os.path.join(os.path.dirname(__file__), f"../results/zap/e2e_results.csv")
     multiq_results_file = os.path.join(os.path.dirname(__file__), f"../results/multiq/e2e_results.csv")
 
     fig = plt.figure(figsize=(15, 2.3 * len(detailed_set_sizes)), constrained_layout=True)
@@ -692,50 +710,92 @@ def plot_e2e_detailed_full():
         axes.append(fig.add_subplot(gs[idx * 2]))
         axes.append(fig.add_subplot(gs[idx * 2 + 1]))
 
-    print("Plotting fidelity")
+    _progress("Plotting fidelity")
     letters = ["a", "b", "c", "d", "e", "f", "g", "h", "i", "j", "k", "l"]
-    for idx, set in enumerate(detailed_set_sizes):
-        print(f"Plotting results for benchmark set of size {set}")
+    for idx, set_size in enumerate(detailed_set_sizes):
+        _progress(f"Plotting results for benchmark set of size {set_size}")
         eval.plot_e2e_results_fidelity(
             ax=axes[idx * 2],
-            set_size=set,
-            title=f"({letters[idx*2]}) Fidelity (Set size: {set})",
+            set_size=set_size,
+            title=f"({letters[idx*2]}) Fidelity (Set size: {set_size})",
             multiq_results_file=multiq_results_file,
             zac_results_file=zac_results_file,
             pachinqo_results_file=pachinqo_results_file,
-            include_pachinqo=True,
+            powermove_results_file=powermove_results_file,
+            qmap_results_file=qmap_results_file,
+            zap_results_file=zap_results_file,
+            include_pachinqo=include_pachinqo,
+            include_powermove=include_powermove,
+            include_qmap=include_qmap,
+            include_zap=include_zap,
         )
 
         axes[idx * 2].set_xlabel(None)
+        # 7 compilers/benchmark group (vs. the 4-5 plot_e2e_detailed's single
+        # panel handles) crowds the default horizontal tick labels at this
+        # figure width -- shrink and angle them so benchmark names stay
+        # legible instead of overlapping.
+        axes[idx * 2].tick_params(axis='x', labelsize=8, rotation=20)
+        for label in axes[idx * 2].get_xticklabels():
+            label.set_ha('right')
 
-    print("Plotting circuit duration")
-    for idx, set in enumerate(detailed_set_sizes):
-        print(f"Plotting results for benchmark set of size {set}")
+    _progress("Plotting circuit duration")
+    for idx, set_size in enumerate(detailed_set_sizes):
+        _progress(f"Plotting results for benchmark set of size {set_size}")
         eval.plot_e2e_results_duration(
             ax=axes[idx * 2 + 1],
-            set_size=set,
-            title=f"({letters[idx*2+1]}) Execution time (Set size: {set})",
+            set_size=set_size,
+            title=f"({letters[idx*2+1]}) Execution time (Set size: {set_size})",
             multiq_results_file=multiq_results_file,
             zac_results_file=zac_results_file,
             pachinqo_results_file=pachinqo_results_file,
-            include_pachinqo=True,
+            powermove_results_file=powermove_results_file,
+            qmap_results_file=qmap_results_file,
+            zap_results_file=zap_results_file,
+            include_pachinqo=include_pachinqo,
+            include_powermove=include_powermove,
+            include_qmap=include_qmap,
+            include_zap=include_zap,
         )
         axes[idx * 2 + 1].set_xlabel(None)
+        axes[idx * 2 + 1].tick_params(axis='x', labelsize=8, rotation=20)
+        for label in axes[idx * 2 + 1].get_xticklabels():
+            label.set_ha('right')
 
     # fig.tight_layout(w_pad=0.2, h_pad=0.1, rect=(-0.008, 0.05, 1.005, 1.02))
     fig.tight_layout(w_pad=0.2, h_pad=0, rect=(-0.01, 0.005, 1.005, 1.005))
+
+    legend_labels = ["MultiQ (1 Row)", "MultiQ (2 Row)", "ZAC"]
+    if include_powermove:
+        legend_labels.append("PowerMove")
+    if include_qmap:
+        legend_labels.append("QMAP")
+    if include_zap:
+        legend_labels.append("ZAP")
+    if include_pachinqo:
+        legend_labels.append("PachinQo")
+    # fig.legend()'s auto-collected handles are seaborn's hatch-less legend
+    # proxies (same issue as plot_e2e_detailed's panel legends) -- build real
+    # ones from the fidelity axes' actual (already-hatched) bar patches
+    # instead. fidelity_ax's hue order (compiler_order in
+    # plot_e2e_results_fidelity) matches legend_labels exactly.
+    compiler_handles = [
+        mpatches.Patch(facecolor=bars.patches[0].get_facecolor(), hatch=bars.patches[0].get_hatch(),
+                        edgecolor='black', label=label)
+        for bars, label in zip(axes[0].containers, legend_labels)
+    ]
     fig.legend(
+        handles=compiler_handles,
         loc="lower center",
         bbox_to_anchor=(0.52, -0.005),
-        ncol=5,
+        ncol=len(legend_labels),
         fontsize=11,
         frameon=True,
-        labels=["MultiQ (1 Row)", "MultiQ (2 Row)", "ZAC", "PachinQo"],
         title_fontsize=11,
     )
 
     fig.savefig("results/plots/e2e_plot_detailed_full.pdf", format="pdf")
-'''
+    _progress("Wrote results/plots/e2e_plot_detailed_full.pdf")
 
 
 def plot_e2e_total_runtime(include_powermove=True, include_qmap=True, include_zap=True, include_pachinqo=True):
@@ -1740,6 +1800,16 @@ EXPERIMENTS = [
         plot_fn=plot_e2e_detailed,
     ),
     Experiment("e2e_total_runtime", "e2e total runtime (broken y-axis)", plot_fn=plot_e2e_total_runtime),
+    Experiment(
+        "e2e_means_table",
+        "RQ #1 fidelity/time means LaTeX table across all set sizes (needs 'e2e' data)",
+        plot_fn=generate_e2e_means_table,
+    ),
+    Experiment(
+        "e2e_detailed_full",
+        "Per-benchmark fidelity/duration panels for sets 4/8/12, all baselines (needs 'e2e' data)",
+        plot_fn=plot_e2e_detailed_full,
+    ),
     # Data-only entries below: no plot_fn since their own individual plot
     # functions are commented out for now, but their data still feeds
     # "overhead_combined" below. overhead_set_size has no entry here anymore

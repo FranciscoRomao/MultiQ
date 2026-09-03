@@ -1,4 +1,5 @@
 # %%
+import os
 import pdb
 import yaml
 import numpy as np
@@ -1503,7 +1504,7 @@ def plot_e2e_results_fidelity(ax, set_size, title, multiq_results_file="results/
 
     ax.grid(True)
 
-    higher_lower_is_better_loc = (0.68, 1.02)
+    higher_lower_is_better_loc = (0.6, 1.05)
 
     compiler_order = ['MultiQ (1 Row)', 'MultiQ (2 Row)', 'ZAC']
     if include_powermove:
@@ -1622,7 +1623,7 @@ def plot_e2e_results_duration(ax, set_size, title,multiq_results_file="results/m
     if include_pachinqo:
         df.loc[len(df)] = ['Mean', df[df['compiler']=='Pachinqo'][df['benchmark'].isin(data_pachinqo['benchmark'].unique())]['total_fidelity'].mean(), df[df['compiler']=='Pachinqo']['cir_duration'].mean(), 'Pachinqo']
 
-    higher_lower_is_better_loc = (0.68, 1.02)
+    higher_lower_is_better_loc = (0.6, 1.05)
 
     compiler_order = ['MultiQ (1 Row)', 'MultiQ (2 Row)', 'ZAC']
     if include_powermove:
@@ -1865,6 +1866,149 @@ def plot_e2e_results_duration_means(ax, title, set_sizes, multiq_results_file="r
             \t MultiQ (2 Row) {df[df["compiler"] == "MultiQ (2 Row)"][df["set_size"] == set_size]["cir_duration"].mean():.2f} \n \
             \t Pachinqo {df[df["compiler"] == "Pachinqo"][df["set_size"] == set_size]["cir_duration"].mean():.2f} \n ')
         
+
+def generate_e2e_means_table(
+    set_sizes=(4, 6, 8, 10, 12, 14),
+    multiq_results_file="results/multiq/e2e_results.csv",
+    zac_results_file="results/zac/e2e_results.csv",
+    pachinqo_results_file="results/pachinqo/e2e_results.csv",
+    powermove_results_file="results/powermove/e2e_results.csv",
+    qmap_results_file="results/qmap/e2e_results.csv",
+    zap_results_file="results/zap/e2e_results.csv",
+    output_file="results/plots/e2e_means_table.tex",
+):
+    # RQ #1 table (paper Table 2): fidelity/time means per compiler per set
+    # size. Same benchmark-selection/aggregation logic as
+    # plot_e2e_results_fidelity_means/plot_e2e_results_duration_means (each
+    # baseline is filtered down to whichever benchmarks MultiQ actually drew
+    # for that set size), just tabulated instead of plotted.
+    data_multiq = pd.read_csv(multiq_results_file)
+
+    # (results file, fidelity column, time column, time is already ms (True)
+    # or needs /1000 from us (False)). All single-circuit baselines share the
+    # 'total_fidelity'/'cir_duration' column names except PachinQo, which
+    # records its own 'execution_time'.
+    baseline_specs = {
+        "ZAC": (zac_results_file, "total_fidelity", "cir_duration"),
+        "PowerMove": (powermove_results_file, "total_fidelity", "cir_duration"),
+        "QMAP": (qmap_results_file, "total_fidelity", "cir_duration"),
+        "ZAP": (zap_results_file, "total_fidelity", "cir_duration"),
+        "PachinQo": (pachinqo_results_file, "total_fidelity", "execution_time"),
+    }
+    baseline_data = {name: pd.read_csv(path) for name, (path, _, _) in baseline_specs.items()}
+
+    compilers = ["ZAC", "MultiQ (1 Row)", "MultiQ (2 Row)", "PowerMove", "QMAP", "ZAP", "PachinQo"]
+    fidelity = {c: [] for c in compilers}
+    time_ms = {c: [] for c in compilers}
+
+    for size in set_sizes:
+        benchmarks = data_multiq[data_multiq["set_size"] == size]["benchmark"].unique()
+        m1 = data_multiq[(data_multiq["set_size"] == size) & (data_multiq["n_rows"] == 1)]
+        m2 = data_multiq[(data_multiq["set_size"] == size) & (data_multiq["n_rows"] == 2)]
+
+        fidelity["MultiQ (1 Row)"].append(m1["cir_fidelity"].mean() * 100)
+        fidelity["MultiQ (2 Row)"].append(m2["cir_fidelity"].mean() * 100)
+        # cir_duration/execution_time are recorded in microseconds; /1000 ->
+        # ms, matching plot_e2e_results_duration_means's ylabel/scale.
+        time_ms["MultiQ (1 Row)"].append(m1["cir_duration"].mean() / 1000)
+        time_ms["MultiQ (2 Row)"].append(m2["cir_duration"].mean() / 1000)
+
+        for name, (_, fid_col, time_col) in baseline_specs.items():
+            subset = baseline_data[name][baseline_data[name]["benchmark"].isin(benchmarks)]
+            fidelity[name].append(subset[fid_col].mean() * 100)
+            time_ms[name].append(subset[time_col].mean() / 1000)
+
+    # Highlighting matches the hand-built version of this table: only the
+    # smallest and largest set sizes (first/last column) are annotated, with
+    # the best/worst of {ZAC, MultiQ (1 Row), MultiQ (2 Row), PowerMove,
+    # QMAP, ZAP} marked green!25/red!25 and PachinQo -- always the weakest
+    # baseline at both ends in the source data -- marked red!50.
+    highlight_cols = {0, len(set_sizes) - 1}
+    main_compilers = ["ZAC", "MultiQ (1 Row)", "MultiQ (2 Row)", "PowerMove", "QMAP", "ZAP"]
+
+    def _cell(value, color=None):
+        text = f"{value:.2f}"
+        return f"\\cellcolor{{{color}}} {text}" if color else text
+
+    def _row_cells(values_by_compiler, compiler, higher_is_better):
+        cells = []
+        for col in range(len(set_sizes)):
+            color = None
+            if col in highlight_cols:
+                if compiler == "PachinQo":
+                    color = "red!50"
+                else:
+                    col_values = {c: values_by_compiler[c][col] for c in main_compilers}
+                    best = max(col_values, key=col_values.get) if higher_is_better else min(col_values, key=col_values.get)
+                    worst = min(col_values, key=col_values.get) if higher_is_better else max(col_values, key=col_values.get)
+                    if compiler == best:
+                        color = "green!25"
+                    elif compiler == worst:
+                        color = "red!25"
+            cells.append(_cell(values_by_compiler[compiler][col], color))
+        return " & ".join(cells)
+
+    display_names = {
+        "ZAC": "ZAC",
+        "MultiQ (1 Row)": "MultiQ~(1~Row)",
+        "MultiQ (2 Row)": "MultiQ~(2~Row)",
+        "PowerMove": "PowerMove",
+        "QMAP": "QMAP",
+        "ZAP": "ZAP",
+        "PachinQo": "PachinQo",
+    }
+
+    def _compiler_row(values_by_compiler, compiler, higher_is_better, last_in_block):
+        cells = _row_cells(values_by_compiler, compiler, higher_is_better)
+        line = f"    & \\textbf{{{display_names[compiler]}}} & {cells}\\\\"
+        if not last_in_block:
+            line += " \\cmidrule(lr){2-8}"
+        return line
+
+    n_rows = len(compilers)
+    fidelity_rows = "\n".join(
+        _compiler_row(fidelity, c, higher_is_better=True, last_in_block=(c == compilers[-1]))
+        for c in compilers
+    )
+    time_rows = "\n".join(
+        _compiler_row(time_ms, c, higher_is_better=False, last_in_block=(c == compilers[-1]))
+        for c in compilers
+    )
+
+    header_cols = " & ".join(f"\\textbf{{{size}}}" for size in set_sizes)
+
+    latex = f"""\\begin{{table}}[t]
+    \\small
+    \\caption{{\\textbf{{RQ \\#1:}} Fidelity and circuit execution time means for different multi-programming sets of circuits.}}
+    \\begin{{tabular}}{{p{{0.03\\linewidth}}|p{{0.23\\linewidth}}|p{{0.065\\linewidth}}|p{{0.065\\linewidth}}|p{{0.065\\linewidth}}|p{{0.065\\linewidth}}|p{{0.065\\linewidth}}|p{{0.065\\linewidth}}|}}
+    \\toprule
+    & \\textbf{{Compiler}} & {header_cols}\\\\
+    \\midrule
+    \\multirow{{{n_rows}}}{{*}}{{\\rotatebox[origin=c]{{90}}{{\\textbf{{Fidelity (\\%)}}}}}}
+{fidelity_rows}
+    \\midrule
+    \\multirow{{{n_rows}}}{{*}}{{\\rotatebox[origin=c]{{90}}{{\\textbf{{Time (ms)}}}}}}
+{time_rows}
+    \\hline
+    \\bottomrule
+    \\end{{tabular}}
+    \\vspace{{-1mm}}
+    \\label{{tab:means}}
+\\end{{table}}
+"""
+
+    os.makedirs(os.path.dirname(output_file), exist_ok=True)
+    with open(output_file, "w") as f:
+        f.write(latex)
+
+    print(f"Wrote {output_file}")
+    for metric_name, values in [("Fidelity", fidelity), ("Time", time_ms)]:
+        for i, size in enumerate(set_sizes):
+            line = ", ".join(f"{c}={values[c][i]:.2f}" for c in compilers)
+            print(f"  Set {size}: {metric_name} {line}")
+
+    return latex
+
 
 def plot_e2e_results_total_runtime(ax, title, set_size, include_pachinqo=False, include_powermove=False, include_qmap=False, include_zap=False, higher_lower_is_better='lower', xticks_visible=True, bar_width=0.35):
     data_multiq = pd.read_csv(f"results/multiq/e2e_results.csv")
