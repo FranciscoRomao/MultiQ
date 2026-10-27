@@ -43,8 +43,6 @@ figures/
 results/zac
 results_bk/
 
-results
-
 lixo
 
 # Per-run configs derived from the tracked base configs/architectures in
