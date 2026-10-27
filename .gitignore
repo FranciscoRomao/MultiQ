@@ -40,7 +40,6 @@ data/benchmarks
 !data/benchmarks/single/wstate_n27.qasm
 organize
 figures/
-results/zac
 results_bk/
 
 lixo
