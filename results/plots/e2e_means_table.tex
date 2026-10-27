@@ -1,0 +1,30 @@
+\begin{table}[t]
+    \small
+    \caption{\textbf{RQ \#1:} Fidelity and circuit execution time means for different multi-programming sets of circuits.}
+    \begin{tabular}{p{0.03\linewidth}|p{0.23\linewidth}|p{0.065\linewidth}|p{0.065\linewidth}|p{0.065\linewidth}|p{0.065\linewidth}|p{0.065\linewidth}|p{0.065\linewidth}|}
+    \toprule
+    & \textbf{Compiler} & \textbf{4} & \textbf{6} & \textbf{8} & \textbf{10} & \textbf{12} & \textbf{14}\\
+    \midrule
+    \multirow{7}{*}{\rotatebox[origin=c]{90}{\textbf{Fidelity (\%)}}}
+    & \textbf{ZAC} & 63.18 & 65.02 & 67.99 & 67.81 & 62.37 & 63.77\\ \cmidrule(lr){2-8}
+    & \textbf{MultiQ~(1~Row)} & 64.51 & 64.46 & 66.63 & 65.74 & 57.00 & \cellcolor{red!25} 55.07\\ \cmidrule(lr){2-8}
+    & \textbf{MultiQ~(2~Row)} & 64.62 & 64.56 & 66.91 & 65.91 & 59.92 & 60.58\\ \cmidrule(lr){2-8}
+    & \textbf{PowerMove} & 60.00 & 61.17 & 65.92 & 65.44 & 58.02 & 60.19\\ \cmidrule(lr){2-8}
+    & \textbf{QMAP} & \cellcolor{red!25} 59.37 & 62.20 & 65.31 & 65.75 & 60.59 & 61.76\\ \cmidrule(lr){2-8}
+    & \textbf{ZAP} & \cellcolor{green!25} 64.85 & 67.43 & 69.87 & 69.71 & 64.37 & \cellcolor{green!25} 65.68\\ \cmidrule(lr){2-8}
+    & \textbf{PachinQo} & \cellcolor{red!50} 34.93 & 40.69 & 49.07 & 45.93 & 37.10 & \cellcolor{red!50} 41.45\\
+    \midrule
+    \multirow{7}{*}{\rotatebox[origin=c]{90}{\textbf{Time (ms)}}}
+    & \textbf{ZAC} & 9.13 & 8.66 & 7.43 & 7.65 & 8.91 & \cellcolor{green!25} 8.45\\ \cmidrule(lr){2-8}
+    & \textbf{MultiQ~(1~Row)} & 7.82 & 8.90 & 8.93 & 10.08 & 16.07 & 19.01\\ \cmidrule(lr){2-8}
+    & \textbf{MultiQ~(2~Row)} & \cellcolor{green!25} 7.71 & 8.80 & 8.61 & 9.87 & 12.13 & 12.41\\ \cmidrule(lr){2-8}
+    & \textbf{PowerMove} & \cellcolor{red!25} 22.50 & 19.59 & 18.39 & 18.87 & 24.12 & \cellcolor{red!25} 22.06\\ \cmidrule(lr){2-8}
+    & \textbf{QMAP} & 17.01 & 14.56 & 13.64 & 13.36 & 15.32 & 14.68\\ \cmidrule(lr){2-8}
+    & \textbf{ZAP} & 10.61 & 9.14 & 8.32 & 8.51 & 10.21 & 9.66\\ \cmidrule(lr){2-8}
+    & \textbf{PachinQo} & \cellcolor{red!50} 56.33 & 31.94 & 35.64 & 37.60 & 50.21 & \cellcolor{red!50} 43.43\\
+    \hline
+    \bottomrule
+    \end{tabular}
+    \vspace{-1mm}
+    \label{tab:means}
+\end{table}

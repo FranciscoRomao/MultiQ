@@ -1,0 +1,9 @@
+{
+  "cir_fidelity": 0.7690093688887463,
+  "cir_fidelity_1q_gate": 0.9742262117471587,
+  "cir_fidelity_2q_gate": 0.9388099873031187,
+  "cir_fidelity_2q_gate_for_idle": 1,
+  "cir_fidelity_atom_transfer": 0.941736262223169,
+  "cir_fidelity_coherence": 0.8928218825925127,
+  "cir_duration": 5748.675545826608
+}
