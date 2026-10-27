@@ -1239,7 +1239,7 @@ def plot_introduction_figures():
     # qubits): fidelity (with the 170-qubit/0.08-fidelity threshold
     # annotation) on top, execution time (with the matching "threshold
     # point" annotation) below -- matches the original figure's layout.
-    fig, [ax0, ax1] = utils.gen_subplots(1, 2, figsize=(6, 5))
+    fig, [ax0, ax1] = utils.gen_subplots(1, 2, figsize=(6, 4.5), height_ratios=[0.9025, 0.95])
 
     ppfunctions.plot_fidelity_vs_circuit_size_zac_pachinqo_atomique(ax0, title='(a) Fidelity vs Circuit size')
     ppfunctions.plot_execution_time_vs_circuit_size_zac_pachinqo_atomique(ax1, title='(b) Execution time vs Circuit size')
@@ -1247,7 +1247,7 @@ def plot_introduction_figures():
     ax0.tick_params(axis='x', bottom=False, labelbottom=False)
     ax0.set_xlabel(None)
 
-    fig.tight_layout(rect=(-0.02, 0.035, 1.03, 1.02), h_pad=0.4)
+    fig.tight_layout(rect=(-0.02, 0.035, 1.03, 1.02), h_pad=0.2)
 
     fig.legend(loc='lower center', bbox_to_anchor=(0.52, -0.01), ncol=4, fontsize=12, frameon=True,
                labels=['ZAC', 'PachinQo', 'Atomique', 'Average'])

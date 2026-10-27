@@ -801,7 +801,7 @@ def plot_e2e_detailed_full(detailed_set_sizes=(4, 8, 12), include_pachinqo=True,
 def plot_e2e_total_runtime(include_powermove=True, include_qmap=True, include_zap=True, include_pachinqo=True):
     # ----- Plot end-to-end evaluation results total runtime for MultiQ and baselines
 
-    fig, [ax0, ax1] = utils.gen_subplots(1, 2, figsize=(13, 3), height_ratios=[0.8, 1])
+    fig, [ax0, ax1] = utils.gen_subplots(1, 2, figsize=(13, 2.85), height_ratios=[0.8, 1])
 
     set_sizes = [6, 8, 10, 12, 14]
 
@@ -1011,7 +1011,7 @@ def plot_e2e_total_runtime(include_powermove=True, include_qmap=True, include_za
     # repositioned on ax0; the compiler/hatch legend is redundant with the
     # custom fig.legend built below from custom_handles, so drop it here.
     stage_legend = min(ax0_legends, key=lambda l: len(l.get_texts()))
-    stage_legend.set(bbox_to_anchor=(0.37, 0.99), loc="upper left")
+    stage_legend.set(bbox_to_anchor=(0.37, 1.01), loc="upper left")
     for legend in ax0_legends + ax1_legends:
         if legend is not stage_legend:
             legend.remove()
@@ -1084,7 +1084,7 @@ def plot_e2e_total_runtime(include_powermove=True, include_qmap=True, include_za
     fig.legend(
         handles=custom_handles,
         loc="upper left",
-        bbox_to_anchor=(0, 0.99),
+        bbox_to_anchor=(0, 1),
         bbox_transform=ax0.transAxes,
         fontsize=10,
         frameon=True,
@@ -1269,7 +1269,7 @@ def plot_planner_bundler():
 
 def plot_planner():
     # ----- Plotting Planner and Bundler Results ----
-    fig, ((ax0, ax1)) = plt.subplots(1,2, figsize=(13, 2.5), constrained_layout=True)
+    fig, ((ax0, ax1)) = plt.subplots(1,2, figsize=(13, 2.25), constrained_layout=True)
 
     eval.plot_planner_eval_fidelity_multiq(ax=ax0, title="(a) MultiQ Planner (Decoherence error)", complete=False)
     eval.plot_planner_eval_utilization_multiq(ax=ax1, title="(b) MultiQ Planner (Utilization)")
@@ -1306,7 +1306,7 @@ def plot_planner():
     #    title_fontsize=11,
     #)
 
-    fig.tight_layout(rect=(-0.01, 0.085, 1.005, 1.04), h_pad=2.5, w_pad=0.3)
+    fig.tight_layout(rect=(-0.01, 0.085, 1.005, 1.0), h_pad=2.5, w_pad=0.3)
 
     """
     fig.savefig('results/plots/bundler_plots.pdf', format='pdf')
