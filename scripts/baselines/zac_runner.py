@@ -28,6 +28,7 @@ logger = logging.getLogger("evaluation.zac_runner")
 
 def save_circuit(circuit, filename):
     qasm_str = dumps(circuit)
+    os.makedirs(os.path.dirname(filename) or ".", exist_ok=True)
 
     with open(filename, "w") as f:
         f.write(qasm_str)
