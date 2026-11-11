@@ -1,38 +1,36 @@
 [project]
 name = "multiq"
 version = "0.1.0"
-description = "Default template for PDM package"
-authors = []
-
+description = "Compiler-runtime and verifier for multi-programming neutral atom quantum architectures"
+readme = "README.md"
+requires-python = ">=3.12"
+license = {text = "MIT"}
+keywords = ["quantum", "compilers", "neutral atoms"]
 dependencies = [
     "qiskit>=2.0.2",
-    "matplotlib<4.0,>=3.0",
-    "pylatexenc<3.0,>=2.0",
+    "qiskit-qasm3-import>=0.6.0",
+    "numpy>=2.2",
+    "scipy>=1.15",
     "pandas==2.2.3",
-    "networkx>=3.5",
-    "mqt-bench>=1.1.9",
-    "zac@git+https://github.com/danvonk/ZAC.git",
-    "pyyaml>=6.0.2",
-    "mqt-qcec>=3.0.0",
-    "pachinqo @git+https://github.com/FranciscoRomao/PachinQo",
-    "mqt-qmap>=3.8.0",
+    "matplotlib>=3.0,<4.0",
     "seaborn>=0.13.2",
-    "black>=25.1.0",
-    "pyzx>=0.9.0",
-    "imageio-ffmpeg>=0.6.0",
+    "networkx>=3.5",
+    "pyyaml>=6.0.2",
+    "tqdm>=4.67",
+    "mqt-bench>=1.1.9",
+    "mqt-qcec>=3.0.0",
+    "mqt-qmap==3.8.0",
+    "zac",
+    "pachinqo",
 ]
 
-requires-python = ">=3.12"
-readme = "README.md"
-license = {text = "MIT"}
-keywords = ["quantum", "compilers"]
+[tool.uv.sources]
+zac = { path = "compilers/zac" }
+pachinqo = { path = "compilers/pachinqo" }
 
 [build-system]
-requires = ["pdm-backend"]
-build-backend = "pdm.backend"
+requires = ["hatchling"]
+build-backend = "hatchling.build"
 
-[tool.pdm]
-distribution = true
-
-[tool.black]
-line-length = 120
+[tool.hatch.build.targets.wheel]
+packages = ["src/multiq"]

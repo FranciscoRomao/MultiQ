@@ -6,7 +6,6 @@ from qiskit import QuantumCircuit
 from qiskit.dagcircuit import DAGCircuit
 from qiskit.dagcircuit.dagnode import DAGInNode, DAGOutNode
 from multiq.compiler.planner import MultiQConfig, Tile
-from qiskit.converters import circuit_to_dag
 import logging
 
 logger = logging.getLogger("multiq")
@@ -16,20 +15,11 @@ class CircuitSelector:
     def __init__(self, 
                  config: MultiQConfig,
                  multi_circuit_prob: float = 0.3):
-        """        
-        Args:
-            initial_temperature: Starting temperature for annealing
-            final_temperature: Ending temperature (stopping criterion)
-            cooling_rate: Rate at which temperature decreases (0 < rate < 1)
-            max_iterations: Maximum total iterations
-            max_iterations_per_temp: Maximum iterations at each temperature
-        """
         self.config = config
         self.bin_costs = []
-        self.positions = []  # List[List[List[int]]] - bin, row, column (tile indices)
+        self.positions = []  # positions[bin][row] is a list of tile indices
         self.selection_algorith = config.selection_algorithm
         
-        # SA parameters
         self.initial_temperature = config.initial_temperature
         self.final_temperature = config.final_temperature
         self.cooling_rate = config.cooling_rate
@@ -53,7 +43,6 @@ class CircuitSelector:
 
         self.tiles = tiles
 
-        # Distribute  positions and perform first fit
         self.positions = []
         self.bin_costs = []
         first_fit_distribution = self._first_fit_distribution()
@@ -74,7 +63,6 @@ class CircuitSelector:
         if seed is not None:
             random.seed(seed)
 
-        # Initialize positions and perform first fit
         self.positions = []
         self.bin_costs = []
         first_fit_distribution = self._first_fit_distribution()
@@ -82,13 +70,11 @@ class CircuitSelector:
 
         logger.debug(f"Initial bin count: {self.bin_counter}")
 
-        # Calculate initial costs for all bins
         for i in range(self.bin_counter):
             self.bin_costs.append(self._evaluate_bin_cost(i))
 
         current_cost = float(sum(self.bin_costs))
 
-        #self._create_new_bin()
 
         best_cost = current_cost
         best_positions = copy.deepcopy(self.positions)
@@ -99,7 +85,6 @@ class CircuitSelector:
         total_rejected = 0
         neighbor_generation_failures = 0
 
-        # Statistics tracking
         cost_history = [current_cost]
         temperature_history = [temperature]
         acceptance_history = []
@@ -117,11 +102,9 @@ class CircuitSelector:
             temp_rejected = 0
             temp_generation_failures = 0
             
-            # Run multiple iterations at current temperature
             for temp_iter in range(self.max_iterations_per_temp):
                 iteration += 1
                 
-                # Generate neighbor solution
                 logger.debug(f"Iteration {iteration}: Generating neighbor at T={temperature:.2f}")
                 changed_bins = self._generate_neighbor(temperature, seed)
                 
@@ -132,7 +115,6 @@ class CircuitSelector:
                         logger.debug(f"Warning: {temp_generation_failures} neighbor generation failures at T={temperature:.2f}")
                     continue
                 
-                # Evaluate neighbor cost (only changed bins)
                 try:
                     delta_cost = self._evaluate_delta_cost(changed_bins)
                     changed_bins = self._remove_empty_bins(changed_bins)
@@ -144,13 +126,10 @@ class CircuitSelector:
                     temp_rejected += 1
                     continue
                 
-                # Calculate acceptance probability
                 if delta_cost < 0:
-                    # Better solution - always accept
                     accept = True
                     acceptance_prob = 1.0
                 else:
-                    # Worse solution - accept with probability based on temperature
                     if temperature > 0:
                         acceptance_prob = math.exp(-delta_cost / temperature)
                         accept = random.random() < acceptance_prob
@@ -160,34 +139,28 @@ class CircuitSelector:
                 
                 if accept:
                     current_cost = neighbor_cost
-                    # Update bin costs for changed bins
                     for bin_idx in changed_bins:
                         self.bin_costs[bin_idx] = self._evaluate_bin_cost(bin_idx)
                     temp_accepted += 1
                     
-                    # Update best solution if necessary
                     if current_cost < best_cost:
                         best_positions = copy.deepcopy(self.positions)
                         best_cost = current_cost
-                        logger.debug(f"🏆 New best solution at iteration {iteration}: cost = {best_cost:.3f} (Δ = {delta_cost:.3f})")
+                        logger.debug(f"New best solution at iteration {iteration}: cost = {best_cost:.3f} (Δ = {delta_cost:.3f})")
                 else:
-                    # Reject: revert changes
                     logger.debug(f"-------Iteration {iteration}: Rejecting neighbor with Δ = {delta_cost:.3f}, acceptance prob = {acceptance_prob:.3f}")
                     self._revert_last_move()
                     temp_rejected += 1
                 
-                # Record statistics
                 cost_history.append(current_cost)
                 acceptance_history.append(acceptance_prob if delta_cost >= 0 else 1.0)
                 
-                # Early stopping if we haven't accepted anything in a while
                 if temp_accepted == 0 and temp_iter > self.max_iterations_per_temp // 2:
                     break
             
             total_accepted += temp_accepted
             total_rejected += temp_rejected
             
-            # Cool down
             temperature *= self.cooling_rate
             temperature_history.append(temperature)
             
@@ -197,10 +170,8 @@ class CircuitSelector:
                             f"Best={best_cost:6.3f}, Accept={acceptance_rate:.3f}, "
                             f"Failures={temp_generation_failures}")
         
-        # Restore best solution
         self.positions = best_positions
         
-        # Compile optimization statistics
         stats = {
             'total_iterations': iteration,
             'total_accepted': total_accepted,
@@ -219,7 +190,7 @@ class CircuitSelector:
         
         overall_acceptance = total_accepted / max(total_accepted + total_rejected, 1)
         logger.info("-" * 50)
-        logger.info(f"  Optimization complete!")
+        logger.info(f"  Optimization complete")
         logger.info(f"  Results:")
         logger.info(f"   Initial cost: {stats['initial_cost']:.3f}")
         logger.info(f"   Best cost: {best_cost:.3f}")
@@ -243,28 +214,22 @@ class CircuitSelector:
         for bin_rows in self.positions:
             tile_positions.append([])
             for row in bin_rows:
-                #tile_positions[-1].append([])  # Create a new row in the bin
                 for tile_idx in row:
                         tile_positions[-1].append(self.tiles[tile_idx])
         
         return tile_positions
 
     def _first_fit_distribution(self) -> int:
-        """
-        Distribute the tiles into bins in a first fit manner.
-        Returns the number of bins created.
-        """
+        """Put tiles into bins first-fit and return the number of bins."""
         bin_counter = 0
         
         for tile_idx, tile in enumerate(self.tiles):
-            # Try to fit in existing bins
             fitted = False
             for bin_idx in range(bin_counter):
                 if self._simple_fit_check(tile_idx, bin_idx, insert=True):
                     fitted = True
                     break
             
-            # If it doesn't fit in any existing bin, create a new one
             if not fitted:
                 self._create_new_bin()
                 if self._simple_fit_check(tile_idx, bin_counter, insert=True):
@@ -285,14 +250,13 @@ class CircuitSelector:
                 changed_bins.pop(i)
                 continue
 
-        # There can only be one empty bin at a time, so we can safely only pop the first one
+        # At most one bin can become empty per move.
         if empty_bin != None:
             self.bin_costs.pop(empty_bin)
             self.positions.pop(empty_bin)
 
             changed_bins = [b - 1 if b > empty_bin else b for b in changed_bins]
             
-            # Update bin counter
             self.bin_counter = len(self.positions)
         
         if self.bin_counter == 0:
@@ -307,81 +271,60 @@ class CircuitSelector:
         self.positions.append(new_bin)
     
     def _simple_fit_check(self, tile_idx: int, bin_idx: int, insert: bool = False) -> bool:
-        """
-        Check if a tile can fit in a specific bin and place it if possible.
-        Returns True if fitted, False otherwise.
-        """
+        """Return whether the tile fits in a row of the bin, appending it there if insert is set."""
         tile = self.tiles[tile_idx]
         
-        # Ensure bin exists
         if len(self.positions) <= bin_idx:
             logger.error(f"Bin index {bin_idx} out of range. Current bins: {len(self.positions)}")
             return False
         
-        # Try to fit in each row of the bin
         for row_idx in range(self.config.grid_rows):
-            # Calculate current width usage in this row
             current_width = sum(
                 self.tiles[existing_tile_idx].architecture.arch_range[1][0] 
                 for existing_tile_idx in self.positions[bin_idx][row_idx]
             )
             
-            # Check if tile fits in this row
             tile_width = tile.architecture.arch_range[1][0]
             if current_width + tile_width <= self.config.qpu_width:
                 if insert:
-                    # Place the tile in this row
                     self.positions[bin_idx][row_idx].append(tile_idx)
                 return True
         
-        return False  # Tile did not fit in any row of the bin
+        return False
     
     def _simple_bin_fit_check(self, tile_idx: int, bin_idx: int, insert: bool = False) -> bool:
-        """
-        Check if a tile can fit in a specific bin and place it if possible.
-        Returns True if fitted, False otherwise.
-        """
+        """Return whether the tile fits in a row of the bin."""
         tile = self.tiles[tile_idx]
         
-        # Ensure bin exists
         if len(self.positions) <= bin_idx:
             logger.error(f"Bin index {bin_idx} out of range. Current bins: {len(self.positions)}")
             return False
         
-        # Try to fit in each row of the bin
         for row_idx in range(self.config.grid_rows):
-            # Calculate current width usage in this row
             current_width = sum(
                 self.tiles[existing_tile_idx].architecture.arch_range[1][0] 
                 for existing_tile_idx in self.positions[bin_idx][row_idx]
             )
             
-            # Check if tile fits in this row
             tile_width = tile.architecture.arch_range[1][0]
             if current_width + tile_width <= self.config.qpu_width:
                 return True
         
-        return False  # Tile did not fit in any row of the bin
+        return False
     
     def _simple_row_fit_check(self, tile_idx: int, bin_idx: int, row_idx: int) -> bool:
-        """
-        Check if a tile can fit in a specific row of a bin.
-        Returns True if it fits, False otherwise.
-        """
         tile = self.tiles[tile_idx]
         
-        # Calculate current width usage in this row
         current_width = sum(
             self.tiles[existing_tile_idx].architecture.arch_range[1][0] 
             for existing_tile_idx in self.positions[bin_idx][row_idx]
         )
         
-        # Check if tile fits in this row
         tile_width = tile.architecture.arch_range[1][0]
         return current_width + tile_width <= self.config.qpu_width
     
     def _evaluate_bin_cost(self, bin_idx: int) -> float:
-        """Merge all circuits in a bin and evaluate the cost."""
+        """Weighted sum of temporal imbalance and unused width for one bin."""
 
         performance_scaling_factor = 1/0.3
         utilization_scaling_factor = 1
@@ -395,56 +338,33 @@ class CircuitSelector:
         if not circuits:
             logger.debug(f"Bin {bin_idx} is empty, cost is zero.")
             return 0.0
-            #raise ValueError("Cannot evaluate cost for empty bin")
         
         if len(tiles) == 1:
-            ##merged_circuit = circuits[0]
             performance_cost = 0.0
         else:
-            ##merged_circuit = self.merge_circuits(circuits)
         
-            ##merged_dag = circuit_to_dag(merged_circuit)
-            ##layers = self.split_dag_into_layers(merged_dag, self.window)
 
-            ##entanglement_layers = 0
             
-            ##for layer_nodes in layers:
-            ##    if any(i.num_qubits > 1 for i in layer_nodes):  # Fixed: should be > 1, not > 0
-            ##        entanglement_layers += 1
 
-            ##layers_cost = self.circuit_layer_cost(layers)
 
-            # This is the minimum number of layers needed to execute the merged circuit
-            # equivalent to the longest circuit execution 
 
-            #max_layers = sum([tiles.best_nlayers for tiles in tiles if tiles.best_nlayers is not None])
-            #sum_durations = min([tile.best_nlayers for tile in tiles if tile.best_nlayers is not None])
             sum_durations = sum([tile.best_nlayers for tile in tiles])
             sum_tile_widths = sum([tile.architecture.arch_range[1][0] for tile in tiles])
             weighted_sum_durations = sum([tile.best_nlayers * tile.architecture.arch_range[1][0] for tile in tiles])
 
             weighted_avg_sum_durations = (weighted_sum_durations/sum_tile_widths)
             
-            #longest_circuit = max([tile.best_nlayers for tile in tiles if tiles.best_nlayers is not None])
             longest_circuit = max([tile.best_nlayers for tile in tiles])
 
             temporal_cost = 1 - weighted_avg_sum_durations/longest_circuit
 
-            ##performance_cost = (((len(layers) - best_layers)/(best_layers)) + max_layer_diff/best_layers) * performance_scaling_factor 
-            #performance_cost = max_layer_diff/fastest_circuit * performance_scaling_factor 
             performance_cost = temporal_cost * performance_scaling_factor
-            #logger.debug(f"Bin {bin_idx} cost evaluation: fastest_circuit={fastest_circuit}, slowest_circuit={slowest_circuit}, max_layer_diff={max_layer_diff}, performance_cost = {performance_cost}")
-            ##logger.debug(f"Bin {bin_idx} cost evaluation: max_layers={max_layers}, bin_layers={len(layers)}, best_layers={best_layers}, max_layer_diff={max_layer_diff}, perfor_cost = {performance_cost}")
 
         summed_layout_width = sum([tile.architecture.arch_range[1][0] for tile in tiles])
-        #avg_layout_width = summed_layout_width / len(tiles)
         
         max_qpu_width = self.config.qpu_width * self.config.grid_rows
-        # Unused qpu width
         unused_width = max_qpu_width - summed_layout_width
         
-        # The layout width normalization benefits bins with many larger layout and give a bad score to bins with smaller layout
-        # This is because smaller layout can be used to fit more circuits in the same bin (in a balanced distribution)
 
         utilization_cost = (unused_width/max_qpu_width) * utilization_scaling_factor
 
@@ -452,13 +372,10 @@ class CircuitSelector:
 
         cost = performance_cost  * self.config.perf_weight_selector + utilization_cost * (1-self.config.perf_weight_selector)
         
-        #return (len(layers) + entanglement_layers)/min_layers * self.config.perf_weight_selector + unused_width/(2*avg_layout_width) * (1-self.config.perf_weight_selector)
         return cost
     
     def _evaluate_delta_cost(self, changed_bins: List[int]) -> float:
-        """
-        Calculate the change in cost for only the changed bins.
-        """
+        """Cost change from re-evaluating only the changed bins."""
         delta_cost = 0.0
         
         for bin_idx in changed_bins:
@@ -469,10 +386,7 @@ class CircuitSelector:
         return delta_cost
     
     def _generate_neighbor(self, temperature: float, seed: Optional[int] = None) -> Optional[List[int]]:
-        """
-        Generates a random neighboring state by either moving a circuit to another bin or swapping two circuits.
-        Returns list of changed bin indices, or None if generation failed.
-        """
+        """Apply a random neighbour move and return the changed bins, or None on failure."""
         if seed is not None:
             random.seed(seed)
 
@@ -480,45 +394,33 @@ class CircuitSelector:
         if num_tiles == 0:
             return None
 
-        # Store original state for potential reversion
         self._previous_costs = copy.deepcopy(self.bin_costs)
         self._previous_positions = copy.deepcopy(self.positions)
 
-        # Decide on move type based on temperature
         temp_ratio = temperature / self.initial_temperature
 
-        move_probability = temp_ratio * 0.5  # High temp = higher swap probability
-        create_bin_probability = temp_ratio * 0.5  # High temp = higher bin creation probability
+        move_probability = temp_ratio * 0.5
+        create_bin_probability = temp_ratio * 0.5
 
         try:
             rand_val = random.random()
 
-            # This means that with initial temperature, we have a 30% chance to create a new bin,
-            # and a 50%+30% chance of moving a single circuit, otherwise we just swap tiles which is more times valid than moving a single circuit
-            # When the temperature gets to near zero the chance to create a new bin goes to zero and the move and swap probabilities become 100%
+            # Bin creation and swap probabilities shrink with temperature.
             if rand_val < create_bin_probability:
-                # Move to a new bin operation
                 logger.debug(f"Creating new bin at temperature {temperature:.2f}")
                 return self._move_to_new_bin()
             elif rand_val < move_probability + create_bin_probability:
-                # Swap move: exchange positions of two tiles
-                logger.debug(f"Moving a circuit at temperature {temperature:.2f}")
+                logger.debug(f"Swapping circuits at temperature {temperature:.2f}")
                 return self._circuit_swap()
             else:
-                # Move: relocate a single tile (without creating new bins)
-                logger.debug(f"Swapping circuits at temperature {temperature:.2f}")
+                logger.debug(f"Moving a circuit at temperature {temperature:.2f}")
                 return self._circuit_move()
         except Exception as e:
             logger.debug(f"Neighbor generation failed: {e}")
-            # self._revert_last_move()
             return None
     
     def _circuit_move(self) -> List[int] | None:
-        """
-        Move a random circuit from one bin to another.
-        Returns list of affected bin indices.
-        """
-        # Find all tiles and their current positions
+        """Move a random tile to another bin and return the affected bins, or None."""
         
         if len(self.positions) == 1:
             logger.debug("Only one bin available, moving doesn't make sense")
@@ -534,41 +436,30 @@ class CircuitSelector:
             logger.error("No tiles available to move")
             raise RuntimeError("No tiles to move")
         
-        # Select random tile to move
         tile_idx, from_bin, from_row = random.choice(tile_positions)
 
-        # Store original state for potential reversion
-        #self._previous_positions = copy.deepcopy(self.positions)
         
-        # Remove tile from current position
         self.positions[from_bin][from_row].remove(tile_idx)
         
         bins = [b for b in range(len(self.positions)) if b != from_bin]
         
-        # Choose target bin (prefer different bin)
         if len(self.positions) > 1:
             to_bin = random.choice(bins)
         
             if self._simple_fit_check(tile_idx, to_bin, insert=True):
-                # Success - return affected bins
                 affected_bins = [from_bin, to_bin] if from_bin != to_bin else [from_bin]
                 return list(set(affected_bins))
         
-        # Restore bin state if placement failed
         logger.debug(f"Failed to place tile {tile_idx} in any bin, reverting changes")
         self.positions[from_bin][from_row].append(tile_idx)
         
     def _circuit_swap(self) -> List[int] | None:
-        """
-        Swap positions of two random circuits.
-        If valid returns list of affected bin indices.
-        """
+        """Swap two random tiles across bins and return the affected bins, or None."""
 
         if len(self.positions) < 2:
             logger.debug("Only one bin available, swapping doesn't make sense")
             return None
         
-        # Find all tiles and their positions
         tile_positions = []
         for bin_idx, bin_rows in enumerate(self.positions):
             for row_idx, row in enumerate(bin_rows):
@@ -578,17 +469,14 @@ class CircuitSelector:
         if len(tile_positions) < 2:
             raise RuntimeError("Need at least 2 tiles to swap")
         
-        # Select two different tiles
         tile1_data, tile2_data = random.sample(tile_positions, 2)
         tile1_idx, bin1, row1 = tile1_data
         tile2_idx, bin2, row2 = tile2_data
         
-        # Remove both tiles
         self.positions[bin1][row1].remove(tile1_idx)
         self.positions[bin2][row2].remove(tile2_idx)
 
         if self._simple_fit_check(tile1_idx, bin2) and self._simple_fit_check(tile2_idx, bin1):
-            # Both tiles fit in the swapped positions
             self.positions[bin1][row1].append(tile2_idx)
             self.positions[bin2][row2].append(tile1_idx)
             affected_bins = [bin1, bin2] if bin1 != bin2 else [bin1]
@@ -596,30 +484,11 @@ class CircuitSelector:
         else:
             self.positions[bin1][row1].append(tile1_idx)
             self.positions[bin2][row2].append(tile2_idx)
-            return None  # Swap not valid, revert changes
+            return None
 
-        ## Swap positions
-        #self.positions[bin1][row1].append(tile2_idx)
-        #self.positions[bin2][row2].append(tile1_idx)
-        #
-        ## Check if swap is valid (capacity constraints)
-        #if (self._check_bin_capacity(bin1) and self._check_bin_capacity(bin2)):
-        #    affected_bins = [bin1, bin2] if bin1 != bin2 else [bin1]
-        #    return list(set(affected_bins))
-        #else:
-        #    # Revert swap
-        #    self.positions[bin1][row1].remove(tile2_idx)
-        #    self.positions[bin2][row2].remove(tile1_idx)
-        #    self.positions[bin1][row1].append(tile1_idx)
-        #    self.positions[bin2][row2].append(tile2_idx)
-        #    raise RuntimeError("Swap violates capacity constraints")
 
     def _move_to_new_bin(self) -> List[int]:
-        """
-        Create a new bin and move a random tile to it.
-        Returns list of affected bin indices.
-        """
-        # Find all tiles and their current positions
+        """Move a random tile into a new bin and return the affected bins."""
         tile_positions = []
         for bin_idx, bin_rows in enumerate(self.positions):
             for row_idx, row in enumerate(bin_rows):
@@ -629,25 +498,18 @@ class CircuitSelector:
         if not tile_positions:
             raise RuntimeError("No tiles to move to new bin")
     
-        # Select random tile to move
         tile_idx, from_bin, from_row = random.choice(tile_positions)
     
-        # Remove tile from current position
         self.positions[from_bin][from_row].remove(tile_idx)
     
-        # Create new bin
         self._create_new_bin()
         new_bin_idx = len(self.positions) - 1
         self.bin_counter += 1
     
-        # Place tile in new bin
         if self._simple_fit_check(tile_idx, new_bin_idx, insert=True):
-            # Add cost for new bin
-            #self.bin_costs.append(self._evaluate_bin_cost(new_bin_idx))
-            self.bin_costs.append(0.0)  # Initial cost is zero, will be evaluated later)
+            self.bin_costs.append(0.0)
             return [from_bin, new_bin_idx]
         else:
-            # Revert: put tile back and remove new bin
             self.positions[from_bin][from_row].append(tile_idx)
             self.positions.pop()
             self.bin_counter -= 1
@@ -662,15 +524,10 @@ class CircuitSelector:
             self.bin_costs = self._previous_costs
 
 def circuit_layer_cost(circuit_layers: list) -> List[int]:
-    """
-    Calculate the cost of a circuit based on the number of layers.
-    This computes the number of parallelizable layers assuming single qubit gates can be executed in parallel
-     as well as multi-qubit gates, but multi-qubit gates cannot be executed in parallel with single qubit gates.
-    The cost is the number of layers needed to execute the circuit plus the number of entanglement layers
-    """
+    """Return [number of layers, number of layers with a multi-qubit gate]."""
     entanglement_layers = 0
     for layer_nodes in circuit_layers:
-        if any(i.num_qubits > 1 for i in layer_nodes):  # Fixed: should be > 1, not > 0
+        if any(i.num_qubits > 1 for i in layer_nodes):
             entanglement_layers += 1
 
     return [len(circuit_layers), entanglement_layers]
@@ -687,13 +544,11 @@ def merge_circuits(circuits: list):
         circuit2 = circuits[i]
         new_circuit_copy = new_circuit.copy()
         
-        # Create a new quantum circuit with enough qubits and classical bits
         total_qubits = new_circuit.num_qubits + circuit2.num_qubits
         total_clbits = new_circuit.num_clbits + circuit2.num_clbits
 
         new_circuit = QuantumCircuit(total_qubits, total_clbits)
 
-        # Map circuit1's qubits and clbits into the new circuit
         new_circuit.compose(
             new_circuit_copy,
             qubits=range(new_circuit_copy.num_qubits),
@@ -701,7 +556,6 @@ def merge_circuits(circuits: list):
             inplace=True
         )
 
-        # Map circuit2's qubits and clbits into the new circuit
         new_circuit.compose(
             circuit2,
             qubits=range(new_circuit_copy.num_qubits, total_qubits),
@@ -714,10 +568,9 @@ def merge_circuits(circuits: list):
 def split_dag_into_layers(dag: DAGCircuit, window) -> list:
     removed_nodes = []
     layers = []
-    dag_layers = [list(layer) for layer in dag.multigraph_layers()]  # Convert to lists
+    dag_layers = [list(layer) for layer in dag.multigraph_layers()]
     layers_to_remove = []
 
-    # Remove DAGInNode and DAGOutNode from the layers
     for layer in dag_layers:
         indexes_to_remove = []
         for index, node in enumerate(layer):
@@ -727,14 +580,12 @@ def split_dag_into_layers(dag: DAGCircuit, window) -> list:
             elif isinstance(node, DAGOutNode):
                 indexes_to_remove.append(index)
         
-        # Remove in reverse order to maintain indices
         for index in reversed(indexes_to_remove):
             layer.pop(index)
     
         if len(layer) == 0:
             layers_to_remove.append(layer)
     
-    # Remove empty layers
     for layer in layers_to_remove:
         dag_layers.remove(layer)
     
@@ -743,19 +594,16 @@ def split_dag_into_layers(dag: DAGCircuit, window) -> list:
     while len(dag_layers) > 0:
         window_slice = fetch_window_from_zero(dag_layers, window)
         
-        # Starting a new layer
         current_layer = []
         multi_qubit_layer = False
         single_qubit_layer = False
 
         for curr_index, layer in enumerate(window_slice):
             
-            # Sort by number of qubits to prioritize single qubit gates
             if any(node.num_qubits == 1 for node in layer):
                 layer.sort(key=lambda x: x.num_qubits)
 
             for node in layer:
-                # If the current layer is empty, add the first node
                 if len(current_layer) == 0:
                     current_layer.append(node)
                     dag_layers[index + curr_index].remove(node) 
@@ -767,28 +615,23 @@ def split_dag_into_layers(dag: DAGCircuit, window) -> list:
                         multi_qubit_layer = True
                     continue
                 
-                # Check compatibility with current layer type
                 if multi_qubit_layer and node.num_qubits == 1:
                     continue
                 elif single_qubit_layer and node.num_qubits > 1:
                     continue
 
-                # Check dependencies
                 if any(pre_node in current_layer for pre_node in dag.predecessors(node)):
                     continue
 
-                # Check if all predecessors were already executed
                 if any(pre_node not in removed_nodes for pre_node in dag.predecessors(node)):
                     continue
                 
-                # Node is compatible - add it
                 current_layer.append(node)
                 dag_layers[index + curr_index].remove(node)
                 removed_nodes.append(node)
 
         layers.append(current_layer)
 
-        # Remove empty layers
         while index < len(dag_layers) and len(dag_layers[index]) == 0:
             dag_layers.pop(index)
             

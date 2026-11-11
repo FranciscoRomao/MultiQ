@@ -62,12 +62,7 @@ def _compile_one(benchmark_path: str, target: dict) -> dict:
 
 
 def run_powermove_single_benchmarks(benchmark_file: str, arch_spec_path: str, output_file: str):
-    """
-    Compile a single QASM circuit with PowerMove against a fixed target derived
-    from `arch_spec_path` (a ZAC-style general_arch.json). Mirrors
-    run_zac_single_benchmarks so results/powermove/e2e_results.csv lines up
-    row-for-row with results/zac/e2e_results.csv.
-    """
+    """Compile a single QASM circuit with PowerMove against a target derived from a ZAC-style spec."""
     arch = load_general_arch(arch_spec_path)
     target = general_arch_to_powermove_target(arch)
 
@@ -120,11 +115,7 @@ def run_powermove_single_benchmarks(benchmark_file: str, arch_spec_path: str, ou
 
 
 def merge_circuits(circuits: list[QuantumCircuit]) -> QuantumCircuit:
-    """
-    Concatenate circuits onto disjoint qubit/clbit ranges, mirroring
-    zac_runner.merge_circuits so the controller (no-multiprogramming) eval compiles
-    the same merged program across every baseline.
-    """
+    """Concatenate circuits onto disjoint qubit and clbit ranges."""
     assert len(circuits) >= 1, "At least one circuit is required to merge."
 
     if len(circuits) == 1:
@@ -154,12 +145,7 @@ def merge_circuits(circuits: list[QuantumCircuit]) -> QuantumCircuit:
 
 
 def run_powermove_merge_benchmarks(benchmark_set: list[str], arch_spec_path: str, output_file: str):
-    """
-    Merge a benchmark set into a single circuit and compile it with PowerMove as one
-    program, simulating a controller with no multiprogramming support. Mirrors
-    run_zac_merge_benchmarks so results/powermove/controller_results.csv lines up
-    row-for-row with results/zac/controller_results.csv.
-    """
+    """Merge a benchmark set into one circuit and compile it with PowerMove as a single program."""
     arch = load_general_arch(arch_spec_path)
     target = general_arch_to_powermove_target(arch)
 
@@ -183,12 +169,7 @@ def run_powermove_merge_benchmarks(benchmark_set: list[str], arch_spec_path: str
     try:
         metrics = _compile_one(merged_path, target)
     except Exception as e:
-        # PowerMove's placement grid is sized to the entanglement zone's real
-        # capacity (grid_rows x grid_cols), not the full device's storage capacity
-        # (see general_arch_to_powermove_target), so it cannot place merged sets
-        # whose total qubit count exceeds that grid - unlike QMAP/ZAP, which carry
-        # over the full storage zone. Skip rather than crash the whole sweep; the
-        # plotting code marks the missing set size instead of drawing a bar.
+        # PowerMove's grid only covers the entanglement zone, so large merged sets may not fit.
         print(f"[WARN] PowerMove could not compile merged benchmark set {bench} ({e}); skipping this set size")
         return
 

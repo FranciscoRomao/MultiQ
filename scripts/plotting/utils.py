@@ -1,7 +1,4 @@
-import pandas as pd
-import seaborn as sns
 import matplotlib.pyplot as plt
-import numpy as np
 from matplotlib import gridspec
 from .defaults import COLUMN1_FIGSIZE
 

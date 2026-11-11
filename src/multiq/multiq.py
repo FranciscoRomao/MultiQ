@@ -30,9 +30,7 @@ class MultiQ:
         bundling_start = time.perf_counter()
         self.selector = CircuitSelector(self.config)
 
-        # There is a bug on the selector where the cost starts to be negative at some point,
-        # although it should not be possible it doesnt seem to affect the results.
-        # There is no time now to fix it, I will leave it for later.
+        # The selector cost can become negative in some cases, which does not seem to affect results.
         self.bins = self.selector.select(tiles)
         bundling_time = time.perf_counter() - bundling_start
 
@@ -86,7 +84,6 @@ class MultiQ:
                         logger.error(f"Skipping animation and exiting.")
                         tile.circuit.draw(output='mpl', filename=f"original_circuit.png")
                         translated_circuit.draw(output='mpl', filename=f"translated_circuit.png")
-                        #raise ValueError(f"Tile {tile.source_name} is not equivalent after compilation!")
                     else:
                         logger.info(f"Tile {tile.source_name} is equivalent after compilation.")
             

@@ -1,4 +1,5 @@
 import json
+import math
 import os
 import queue
 import re
@@ -14,28 +15,18 @@ from qiskit.qasm2 import dumps
 
 from baselines.qmap_arch import general_arch_to_qmap_arch, load_general_arch
 
-# Hardware can only move an AOD row/column as a rigid whole - it cannot pick up or
-# drop off a subset of atoms mid-transit by applying per-atom offsets. RoutingMethod
-# defaults to RELAXED (which does exactly that) in qmap's C++ Config, so it must be
-# overridden here on every compiler instance to keep the comparison fair.
+# AODs move whole rows and columns, so use strict routing instead of qmap's relaxed default.
 ROUTING_METHOD = RoutingMethod.strict
 PLACEMENT_METHOD = PlacementMethod.astar
 FALLBACK_PLACEMENT_METHOD = PlacementMethod.ids
 
-# A* can exhaust memory on densely-entangled circuits (its own search-node bookkeeping
-# scales with the search space, not just qubit count) and gets SIGKILLed by the OS
-# rather than raising a catchable Python exception. Each compile runs in its own
-# subprocess so that kill only takes out the child, and we can fall back to IDS.
+# A* can be OOM-killed on dense circuits, so each compile runs in a subprocess with an IDS fallback.
 COMPILE_TIMEOUT = 15 * 60  # seconds
 
-# A*'s own docs note ~120 bytes/node, so the default max_nodes=10_000_000 alone implies
-# >1GB just for search-node bookkeeping. Try progressively tighter caps on OOM/timeout
-# before giving up on A* altogether and falling back to IDS.
+# A* uses about 120 bytes per node, so try smaller node caps before falling back to IDS.
 MAX_NODES_CAPS = [2_000_000, 500_000, 100_000, 20_000]
 
-# Movement timing model copied from qmap's own eval/na/zoned/eval_ids_relaxed_routing.py
-# so compiled durations are scored against the same physical assumptions qmap's authors
-# used (cubic jerk-limited profile up to d_max, linear beyond it).
+# Movement timing model taken from qmap's eval/na/zoned/eval_ids_relaxed_routing.py.
 _T_D_MAX = 200.0  # us, time to traverse d_max
 _D_MAX = 110.0  # um, max distance for the cubic profile
 _JERK = 32 * _D_MAX / _T_D_MAX**3
@@ -60,16 +51,7 @@ def _transpile(circuit: QuantumCircuit) -> QuantumCircuit:
 
 
 class _NavizEvaluator:
-    """
-    Parses the .naviz code produced by qmap's zoned compilers into the same
-    fidelity/duration metrics used for ZAC, MultiQ and PowerMove: per-gate/transfer
-    fidelity multiplied in as it's encountered, and per-atom idle time accumulated
-    over a single sequential clock, feeding a final coherence-fidelity term.
-
-    The event parsing (regexes, load/move/store/cz/u/rz handling) is adapted from
-    qmap's own eval/na/zoned/eval_ids_relaxed_routing.py Evaluator, extended here to
-    also track fidelity (that reference only computes timing/gate-count stats).
-    """
+    """Compute fidelity and duration metrics from the .naviz output of qmap's zoned compiler."""
 
     def __init__(self, arch: dict):
         self.arch = arch
@@ -167,7 +149,7 @@ class _NavizEvaluator:
                 if candidate in self.atom_locations:
                     atoms.append(candidate)
                 else:
-                    # global rotation with no explicit atom list: applies to every atom at once
+                    # Global rotation that applies to every atom.
                     atoms = list(self.atom_locations.keys())
         if not atoms:
             return
@@ -206,7 +188,7 @@ class _NavizEvaluator:
         cir_fidelity_coherence = 1.0
         for atom, busy in self.qubit_busy_time.items():
             idle_t = self.total_time - busy
-            cir_fidelity_coherence *= 1 - idle_t / self.coherence_time
+            cir_fidelity_coherence *= math.exp(-idle_t / self.coherence_time)
 
         cir_fidelity = (
             self.cir_fidelity_1q_gate
@@ -253,7 +235,7 @@ def _compile_worker(q, benchmark_path: str, arch_json_str: str, placement_method
         metrics["nqubits"] = n
         metrics["compilation_time"] = compilation_time
         q.put(("ok", metrics))
-    except Exception as e:  # noqa: BLE001 - reported to the parent, not raised here
+    except Exception as e:  # noqa: BLE001
         q.put(("err", repr(e)))
 
 
@@ -316,12 +298,7 @@ def _compile_one(benchmark_path: str, arch_json_str: str) -> dict:
 
 
 def run_qmap_single_benchmarks(benchmark_file: str, arch_spec_path: str, output_file: str):
-    """
-    Compile a single QASM circuit with qmap's routing-aware zoned neutral atom
-    compiler against a fixed target derived from `arch_spec_path` (a ZAC-style
-    general_arch.json). Mirrors run_zac_single_benchmarks / run_powermove_single_benchmarks
-    so results/qmap/e2e_results.csv lines up row-for-row with the other baselines.
-    """
+    """Compile a single QASM circuit with qmap's routing-aware zoned compiler."""
     arch_json_str = json.dumps(general_arch_to_qmap_arch(load_general_arch(arch_spec_path)))
 
     filename = os.path.join("data/benchmarks", benchmark_file)
@@ -368,11 +345,7 @@ def run_qmap_single_benchmarks(benchmark_file: str, arch_spec_path: str, output_
 
 
 def merge_circuits(circuits: list[QuantumCircuit]) -> QuantumCircuit:
-    """
-    Concatenate circuits onto disjoint qubit/clbit ranges, mirroring
-    zac_runner.merge_circuits so the controller (no-multiprogramming) eval compiles
-    the same merged program across every baseline.
-    """
+    """Concatenate circuits onto disjoint qubit and clbit ranges."""
     assert len(circuits) >= 1, "At least one circuit is required to merge."
 
     if len(circuits) == 1:
@@ -402,12 +375,7 @@ def merge_circuits(circuits: list[QuantumCircuit]) -> QuantumCircuit:
 
 
 def run_qmap_merge_benchmarks(benchmark_set: list[str], arch_spec_path: str, output_file: str):
-    """
-    Merge a benchmark set into a single circuit and compile it with qmap as one
-    program, simulating a controller with no multiprogramming support. Mirrors
-    run_zac_merge_benchmarks so results/qmap/controller_results.csv lines up
-    row-for-row with results/zac/controller_results.csv.
-    """
+    """Merge a benchmark set into one circuit and compile it with qmap as a single program."""
     arch_json_str = json.dumps(general_arch_to_qmap_arch(load_general_arch(arch_spec_path)))
 
     benchmark_paths = [os.path.join("data/benchmarks", bench) for bench in benchmark_set]

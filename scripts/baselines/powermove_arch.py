@@ -14,26 +14,7 @@ def _sep_xy(site_seperation) -> tuple:
 
 
 def general_arch_to_powermove_target(arch: dict) -> dict:
-    """
-    Reduce a ZAC-style architecture spec (e.g. config/zac/general_arch.json) to the
-    handful of parameters PowerMove's model actually understands: a single square
-    interaction-zone grid (Row x Row) with a virtually unbounded storage area below
-    it, a count of independent AODs, the fidelity/coherence constants, and the
-    site separations/transfer duration used to score a compiled circuit.
-
-    PowerMove has no notion of multiple SLMs or zone shape/aspect ratio - only
-    total entangling-zone capacity carries over, not layout. Since MultiQ/ZAC
-    both place circuits within general_arch's real, fixed device footprint
-    regardless of circuit size, Row is derived from that fixed capacity rather
-    than sized per-circuit (as PowerMove's own test scripts do via
-    ceil(sqrt(n))) - otherwise PowerMove would trivially always fit any circuit,
-    which would make the comparison unfair. Site separations (x_sep/y_sep/
-    storage_y_sep) and the atom-transfer duration DO carry over, via
-    apply_target overwriting PowerMove's hardcoded X_SEP/Y_SEP/Storage_Y_SEP/
-    MUS_PER_FRM globals - otherwise PowerMove would silently compute movement
-    distances and transfer durations against its own built-in geometry instead
-    of the device spec ZAC/QMAP actually compile against.
-    """
+    """Map a ZAC-style architecture spec to PowerMove's parameters, sizing the grid from the fixed entanglement zone capacity."""
     entangling_sites = sum(
         slm["r"] * slm["c"]
         for zone in arch["entanglement_zones"]
@@ -45,11 +26,7 @@ def general_arch_to_powermove_target(arch: dict) -> dict:
     duration = arch["operation_duration"]
     coherence_time = float(arch["qubit_spec"]["T"])
 
-    # PowerMove's own movement-distance/transfer-duration model is driven by module-
-    # level constants (X_SEP, Y_SEP, Storage_Y_SEP, MUS_PER_FRM) rather than any
-    # architecture argument, so pull the real site separations and transfer duration
-    # out of the same general_arch spec ZAC/QMAP compile against, instead of letting
-    # PowerMove fall back on its own hardcoded (and physically unrelated) defaults.
+    # PowerMove reads site separations and transfer time from module globals, so take them from the same spec.
     entangle_slm = arch["entanglement_zones"][0]["slms"][0]
     x_sep, y_sep = _sep_xy(entangle_slm["site_seperation"])
     storage_slm = arch["storage_zones"][0]["slms"][0]
@@ -73,13 +50,7 @@ def general_arch_to_powermove_target(arch: dict) -> dict:
 
 
 def apply_target(target: dict, mvqc_module) -> None:
-    """
-    Patch PowerMove's module-level fidelity/coherence constants in place.
-
-    PowerMove hardcodes these as globals in mvqc_multi_aod.py (and enola.py,
-    mvqc.py) rather than accepting them as arguments, so the only way to point it
-    at a specific device model is to overwrite the globals before calling in.
-    """
+    """Overwrite PowerMove's module-level hardware constants, since it does not take them as arguments."""
     mvqc_module.Fidelity_2Q_Gate = target["fidelity_2q_gate"]
     mvqc_module.Fidelity_1Q_Gate = target["fidelity_1q_gate"]
     mvqc_module.Fidelity_Atom_Transfer = target["fidelity_atom_transfer"]

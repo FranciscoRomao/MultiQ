@@ -1,8 +1,4 @@
-"""
-This file contains the implementation of the animator class,
-which allows multiple tiles to be shown side-by-side. It is
-based upon the animator in ZAC but has been extended and cleaned-up.
-"""
+"""Multi-tile animator, based on the animator in ZAC."""
 
 import logging
 
@@ -17,24 +13,19 @@ from zac.ds.architecture import Architecture
 from multiq.compiler.tile import Tile
 from multiq.configuration import MultiQConfig
 
-# constants for animation
-FPS = 60  # frames per second
-INIT_FRM = int(FPS * 0.2)  # initial empty frames, 1/5 second now
+FPS = 60
+INIT_FRM = int(FPS * 0.2)
 PT_MICRON = 8  # scaling factor: points per micron
 MUS_PER_FRM = 150 / FPS  # microseconds per frame
-MUS_PER_FRM_SLOW = 7 / FPS  # in slow motion, i.e., Rydberg
-# Padding between outer-most tile and graph axes
+MUS_PER_FRM_SLOW = 7 / FPS  # slow motion used during Rydberg gates
 CANVAS_PADDING = 0.5
-# Padding between each tile
 TILE_PADDING = 0.1
-# Padding around each entanglement zone
 RYDBERG_PADDING = 3
 
-# colors
 RYDBERG_COLOR = 'b'
 SLM_COLOR = 'g'
 QUBIT_COLOR = 'k'
-AOD_COLORS = ['r', 'c', 'm', 'y']  # max 4 aods so far
+AOD_COLORS = ['r', 'c', 'm', 'y']
 AOD_TRANS = 0.7
 
 logger = logging.getLogger("multiq")
@@ -61,7 +52,6 @@ class TileAnimation:
         ]
 
     def initial_frame(self):
-        # find all slms
         slm_xs = []
         slm_ys = []
         for slm_id, slm_arr in self.architecture.dict_SLM.items():
@@ -71,13 +61,11 @@ class TileAnimation:
                     slm_xs.append(x)
                     slm_ys.append(y)
 
-        # draw slms
         self.ax.scatter(
             slm_xs, slm_ys, marker='o', s=40, facecolor='none',
             edgecolor=SLM_COLOR
         )
 
-        # initialize qubits
         self.qubit_xs = []
         self.qubit_ys = []
         for q in self.code["instructions"][0]["init_locs"]:
@@ -85,11 +73,9 @@ class TileAnimation:
             self.qubit_xs.append(x)
             self.qubit_ys.append(y)
 
-        # draw qubits
         self.qubit_scat = self.ax.scatter(
             self.qubit_xs, self.qubit_ys, marker='.', c=QUBIT_COLOR)
 
-        # initialize aod cols
         self.aod_col_plots = {
             aod_id: [
                 self.ax.axvline(
@@ -102,7 +88,6 @@ class TileAnimation:
             ] for aod_id, aod in self.architecture.dict_AOD.items()
         }
 
-        # initilize aod rows
         self.aod_row_plots = {
             aod_id: [
                 self.ax.axhline(
@@ -115,7 +100,6 @@ class TileAnimation:
             ] for aod_id, aod in self.architecture.dict_AOD.items()
         }
 
-        # initialize Rydberg zones
         self.entanglemet_rect = []
         for entangle_zone in self.entanglement_rect_range:
             rect = matplotlib.patches.Rectangle(
@@ -129,47 +113,36 @@ class TileAnimation:
             self.ax.add_patch(rect)
             self.entanglemet_rect.append(rect)
 
-        # initialize single qubit gates
         self.qubit_1qGate = []
-        self.row_1qGate_rects = []  # holds the rect patches for row 1q gates
+        self.row_1qGate_rects = []
 
         return
 
-    def update(self, f: int):  # f is the frame
-        true_frame = f - INIT_FRM  # consider the initial frozen frames
+    def update(self, f: int):
+        true_frame = f - INIT_FRM  # skip the initial frozen frames
 
-        # get which piecewise schedule f is in
         interval_ends = [interval[0] for interval in self.piecewise_schedule]
         index = bisect.bisect_right(interval_ends, true_frame)
 
         if index >= len(self.piecewise_schedule):
-            # Our tile has finished but the animation continues for another tile
             return
 
         tmp = self.piecewise_schedule[index]
-        # calculate true time of this frame: tmp[2] is the end time of this
-        # period. tmp[0] is the end frame of this period. So we deduct the
-        # remianing time from tmp[2]. The remaining time is calculated as the
-        # product of remaining frames=tmp[0]-true_frame, and the sampling rate
-        # which depends on whether this period is regular or slow motion.
+        # Remaining frames times the frame duration, subtracted from the end time of the period.
         true_time = tmp[2] - (
             tmp[0] - true_frame) * (
                 MUS_PER_FRM_SLOW if tmp[1] else MUS_PER_FRM)
 
         self.inst_str = ''
-        # reset Rydberg zones to trivial
         for rect in self.entanglemet_rect:
             rect.set_width(0)
             rect.set_height(0)
-        # reset 1qGate to trivial
         for gate in self.qubit_1qGate:
             gate.remove()
-        # reset row 1q gates
         for rect in self.row_1qGate_rects:
             rect.remove()
         self.row_1qGate_rects = []
         self.qubit_1qGate = []
-        # reset AOD color to trivial
         for aod_id, aod in self.architecture.dict_AOD.items():
             for r in range(aod.n_r):
                 self.aod_row_plots[aod_id][r].set_color((0, 0, 0, 0))
@@ -230,13 +203,11 @@ class TileAnimation:
         for col_id, col_x in zip(inst["col_id"], inst["col_x"]):
             self.aod_col_plots[aod_id][col_id].set_xdata((col_x, ))
             self.aod_col_plots[aod_id][col_id].set_color(
-                # (self.AOD_COLORS[aod_id], ratio*self.AOD_TRANS) # !
                 (1, 0, 0, ratio * AOD_TRANS)
             )
         for row_id, row_y in zip(inst["row_id"], inst["row_y"]):
             self.aod_row_plots[aod_id][row_id].set_ydata((row_y, ))
             self.aod_row_plots[aod_id][row_id].set_color(
-                # (self.AOD_COLORS[aod_id], ratio*self.AOD_TRANS) # !
                 (1, 0, 0, ratio * AOD_TRANS)
             )
 
@@ -244,12 +215,10 @@ class TileAnimation:
         self.inst_str += f' | {inst["id"]} {inst["type"]} \n elapsed time: {time:.2f}'
         for col_id in inst["col_id"]:
             self.aod_col_plots[aod_id][col_id].set_color(
-                # (self.AOD_COLORS[aod_id], (1-ratio)*self.AOD_TRANS) # !
                 (1, 0, 0, (1-ratio)*AOD_TRANS)
             )
         for row_id in inst["row_id"]:
             self.aod_row_plots[aod_id][row_id].set_color(
-                # (self.AOD_COLORS[aod_id], (1-ratio)*self.AOD_TRANS) # !
                 (1, 0, 0, (1-ratio)*AOD_TRANS)
             )
 
@@ -261,7 +230,6 @@ class TileAnimation:
             D = end - begin
             return begin + 3*D*(r**2) - 2*D*(r**3)
 
-        # update qubit
         for begin_coords_row, end_coords_row in qubit_coord:
             for begin_coords, end_coords in zip(
                     begin_coords_row, end_coords_row):
@@ -273,7 +241,6 @@ class TileAnimation:
                 self.qubit_scat.set_offsets(
                     list(zip(self.qubit_xs, self.qubit_ys)))
 
-        # update AOD
         for row_id, row_begin_y, row_end_y in zip(
                 inst["row_id"], inst["row_y_begin"], inst["row_y_end"]):
             self.aod_row_plots[aod_id][row_id].set_ydata(
@@ -297,19 +264,18 @@ class TileAnimation:
 
         first_loc = inst["locs"][0] # (q_id, slm_id, r, c)
         slm_id_for_y = first_loc[1]
-        col_id_for_y = first_loc[3] # FIXME: assuming we have at least this #colums
+        col_id_for_y = first_loc[3]  # assumes the SLM has at least this many columns
 
         y_centre = None
-        row_height = 10 # or some sensible default
+        row_height = 10
         try:
             y_centre = self.architecture.exact_SLM_location(slm_id_for_y, row_index, col_id_for_y)[1]
-            # calculate row height based on distance between row centers if possible
             if slm_id_for_y in self.architecture.dict_SLM:
                 slm_array = self.architecture.dict_SLM[slm_id_for_y]
-                if slm_array.n_r > row_index + 1: # Check if the next row exists
+                if slm_array.n_r > row_index + 1:
                      y_center_next_row = self.architecture.exact_SLM_location(slm_id_for_y, row_index + 1, col_id_for_y)[1]
                      row_height = abs(y_center_next_row - y_centre)
-                elif row_index > 0 and slm_array.n_r > row_index - 1: # Check if the previous row exists
+                elif row_index > 0 and slm_array.n_r > row_index - 1:
                      y_center_prev_row = self.architecture.exact_SLM_location(slm_id_for_y, row_index - 1, col_id_for_y)[1]
                      row_height = abs(y_centre - y_center_prev_row)
         except (IndexError, KeyError):
@@ -319,21 +285,20 @@ class TileAnimation:
              return
 
         rect_x = self.architecture.arch_range[0][0]
-        rect_y = y_centre - row_height / 2 # Calculate bottom edge y
-        rect_width = self.architecture.arch_range[1][0] - self.architecture.arch_range[0][0] # Full width of tile architecture
+        rect_y = y_centre - row_height / 2
+        rect_width = self.architecture.arch_range[1][0] - self.architecture.arch_range[0][0]
         rect_height = row_height
 
-        # Draw the rectangle
         rect = matplotlib.patches.Rectangle(
             (rect_x, rect_y),
             rect_width,
             rect_height,
-            linewidth=0, # No border
+            linewidth=0,
             edgecolor='none',
-            facecolor=(0, 1, 0, 0.3) # Green, semi-transparent
+            facecolor=(0, 1, 0, 0.3)
         )
         self.ax.add_patch(rect)
-        self.row_1qGate_rects.append(rect) # so we know to remove the patch in next frame
+        self.row_1qGate_rects.append(rect)
  
 
     def update_1qGate(self, inst: dict):
@@ -347,30 +312,13 @@ class TileAnimation:
                 x, y, s=300, color=(0, 1, 0, 0.5)))
 
     def create_schedule(self):
-        """
-        each frame is a sample on the time axis. There are two sampling rates
-        one is regular, one is slow motion. The latter is used when Rydberg
-        is happening because Rydberg is so fast that it won't appear in the
-        video is using the regular sampling rate.
+        """Build a piecewise frame schedule that uses slow motion during Rydberg gates."""
 
-        The time axis looks like this:
-
-        |_____________|...|_______________|...|_________|...|__________|
-
-        where each | will be an entry in self.piecewise_schedule. The _ stands
-        for regular period, the . stands for slow motion periods. 
-
-        In piecewise_schedule consists of 3-tuples. the first number is the
-        frame at the | The second number is whether the period before the | is
-        slow motion (1) or not (0). The third number is the real time at the | 
-        """
-
-        self.piecewise_schedule = [(0, 0, 0), ]  # add the first trivial entry
+        self.piecewise_schedule = [(0, 0, 0), ]
         last_end_time = 0
         for inst in self.code["instructions"]:
             if inst["type"] == "rydberg":
 
-                # add the entry corresponding to the regular period before
                 last_end_frame = self.piecewise_schedule[-1][0]
                 self.piecewise_schedule.append(
                     (
@@ -383,7 +331,6 @@ class TileAnimation:
                     )
                 )
 
-                # add the entry corresponding to the slow period for this inst
                 last_end_frame = self.piecewise_schedule[-1][0]
                 self.piecewise_schedule.append(
                     (
@@ -397,7 +344,6 @@ class TileAnimation:
                 )
                 last_end_time = inst["end_time"]
 
-        # add an entry of the left over runtime after the last rydberg
         if self.code["runtime"] > last_end_time:
             last_end_frame = self.piecewise_schedule[-1][0]
             self.piecewise_schedule.append(
@@ -436,20 +382,14 @@ class Animator:
             tiles, scaling_factor, inches_per_micron_calc=PT_MICRON / plt.rcParams['figure.dpi'])
         self.inst_str = ''
 
-        # Create the animation classes for the tiles
-        # self.axes_map is populated by setup_canvas, mapping (r,c_root) to an Axes object
-        # self.anims maps (r,c_root) of a tile to its TileAnimation instance
         self.anims: dict[tuple[int, int], TileAnimation | None] = {
             (r, c): None for r in range(self.grid_rows) for c in range(self.grid_cols)}
         for r, row in enumerate(tiles):
             for c, tile in enumerate(row):
                 if tile:
-                    # Use self.axes_map which is populated by the new setup_canvas
-                    # (r,c) is the root coordinate of the tile.
                     self.anims[(r, c)] = TileAnimation(
                         tile.result_json, tile.architecture, self.axes_map[(r, c)])
 
-        # Use longest tile anim as frame count
         schedules_durations = {}
         for (r_root, c_root), anim_instance in self.anims.items():
             if anim_instance is not None:
@@ -460,7 +400,6 @@ class Animator:
         if schedules_durations:
             n_frames = max(schedules_durations.values())
 
-        #n_frames = 0
         anim = FuncAnimation(
             self.fig,
             self.update,
@@ -468,12 +407,11 @@ class Animator:
             frames=INIT_FRM + n_frames,
         )
         anim.save(f'{output}/animation.mp4', writer=FFMpegWriter(FPS))
-        exit(0)  # Exit after saving the animation
+        exit(0)
 
     def setup_canvas(self, tiles: list[list[Tile | None]], scaling_factor: int, inches_per_micron_calc: float):
-        """set up various objects before actually drawing."""
+        """Set up the figure and one subplot per tile."""
 
-        # Calculate figsize based on representative cell size
         max_phys_width_per_grid_cell = 0
         max_phys_height_per_grid_cell = 0
         default_arch_for_empty = None
@@ -486,28 +424,26 @@ class Animator:
                         default_arch_for_empty = tile.architecture
                     phys_w = tile.architecture.arch_range[1][0] - \
                         tile.architecture.arch_range[0][0]
-                    # Physical height of tile's content
                     phys_h = tile.architecture.arch_range[1][1] - \
                         tile.architecture.arch_range[0][1]
-                    grid_w_span = tile.width  # Width in grid cells
+                    grid_w_span = tile.width
 
                     max_phys_width_per_grid_cell = max(
                         max_phys_width_per_grid_cell, phys_w / grid_w_span)
                     max_phys_height_per_grid_cell = max(
-                        max_phys_height_per_grid_cell, phys_h)  # Assuming height span is 1
+                        max_phys_height_per_grid_cell, phys_h)
 
-        if max_phys_width_per_grid_cell == 0 and default_arch_for_empty:  # Grid might be all None
+        if max_phys_width_per_grid_cell == 0 and default_arch_for_empty:
             max_phys_width_per_grid_cell = default_arch_for_empty.arch_range[
                 1][0] - default_arch_for_empty.arch_range[0][0]
         if max_phys_height_per_grid_cell == 0 and default_arch_for_empty:
             max_phys_height_per_grid_cell = default_arch_for_empty.arch_range[
                 1][1] - default_arch_for_empty.arch_range[0][1]
         if max_phys_width_per_grid_cell == 0:
-            max_phys_width_per_grid_cell = 50  # Fallback
+            max_phys_width_per_grid_cell = 50
         if max_phys_height_per_grid_cell == 0:
-            max_phys_height_per_grid_cell = 50  # Fallback
+            max_phys_height_per_grid_cell = 50
 
-        # Add canvas padding to the representative cell size for figsize calculation
         effective_cell_width_um = max_phys_width_per_grid_cell + 2 * CANVAS_PADDING
         effective_cell_height_um = max_phys_height_per_grid_cell + 2 * CANVAS_PADDING
 
@@ -540,31 +476,29 @@ class Animator:
                                  current_tile_arch.arch_range[1][0] + CANVAS_PADDING])
                     ax.set_ylim([current_tile_arch.arch_range[0][1] - CANVAS_PADDING,
                                  current_tile_arch.arch_range[1][1] + CANVAS_PADDING])
-                    # Add semi-transparent grid lines to the tile's subplot
                     ax.grid(True, linestyle=':', alpha=0.4, color='grey')
-                    self.axes_map[(r, c)] = ax  # Store ax by root coordinate
+                    self.axes_map[(r, c)] = ax
 
                     for k_col_offset in range(tile_grid_width_span):
                         processed_cells.add((r, c + k_col_offset))
-                else:  # This is an empty slot not covered by a multi-width tile
+                else:
                     ax = fig.add_subplot(gs[r, c])
-                    ax.axis('off')  # Make empty slots invisible
+                    ax.axis('off')
                     processed_cells.add((r, c))
 
-                if (r, c) in self.axes_map:  # If an axis was created for this root
+                if (r, c) in self.axes_map:
                     self.axes_map[(r, c)].set_xticks([])
                     self.axes_map[(r, c)].set_yticks([])
                     self.axes_map[(r, c)].set_aspect('equal', adjustable='box')
 
         fig.tight_layout(
-            pad=0.5,  # Padding within the rect
+            pad=0.5,
             h_pad=TILE_PADDING * inches_per_micron_calc,
             w_pad=TILE_PADDING * inches_per_micron_calc,
             rect=[0.02, 0.02, 0.97, 0.97]
         )
 
         border_rect = matplotlib.patches.Rectangle(
-            # (x, y), width, height in figure coordinates
             (0.01, 0.01), 0.98, 0.98,
             transform=fig.transFigure,
             edgecolor='black',
@@ -576,13 +510,12 @@ class Animator:
         fig.add_artist(border_rect)
         return fig
 
-    # Initial frame over all subplots
     def initial_frame(self):
         for anim_obj in self.anims.values():
             if anim_obj:
                 anim_obj.initial_frame()
 
-    def update(self, f: int):  # f is the frame
+    def update(self, f: int):
         for anim_obj in self.anims.values():
             if anim_obj:
                 anim_obj.update(f)

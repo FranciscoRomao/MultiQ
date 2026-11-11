@@ -1,35 +1,23 @@
-from qiskit.circuit import CommutationChecker, QuantumRegister
-from zac.ds.architecture import Architecture
 from multiq.configuration import MultiQConfig
-from qiskit.circuit.commutation_library import StandardGateCommutations
 from qiskit.circuit.quantumcircuit import QuantumCircuit
 from qiskit.dagcircuit.dagcircuit import DAGCircuit
 from qiskit.converters.circuit_to_dag import circuit_to_dag
 from qiskit import transpile
-from qiskit.converters.dag_to_circuit import dag_to_circuit
 from qiskit.dagcircuit.dagnode import DAGOpNode, DAGInNode, DAGOutNode
-from math import ceil, floor
-from json import load, dump
+from math import ceil
+from json import dump
 from multiq.compiler.tile import Tile
-from typing import DefaultDict
-import numpy as np
-# import random
 import copy
 import logging
 import os
 from multiprocessing import get_context
 from typing import Any, List
-from qiskit.qasm3 import loads, dumps
 
 logger = logging.getLogger("multiq")
 
 
 def _load_and_layer_circuit(path: str, layer_split_window: int, optimization_level: int):
-    """
-    Runs the per-circuit half of `Planner.set_input_circuits`. Pure function of
-    its arguments (no shared state), which is what makes it safe to run in a
-    worker process.
-    """
+    """ Load, transpile and layer one circuit; has no shared state so it can run in a worker. """
     circuit = QuantumCircuit.from_qasm_file(path)
     circuit = transpile(circuit, basis_gates=['cz', 'u3'], optimization_level=optimization_level)
     circuit.remove_final_measurements()
@@ -40,16 +28,9 @@ def _load_and_layer_circuit(path: str, layer_split_window: int, optimization_lev
 
 
 def _build_architecture_json(config: MultiQConfig, entanglement_rows, entanglement_cols, storage_rows, storage_cols, arch_file: str) -> str:
-    """
-    Generates a JSON representation of the architecture using ZACs format and
-    writes it to `arch_file`. A free function (rather than a `Planner` method)
-    so each per-circuit worker process can write to its own file instead of
-    racing on a single shared path.
-    """
+    """ Write a ZAC architecture JSON for one tile to arch_file. """
 
-    # zone_centering: 1:1 means that the entanglement zone is centered on the storage zone,
-    # (1:2) means that the left side (difference between x coordinate of
-    # entanglement zone and storage zone) is twice as large as the right side
+    # Left:right ratio of the horizontal gap between zones, so 1:1 centres the entanglement zone.
     zone_centering = config.zone_centering
 
     entanglement_separation = config.entanglement_site_separation
@@ -57,15 +38,14 @@ def _build_architecture_json(config: MultiQConfig, entanglement_rows, entangleme
 
     ent_x_dimension = (entanglement_cols-1) * entanglement_separation[1] + (entanglement_separation[0] - entanglement_separation[1])
 
-    # If there is only one row, the entanglement zone height would be calculated as 0,
-    # in that we set to one has the size minimum size just to contain one row of atoms
+    # A single row would give zero height, so use 1 um.
     ent_y_dimension = (entanglement_rows-1) * \
         entanglement_separation[1] if entanglement_rows > 1 else 1
 
     sto_x_dimension = (storage_cols-1) * storage_separation[0]
     sto_y_dimension = (storage_rows-1) * storage_separation[1]
 
-    # Padding ensures that the architecture is padded by half of the necessary separation to avoid crosstalk with other layouts
+    # Pad by half a site separation to avoid crosstalk with neighbouring tiles.
     arch_width = max(sto_x_dimension, ent_x_dimension)
     min_ent_padding = 0 if arch_width - ent_x_dimension - entanglement_separation[1]/2 >= 0 else abs(arch_width - ent_x_dimension - entanglement_separation[1]/2)
     min_sto_padding = 0 if arch_width - sto_x_dimension - storage_separation[0]/2 >= 0 else abs(arch_width - sto_x_dimension - storage_separation[0]/2)
@@ -95,7 +75,7 @@ def _build_architecture_json(config: MultiQConfig, entanglement_rows, entangleme
                 "c": storage_cols,
                 "location": [max(0, ((ent_x_dimension - sto_x_dimension) * zone_centering[0])/sum(zone_centering)), 0]}],
             "offset": [0, 0],
-            "dimension": [sto_x_dimension, sto_y_dimension]}], # Min padding on both sides
+            "dimension": [sto_x_dimension, sto_y_dimension]}],
         "entanglement_zones": [{
             "zone_id": 0,
             "slms": [{
@@ -110,12 +90,12 @@ def _build_architecture_json(config: MultiQConfig, entanglement_rows, entangleme
                  "c": entanglement_cols,
                  "location": [(entanglement_separation[0]-entanglement_separation[1])+max(0,((sto_x_dimension - ent_x_dimension) * zone_centering[0])/sum(zone_centering)), (storage_rows-1)*storage_separation[1]+config.zone_separation]}],
             "offset": [0, 0],
-            "dimension": [ent_x_dimension, ent_y_dimension]}], # Min padding on both sides
+            "dimension": [ent_x_dimension, ent_y_dimension]}],
         "aods": [{
             "id": i,
             "site_seperation": config.aod_minimum_separation,
-            "r": 10,  # Hardcoded for now, it's not being used
-            "c": 10  # Hardcoded for now, it's not being used
+            "r": 10,  # unused
+            "c": 10  # unused
         } for i in range(config.num_aods)
         ],
         'arch_range': [[0-padding, 0-1],
@@ -135,12 +115,7 @@ def _build_architecture_json(config: MultiQConfig, entanglement_rows, entangleme
 def _compute_tile_layout(circuit: QuantumCircuit, dag: DAGCircuit, circuit_file: str, idx: int,
                           config: MultiQConfig, grid_rows: int, perf_weight: float,
                           layer_split_window: int, arch_file: str):
-    """
-    Runs the per-circuit half of `Planner.set_best_architectures` (everything
-    except constructing the live `Tile`/mutating shared config) as a pure
-    function, safe to run in a worker process. Returns the values the caller
-    needs to reconstruct the `Tile` in the main process, in original order.
-    """
+    """ Size one tile and write its architecture file; pure so it can run in a worker. """
     zone_diff_tolerance = 2  # um
 
     entanglement_pair_spacing = config.entanglement_site_separation[1]
@@ -162,12 +137,11 @@ def _compute_tile_layout(circuit: QuantumCircuit, dag: DAGCircuit, circuit_file:
 
     best_storage_width = max(minimun_entanglement_width, (circuit.num_qubits-1) * storage_atom_spacing)
 
-    # Weighted average of the best and minimum storage width with the weights defined in the configuration
     selected_storage_width = ceil(best_storage_width * perf_weight + minimun_storage_width * (1-perf_weight))
 
     storage_zone_cols = (selected_storage_width // storage_atom_spacing) + 1
 
-    # The cols have one added because you have one less spacing for a given number of cols
+    # n columns span n-1 spacings.
     _build_architecture_json(
         config,
         entanglement_rows=per_circuit_entanglement_row_height,
@@ -187,20 +161,13 @@ class Planner:
 
         self.input_circuits: list[QuantumCircuit] = []
         self.input_dags: list[DAGCircuit] = []
-        # For each input circuit this stores the list of execution layers
         self.input_layers: list[list[Any]] = []
-        self.circuit_files: list[str] = []  # List of input circuit file names
+        self.circuit_files: list[str] = []
 
         self.config = config
-        #self.util_weight = config.util_weight
         self.perf_weight = config.perf_weight
         self.grid_rows = config.grid_rows
-        # self.grid_cols = config.grid_cols
         self.tiles: List[Tile] = []
-
-        #if sum([config.util_weight, config.perf_weight]) != 1:
-        #    logging.warning("Weights must sum to 1.")
-        #    # raise ValueError("Planner score weights must sum to 1.")
 
     def set_input_circuits(self, input_circuits: list[str], optimization_level: int = 3) -> None:
 
@@ -223,10 +190,8 @@ class Planner:
 
     @staticmethod
     def _fetch_window_from_zero(array, window) -> list[Any]:
-        # Calculate the end index for the current window
         end_index = window
 
-        # If the window extends beyond the array, adjust it
         if end_index > len(array):
             return copy.deepcopy(array[0:len(array)])
         else:
@@ -234,9 +199,6 @@ class Planner:
 
     @staticmethod
     def remove_barriers(circuit: QuantumCircuit) -> QuantumCircuit:
-        """
-        Removes barriers from the circuit.
-        """
         for gate in circuit.data:
             if gate[0].name == 'barrier':
                 circuit.data.remove(gate)
@@ -249,7 +211,6 @@ class Planner:
         dag_layers = [i for i in dag.multigraph_layers()]
         layers_to_remove = []
 
-        # Remove DAGInNode and DAGOutNode from the layers
         for layer_idx, layer in enumerate(dag_layers):
             indexes_to_remove = []
             for index, node in enumerate(layer):
@@ -268,14 +229,12 @@ class Planner:
         for layer in reversed(layers_to_remove):
             dag_layers.pop(layer)
 
-        # removed_nodes.extend(dag_layers[0]) # Add input nodes to removed nodes
         index = 0
 
         while len(dag_layers) > 0:
             window_slice = Planner._fetch_window_from_zero(
                 dag_layers, window_size)
 
-            # Starting a new layer
             current_layer = []
             current_window = 0
             multi_qubit_layer = False
@@ -283,20 +242,14 @@ class Planner:
 
             for curr_index, layer in enumerate(window_slice):
 
-                # If there are single qubit gates force them to be layered first
-                # Sorting them is not the best solution, but it works for now, it is slow
-                # This frees multiple qubits from dependencies on single qubits gates
-                # allows for more parallelization in the next layers
+                # Put 1q gates first so they free their qubits for later 2q layers.
                 if any(node.num_qubits == 1 for node in layer):
                     layer.sort(key=lambda x: x.num_qubits)
 
                 for node in layer:
-                    # If the current layer is empty, we can add the first node and skip the rest of the checks
                     if len(current_layer) == 0:
                         current_layer.append(node)
 
-                        # Remove the node because it was already added to the current layer
-                        # and doest need to be checked again
                         dag_layers[index+curr_index].remove(node)
                         removed_nodes.append(node)
 
@@ -307,22 +260,18 @@ class Planner:
                                 multi_qubit_layer = True
                             continue
 
-                    # If the node we are checking is not compatible with the current layer we skip it
+                    # A layer holds either only 1q gates or only multi-qubit gates.
                     elif multi_qubit_layer and node.num_qubits == 1:
                         continue
                     elif single_qubit_layer and node.num_qubits > 1:
                         continue
 
-                    # We need to check that the current node is not dependent on any of the nodes in the current layer
-                    # This is because we are trying to parallelize with layers ahead
                     if any(pre_node in current_layer for pre_node in dag.predecessors(node)):
                         continue
 
-                    # Finally, we need to check that all the predecessors of the current node were already removed ("executed")
                     if any(pre_node not in removed_nodes for pre_node in dag.predecessors(node)):
                         continue
 
-                    # If we reach here, the node is compatible with the current layer
                     current_layer.append(node)
                     dag_layers[index+curr_index].remove(node)
                     removed_nodes.append(node)
@@ -330,15 +279,12 @@ class Planner:
             layers.append(current_layer)
 
             if len(dag_layers[index]) == 0:
-                dag_layers.pop(index)  # Remove empty layers
+                dag_layers.pop(index)
         return layers
 
     @staticmethod
     def _largest_entanglement_op(execution_layers: list[list]) -> int:
-        """
-        Returns the largest entanglement operation in the layer.
-        If there are no entanglement operations, returns 0.
-        """
+        """ Max number of 2q gates in any layer. """
         max_entanglement = 0
         for layer in execution_layers:
             n_entanglement = len(
@@ -349,19 +295,10 @@ class Planner:
         return max_entanglement
 
     def set_best_architectures(self) -> List[Tile]:
-        '''
-        Simple version of the best_layouts function.
-        It assumes that max fidelity relates to have a width equal to the number of qubits in the circuit.
-        Entanglement and storage zone heights is predefined by the architecture and the number of rows in the grid.
-        The width of the entanglement zone is defined by the floor of closest it can be to the width of the storage zone
-        '''
+        ''' Build one Tile per input circuit, sizing its width between the minimum and one column per qubit. '''
         if not self.input_circuits:
             return self.tiles
 
-        # These only depend on config-level constants (qpu_width/height, grid_rows,
-        # zone_separation, physical_cell_width_um), not on any per-circuit data, so
-        # they were being recomputed identically on every loop iteration. Compute
-        # once, up front.
         self.config.grid_cols = int(self.config.qpu_width // self.config.physical_cell_width_um)
         self.config.physical_cell_height_um = (self.config.qpu_height -
                                                self.config.entanglement_height -

@@ -15,12 +15,7 @@ from zap.simulator.simulator import Simulator
 
 from baselines.zap_arch import general_arch_to_zap_arch, load_general_arch
 
-# Movement timing model copied from qmap's own eval/na/zoned/eval_ids_relaxed_routing.py
-# (see qmap_runner.py's identical constants/derivation) so all baselines score compiled
-# durations against the same physical movement-timing assumptions. ZAP's own
-# Router.movement_duration hardcodes the same unbounded sqrt law PowerMove used
-# (200*sqrt(d/110), no velocity cap) regardless of the "routing.movement" knobs it
-# reads at __init__ time - so we monkeypatch the method itself rather than the config.
+# Same movement timing model as qmap_runner.py, patched into ZAP's router to replace its own sqrt law.
 _T_D_MAX = 200.0  # us, time to traverse d_max
 _D_MAX = 110.0  # um, max distance for the cubic profile
 _JERK = 32 * _D_MAX / _T_D_MAX**3
@@ -37,8 +32,6 @@ def _movement_duration(self, d):
 
 zap_router_module.Router.movement_duration = _movement_duration
 
-# Single AOD in general_arch.json's "aods" list - ZAP has no discrete-AOD concept to
-# plumb through (see zap_arch.py), so there's nothing to vary here.
 SCHEDULING_STRATEGY = "asap_separate"
 PLACEMENT_STRATEGY = "baseline"
 ROUTING_STRATEGY = "baseline"
@@ -66,21 +59,7 @@ def _slm_sites(architecture: dict) -> tuple:
 
 
 def _build_g_q(circuit: QuantumCircuit) -> tuple:
-    """
-    Transpile to CZ + single-qubit-rotation basis and flatten into ZAP's flat
-    ``g_q`` gate list (``(q0, q1)`` pairs, ``q0 == q1`` for 1-qubit gates).
-
-    Physically, an arbitrary single-qubit rotation is implemented as a Z-X-Z
-    (XZX) sequence: a global or per-qubit Z phase, one physical X-axis Raman
-    pulse, then another Z phase. Both Z rotations are virtual - a classical
-    frame-of-reference update, whether applied to every qubit at once (global)
-    or to one qubit alone (local) - so they cost neither time nor fidelity.
-    Qiskit's u1/u2/u3 basis already separates these: u1 (and id) are pure Z
-    rotations with no physical pulse at all, while u2/u3 always carry a
-    nonzero X-axis component and cost exactly one physical 1-qubit gate.
-    Counting u1/id as full-cost gates (as a naive flatten would) double-counts
-    virtual phase bookkeeping as if it were physical hardware time.
-    """
+    """Flatten a transpiled circuit into ZAP's gate list, skipping virtual Z rotations (u1, id) that cost no time."""
     transpiled = transpile(
         circuit, basis_gates=["cz", "id", "u2", "u1", "u3"], optimization_level=3, seed_transpiler=0
     )
@@ -97,7 +76,7 @@ def _build_g_q(circuit: QuantumCircuit) -> tuple:
             continue
         elif name in ("u2", "u3"):
             if name == "u3" and abs(inst.operation.params[0]) < 1e-9:
-                # Zero-angle u3 is a disguised pure Z rotation - free, same as u1.
+                # A u3 with zero theta is a pure Z rotation.
                 continue
             n_1q_gate += 1
             q = inst.qubits[0]._index
@@ -169,12 +148,7 @@ def _compile_one(benchmark_path: str, architecture: dict) -> dict:
 
 
 def run_zap_single_benchmarks(benchmark_file: str, arch_spec_path: str, output_file: str):
-    """
-    Compile a single QASM circuit with ZAP against a fixed target derived from
-    `arch_spec_path` (a ZAC-style general_arch.json). Mirrors
-    run_zac_single_benchmarks/run_powermove_single_benchmarks/run_qmap_single_benchmarks
-    so results/zap/e2e_results.csv lines up row-for-row with the other baselines.
-    """
+    """Compile a single QASM circuit with ZAP against a target derived from a ZAC-style spec."""
     architecture = general_arch_to_zap_arch(load_general_arch(arch_spec_path))
 
     filename = os.path.join("data/benchmarks", benchmark_file)
@@ -221,11 +195,7 @@ def run_zap_single_benchmarks(benchmark_file: str, arch_spec_path: str, output_f
 
 
 def merge_circuits(circuits: list[QuantumCircuit]) -> QuantumCircuit:
-    """
-    Concatenate circuits onto disjoint qubit/clbit ranges, mirroring
-    zac_runner.merge_circuits so the controller (no-multiprogramming) eval compiles
-    the same merged program across every baseline.
-    """
+    """Concatenate circuits onto disjoint qubit and clbit ranges."""
     assert len(circuits) >= 1, "At least one circuit is required to merge."
 
     if len(circuits) == 1:
@@ -255,12 +225,7 @@ def merge_circuits(circuits: list[QuantumCircuit]) -> QuantumCircuit:
 
 
 def run_zap_merge_benchmarks(benchmark_set: list[str], arch_spec_path: str, output_file: str):
-    """
-    Merge a benchmark set into a single circuit and compile it with ZAP as one
-    program, simulating a controller with no multiprogramming support. Mirrors
-    run_zac_merge_benchmarks so results/zap/controller_results.csv lines up
-    row-for-row with results/zac/controller_results.csv.
-    """
+    """Merge a benchmark set into one circuit and compile it with ZAP as a single program."""
     architecture = general_arch_to_zap_arch(load_general_arch(arch_spec_path))
 
     benchmark_paths = [os.path.join("data/benchmarks", bench) for bench in benchmark_set]
@@ -280,10 +245,7 @@ def run_zap_merge_benchmarks(benchmark_set: list[str], arch_spec_path: str, outp
     try:
         metrics = _compile_one(merged_path, architecture)
     except Exception as e:
-        # ZAP's baseline placer greedily pairs up two-qubit-gate operands and can
-        # run out of valid candidate pairs entirely on the largest merged
-        # (no-multiprogramming) circuits. Skip rather than crash the whole sweep;
-        # the plotting code marks the missing set size instead of drawing a bar.
+        # ZAP's baseline placer can run out of candidate pairs on the largest merged circuits.
         print(f"[WARN] ZAP could not compile merged benchmark set {bench} ({e}); skipping this set size")
         return
 

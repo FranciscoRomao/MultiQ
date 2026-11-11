@@ -7,16 +7,16 @@ logger = logging.getLogger("multiq")
 @dataclass
 class MultiQConfig:
     # QPU Settings
-    entanglement_height: int# = 15 # um
-    qpu_width: int# = 80 # um
-    qpu_height: int# = 40 # um
-    zone_separation: int# = 10 # um
-    entanglement_site_separation: list[int]# = [12, 10] # um
-    storage_site_separation: list[int]# = [10, 10] # um
-    aod_minimum_separation: int# = 2
-    time_1qGate: float# us
-    grid_cols: int# = 2 # Number of grid cells horizontally
-    grid_rows: int# = 1  # Number of QPU rows for tiles
+    entanglement_height: int  # um
+    qpu_width: int  # um
+    qpu_height: int  # um
+    zone_separation: int  # um
+    entanglement_site_separation: list[int]  # um
+    storage_site_separation: list[int]  # um
+    aod_minimum_separation: int
+    time_1qGate: float  # us
+    grid_cols: int
+    grid_rows: int
     
     fidelity_2q_gate: float
     fidelity_1q_gate: float
@@ -27,55 +27,52 @@ class MultiQConfig:
     time_1q_gate: float
 
     # Planner Settings
-    #util_weight: float# = 0.05 #This is not used, we simply do (1 - perf_weight) for utility weight
-    perf_weight: float# = 0.95
-    tmp_arch_file: str# = 'zac_config/tmp_architecture.json'
-    layer_split_window: int# = 2 # Defines the lookahead window for execution layer splitting in the planner
-    storage_zone_rows: int# = None #This is calculated later in the planner
-    storage_zone_cols: int# = None #This is calculated later in the planner. Used only for evaluation purposes.
-    zone_centering: list[int]# = True # If True, the planner will center the zones in the grid_row
+    perf_weight: float
+    tmp_arch_file: str
+    layer_split_window: int
+    storage_zone_rows: int  # set by the planner
+    storage_zone_cols: int  # set by the planner
+    zone_centering: list[int]
 
-    # Scheduler 
-    perf_weight_selector: float# = 0.95 # Weight for performance in the circuit compatibility selector
-    #util_weight_selector: float# = 0.05 # Weight for utility in the circuit
-    # Bundler parameters
-    selection_algorithm: str  # Selector algorithm to use, options: "fifo", "sa"
-    initial_temperature: float # Initial temperature for simulated annealing
-    final_temperature: float # Final temperature for simulated annealing
-    cooling_rate: float # Cooling rate for simulated annealing
-    max_iterations: int # Maximum number of iterations for simulated annealing
-    max_iterations_per_temp: int # Maximum iterations per temperature for simulated annealing
+    perf_weight_selector: float
+    # Bundler Settings
+    selection_algorithm: str  # "fifo" or "sa"
+    initial_temperature: float
+    final_temperature: float
+    cooling_rate: float
+    max_iterations: int
+    max_iterations_per_temp: int
 
     # Placer Settings
-    dynamic_placement: bool# = True
-    trivial_placement: bool# = False
-    use_window: bool# = True
-    window_size: int# = 1000
-    enable_verification: bool# = True
-    multiq_check: bool# = True # Enable MultiQ check for final verification
-    l2: bool# = False
-    physical_cell_width_um: float# = 10.0  # physical width of one grid_col cell
-    physical_cell_height_um: float# = 50.0 # physical height of one grid_row cell
+    dynamic_placement: bool
+    trivial_placement: bool
+    use_window: bool
+    window_size: int
+    enable_verification: bool
+    multiq_check: bool
+    l2: bool
+    physical_cell_width_um: float
+    physical_cell_height_um: float
 
     # Scheduler Settings
-    scheduling_strategy: str# = "asap"
-    reuse: bool# = True
-    resyn: bool# = True
+    scheduling_strategy: str
+    reuse: bool
+    resyn: bool
     
     no_row1q_gates: bool
     
     # Router Settings
-    routing_strategy: str# = "maximalis_sort"
-    has_dependency: bool# = True
+    routing_strategy: str
+    has_dependency: bool
     num_aods: int
 
     # Animator Settings
-    r1q_time: float# = 12.0 #us. Duration of an entire row 1q application using AoD lasers.Add commentMore actions
-    arch_padding: int# = 1
-    animation: bool = False # Enable or disable animation generation
+    r1q_time: float  # us, duration of a full-row 1q gate
+    arch_padding: int
+    animation: bool = False
 
     # Results Settings
-    results_dir: str = "results/multiq"  # Directory to store results
+    results_dir: str = "results/multiq"
 
     def __post_init__(self):
         if self.scheduling_strategy not in ["asap", "graph_coloring"]:
@@ -84,8 +81,6 @@ class MultiQConfig:
 
     @classmethod
     def from_config(cls, config_dict: dict) -> 'MultiQConfig':
-        # Filter out keys not present in the dataclass to avoid TypeError
-        # Get field names from the dataclass itself
         field_names = {f.name for f in cls.__dataclass_fields__.values()}
         filtered_config_dict = {
             k: v for k, v in config_dict.items() if k in field_names
@@ -104,10 +99,10 @@ class MultiQConfig:
         
         except FileNotFoundError:
             logging.warning(f"Configuration file '{filepath}' not found. Using default values.")
-            return cls() # Return default config if file not found
-        except yaml.YAMLError as e: # Catch YAML-specific parsing errors
+            return cls()
+        except yaml.YAMLError as e:
             logging.error(f"Error parsing YAML in '{filepath}': {e}")
-            raise # Re-raise to indicate a serious configuration error
+            raise
         except Exception as e:
             logging.error(f"An unexpected error occurred while loading config from '{filepath}': {e}")
             raise

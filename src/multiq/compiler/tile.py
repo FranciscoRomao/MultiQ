@@ -8,7 +8,6 @@ from scipy.sparse import csr_matrix
 from scipy.sparse.csgraph import maximum_bipartite_matching
 from qiskit.circuit import QuantumCircuit
 
-import qiskit.qasm2 as qasm2
 from qiskit import transpile
 
 from multiq.configuration import MultiQConfig
@@ -29,7 +28,6 @@ class Tile(Scheduler_mixin, Placer_mixin, Verifier_mixin, Router_mixin):
         self.architecture: Architecture = None
         self.best_nlayers: int = 0
 
-        # initialise the compiler's instructions output
         self.result_json = {
             'name': "", 'architecture_spec_path': None, 'instructions': [], "runtime": 0.0}
 
@@ -51,22 +49,22 @@ class Tile(Scheduler_mixin, Placer_mixin, Verifier_mixin, Router_mixin):
         self.gate_scheduling_idx = None
         self.gate_1q_scheduling = None
         self.reuse_qubit = None
-        # format: qubit_idx |-> (aod_idx=0, row, col)
+        # Per mapping stage, qubit_idx -> (aod_idx, row, col).
         self.qubit_mapping = []
 
-        self.width = 1 # in number of grid cells!
+        self.width = 1 # in grid cells
         self.height = 1
-        # (r,c) coordinates of the tile's anchor on the QPU grid, set during placement
+        # Anchor cell on the QPU grid, set during placement.
         self.r_coord = -1
         self.c_coord = -1
 
     def prepare_routing(self):
         """ Clear the dependency tracking datastructures for routing. """
 
-        # last instruction ID which accessed a particular qubit
+        # Last instruction id that touched each qubit.
         self.qubit_dependency = [0 for _ in range(self.n_q)]
         self.site_dependency = dict()
-        # instr_id of instruction which last used rydberg
+        # Last instruction id that used each Rydberg site.
         self.rydberg_dependency = [0 for _ in range(
             len(self.architecture.entanglement_zone))]
 
@@ -75,12 +73,10 @@ class Tile(Scheduler_mixin, Placer_mixin, Verifier_mixin, Router_mixin):
         self.source_name = source_file
 
         self.g_q = []
-        # -1 means no dependency and can be applied at initialisation
-        # format: (gate name, qubit index)
+        # Key is the preceding 2q gate index, -1 means the gate runs at initialisation.
         self.dict_g_1q_parent = {-1: []}
         n_single_qubit_gate = 0
 
-        #cz_circuit = qasm2.load(source_file)
         cz_circuit = QuantumCircuit.from_qasm_file(source_file)
         cz_circuit = transpile(cz_circuit, basis_gates=["cz", "u3"],
                                optimization_level=3,
@@ -127,13 +123,9 @@ class Tile(Scheduler_mixin, Placer_mixin, Verifier_mixin, Router_mixin):
 
         self.n_g = len(self.g_q)
         self.g_s = tuple(['CRZ' for _ in range(self.n_g)])
-        # we can only do this once we have n_q
-        #self._set_architecture()
 
     def collect_reuse_qubit(self):
-        """
-        collect qubits that will remain in Rydberg zone between two Rydberg stages
-        """
+        """ Collect qubits that stay in the Rydberg zone between two Rydberg stages. """
         self.reuse_qubit = []
         qubit_is_used = [[-1 for i in range(self.n_q)]
                          for j in range(len(self.gate_scheduling))]
@@ -143,7 +135,7 @@ class Tile(Scheduler_mixin, Placer_mixin, Verifier_mixin, Router_mixin):
 
         extra_reuse_qubit = 0
         for i in range(1, len(self.gate_scheduling)):
-            # m_j_k = gate j can use qubit of gate k
+            # matrix[j][k] = 1 if gate j can reuse a qubit of gate k.
             self.reuse_qubit.append(set())
             matrix = [[0 for k in range(len(self.gate_scheduling[i - 1]))]
                       for j in range(len(self.gate_scheduling[i]))]
@@ -202,7 +194,6 @@ class Tile(Scheduler_mixin, Placer_mixin, Verifier_mixin, Router_mixin):
             self.resyn = setting["resyn"]
 
     def _set_architecture(self, arch_json: str = 'config/zac/tmp_architecture.json'):
-        # just use n_q as the number of cols in the tile for now
         with open(arch_json, "r") as f:
             arch_json = json.load(f)
             arch = Architecture(arch_json)

@@ -22,18 +22,7 @@ def _convert_zone(zone: dict) -> dict:
 
 
 def general_arch_to_qmap_arch(arch: dict) -> dict:
-    """
-    Translate a ZAC-style architecture spec (e.g. config/zac/general_arch.json) into
-    the JSON schema expected by mqt.qmap.na.zoned.ZonedNeutralAtomArchitecture.
-
-    Both schemas describe the same thing (zones of SLM traps + AODs), so this is a
-    field-rename, not an approximation like the PowerMove conversion: ZAC spells the
-    inter-site spacing key "site_seperation" (typo) where qmap spells it
-    "site_separation", one of ZAC's zone dicts has a "dimenstion" typo where qmap
-    expects "dimension", and the two-qubit gate fidelity/duration entries are keyed
-    "two_qubit_gate"/"rydberg" in ZAC vs "rydberg_gate" in qmap for both duration and
-    fidelity.
-    """
+    """Convert a ZAC-style architecture spec to the qmap zoned architecture schema, which mostly renames keys."""
     duration = arch["operation_duration"]
     fidelity = arch["operation_fidelity"]
 
@@ -58,6 +47,3 @@ def general_arch_to_qmap_arch(arch: dict) -> dict:
     }
 
 
-def general_arch_to_qmap_json_string(arch_spec_path: str) -> str:
-    arch = load_general_arch(arch_spec_path)
-    return json.dumps(general_arch_to_qmap_arch(arch))

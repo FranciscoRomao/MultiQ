@@ -1,8 +1,3 @@
-import pandas as pd
-import seaborn as sns
-import matplotlib.pyplot as plt
-import numpy as np
-from matplotlib import gridspec
 
 COLUMN1_FIGSIZE = (7, 4)
 COLUMN2_FIGSIZE = (14, 4)

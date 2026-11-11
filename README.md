@@ -1,122 +1,147 @@
-# MultiQ Compiler
+# MultiQ
 
-MultiQ is an advanced multiprogramming-enabled compiler backend for the **Neutral-Atom Quantum Computing Architecture** (such as dynamic Acousto-Optic Deflector (AOD) tweeser array structures). It ingests multiple quantum circuits, evaluates optimal architecture topologies, lowers them into discrete execution tiles, and coordinates parallel compilation workflows featuring grid allocations, scheduling atom movements, fidelity analysis, and trajectory modeling.
+MultiQ is a compiler-runtime system for multi-programming neutral atom (NA) quantum processing units (QPUs), meaning co-executing multiple independent circuits on the same QPU.
+It packs circuits into **virtual layouts**, bundles these layouts to fill the available hardware space, and parallelizes their execution so that a single hardware instruction (for example, an AOD movement) operates across independent circuits.
+A checker based on ZX-calculus then verifies that the bundled circuits remain functionally independent.
+This repository contains the MultiQ implementation, the baseline compilers used in the evaluation (ZAC, PachinQo, Atomique, PowerMove, QMAP, and ZAP), the benchmarks, and the scripts that reproduce the figures of the paper.
 
-This is the artifact of the paper: [MultiQ: Multi-Programming Neutral Atom Quantum Architectures](https://arxiv.org/abs/2601.08504)
+Paper: *MultiQ: A Compiler-Runtime and Verifier for Multiprogramming Neutral Atom Architectures*, CGO 2027.
 
----
+## Repository structure
 
-## 🚀 Key Features
+```text
+MultiQ/
+├── src/multiq/            MultiQ itself
+│   ├── multiq.py          Entry point (MultiQ class)
+│   ├── compiler/          Planner, placement, bundling, scheduler, and orchestrator
+│   ├── router/            Movement routing between storage and entanglement zones
+│   ├── checker.py         ZX-calculus-based equivalence checker
+│   ├── simulator.py       Fidelity and execution time model
+│   └── animator/          Optional animation of the compiled atom movements
+├── compilers/             Baseline compilers (ZAC, PachinQo, PowerMove, ZAP, Atomique), see compilers/README.md
+├── config/
+│   ├── multiq/            MultiQ hardware and compiler configurations
+│   └── zac/               ZAC architecture files (also used to derive the baselines' architectures)
+├── data/
+│   ├── benchmarks/single/ Benchmark circuits (QASMBench and MQT Bench)
+│   └── *_bench_list*.txt  Benchmark sets used by each experiment
+├── scripts/
+│   ├── run_evaluation.py  Runs the experiments and plots all figures
+│   ├── eval_functions.py  Plotting functions used by run_evaluation.py
+│   ├── introduction.py    Introduction experiment (Figure 1)
+│   ├── baselines/         One runner per compiler
+│   ├── plotting/          Plotting helpers
+│   └── tools/             Benchmark and architecture generation
+└── results/               Raw results (CSV/JSON) and plots (results/plots), created by the scripts
+```
 
-* **Multi-Circuit Spatial/Temporal Batching:** Merges circuits into dense batch containers to maximize parallel hardware usage efficiency.
-* **Neutral Atom Grid Modeling:** Accounts for realistic trapping grid heights, AOD deflector layouts, storage-site and entanglement-site zone dimensions.
-* **Full Compilation Pipeline:**
-  * **Planner & Placements:** Arranges qubit allocations across static/dynamic sites.
-  * **Scheduler:** Coordinates parallel gate lowers and transport layouts (ASAP execution windows).
-  * **Orchestrator:** High-level controller orchestrating lowered grid assembly workflows into unified trace files.
-* **Simulation & Equivalency Checking:**
-  * **MQT-QCEC Enabled Verification:** Re-compiles lowered `ZAIR` trace states back to `Qiskit` circuits for equivalence compliance metrics correctly.
-  * **Noise Density Fidelity Simulations:** Profiles gate vectors for atom transfer, 1q/2q state transitions thresholds.
-* **Visual Animator Mode:** Creates dynamic visualization/animations to trace physical execution motion cycles correctly.
+ZAC and PachinQo are installed by uv as local packages from `compilers/`, QMAP is installed from PyPI, and PowerMove and ZAP are imported directly from `compilers/`.
+The versions and the changes made to each baseline are listed in `compilers/README.md`.
 
----
+## Requirements
 
-## 🛠️ Installation
+- Linux or macOS. No special hardware is required; all experiments run on a CPU.
+- Python 3.12 (and Python 3.10 for the Atomique baseline; uv downloads both if needed)
+- [uv](https://docs.astral.sh/uv/) for dependency management
+- <placeholder: RAM and disk requirements, and the machine used for the paper's results>
 
-MultiQ manages dependencies and virtual environments with [PDM](https://pdm-project.org/).
+## Installation
 
-1. **Install PDM** (if you haven't already):
+1. Download and extract the artifact:
+
    ```bash
-   pip install pdm
+   unzip MultiQ.zip
+   cd MultiQ
    ```
 
-2. **Install Project Dependencies**:
+2. Install MultiQ and the baselines that run in the same environment (ZAC, PachinQo, PowerMove, QMAP, ZAP). uv creates the virtual environment in `.venv` and installs the versions pinned in `uv.lock`:
+
    ```bash
-   # From the project root directory
-   pdm install
+   uv sync
    ```
 
----
+3. Atomique was written against Qiskit 0.38, which is incompatible with the Qiskit 2.x version used by MultiQ and does not install on Python 3.12. Thus, it runs as a subprocess in its own Python 3.10 environment:
 
-## 📖 Getting Started
+   ```bash
+   uv venv --python 3.10 compilers/atomique/.venv
+   uv pip install --python compilers/atomique/.venv/bin/python -r compilers/atomique/requirements-runner.txt
+   ```
 
-### High-Level Compilation API
+   Atomique is only used by the introduction experiment (Figure 1). This step can be skipped if Figure 1 is not regenerated.
 
-You can trigger the MultiQ grid batch solver directly using the `MultiQ` controller class:
+## Reproducing the results
+
+All figures are generated by `scripts/run_evaluation.py`, which accepts the following options:
+
+| Option | Effect |
+|---|---|
+| `--list` | List the available experiments |
+| `--all` | Run every experiment (default) |
+| `--only NAME[,NAME...]` | Run only the selected experiments |
+| `--data-only` | Run the compilers and store the results, without plotting |
+| `--plots-only` | Regenerate the plots from the results already in `results/`, without running any compiler |
+
+To run the complete evaluation:
+
+```bash
+uv run python scripts/run_evaluation.py --all
+```
+
+The raw results are written to `results/` and the plots to `results/plots/`.
+The benchmark circuits listed in `data/*_bench_list*.txt` are generated with MQT Bench if they are missing.
+
+### Figures and experiments
+
+| Paper | Experiment (`--only`) | Output (`results/plots/`) | Approx. runtime |
+|---|---|---|---|
+| Figure 1 | `introduction` | `introduction_plots.pdf` | <placeholder> |
+| Figure 8 | `e2e`, then `e2e_total_runtime` | `e2e_durations.pdf` | <placeholder> |
+| Figure 9 | `rows_sweep`, then `e2e` | `e2e_plot_detailed.pdf` | <placeholder> |
+| Figure 10 | `planner` | `planner_plot.pdf` | <placeholder> |
+| Figure 11 | `bundler` | `bundler_plot.pdf` | <placeholder> |
+| Figure 12 | `controller` | `controller_plot.pdf` | <placeholder> |
+| Figure 13 | `overhead_circuit_size`, `overhead_qpu_size`, then `overhead_combined` (needs `e2e`) | `multiq_overhead_combined.pdf` | <placeholder> |
+| Table 4 | `e2e_means_table` (needs `e2e`) | `e2e_means_table.tex` | seconds |
+| Figure 17 | `e2e_detailed_full` (needs `e2e`) | `e2e_plot_detailed_full.pdf` | seconds |
+
+The end-to-end experiment (`e2e`) dominates the total runtime, since it compiles every benchmark set (4 to 14 circuits) with MultiQ and all baselines.
+Figure 9 (c) reads the output of `rows_sweep`, so `rows_sweep` must run before the `e2e` plot; `--all` already runs the experiments in the order of `--list`.
+
+### Expected results
+
+MultiQ's planner and bundler use simulated annealing, and some baselines rely on heuristics with time limits.
+Thus, the results of a new run can differ slightly from the paper.
+<placeholder: expected tolerance, for example "within about 5% of the values reported in the paper", as in Weaver>
+
+## Using MultiQ on other circuits
+
+MultiQ takes a list of QASM circuits and a configuration file describing the QPU and the compiler parameters:
 
 ```python
 from multiq.multiq import MultiQ
 
-# 1. Initialize with an E2E Hardware Arrangement configuration
 multiq = MultiQ(config_file="config/multiq/e2e_config.yaml")
-
-# 2. Add source circuits (e.g., .qasm or loaded QuantumCiruits indices)
-input_circuits = ["data/benchmarks/example_circ1.qasm", "data/benchmarks/example_circ2.qasm"]
-
-# 3. Trigger batching & Tile orchestrations
-output_traces = multiq.set_inputs(input_circuits)
-
-print(f"Lowered profiles generated at: {output_traces}")
+multiq.set_inputs(["data/benchmarks/single/ghz_n23.qasm", "data/benchmarks/single/bv_n14.qasm"])
 ```
 
----
+The results (compiled program, fidelity, and execution time per circuit) are written to the `results_dir` set in the configuration file.
+The main configuration parameters are:
 
-## 📊 Reproducing the evaluation
+| Parameter | Description |
+|---|---|
+| `qpu_width`, `qpu_height` | QPU size in µm |
+| `grid_rows`, `grid_cols` | Rows and columns of the multi-programming grid |
+| `fidelity_1q_gate`, `fidelity_2q_gate`, `fidelity_atom_transfer` | Hardware error model |
+| `perf_weight` | Weight of single-circuit performance against spatial utilization in the planner (Section 5.2) |
+| `selection_algorithm` | Bundling algorithm, `fifo` or simulated annealing (`sa`) |
+| `enable_verification` | Run the checker on the compiled program |
 
-Every figure in the paper is regenerated by one of two CLI scripts. Both accept `--list` (show
-available experiments), `--only NAME[,NAME...]` (run a subset), `--data-only` (collect data
-without plotting), and `--plots-only` (replot from whatever's already in `results/`, without
-rerunning any compiler).
+## Citation
 
-```bash
-# Introduction/motivation figure + preliminary-eval sweeps -> results/preeval/
-uv run python scripts/run_preeval.py --all
-
-# Main evaluation: end-to-end, overhead, rows sweep, planner, bundler, controller -> results/plots/
-uv run python scripts/run_evaluation.py --all
+```bibtex
+<placeholder: BibTeX entry>
 ```
 
-Run `--list` on either script to see every experiment name and what it produces, e.g.:
+## License
 
-```bash
-uv run python scripts/run_evaluation.py --list
-```
-
-Note that a full `--all` run executes the real compiler pipelines (MultiQ + baselines) end to end
-and can take a long time; `--plots-only` is much faster for iterating on figure styling once the
-underlying `results/*.csv` files already exist.
-
----
-
-## 📂 Project Architecture
-
-```text
-MultiQ/
-├── src/multiq/
-│   ├── compiler/          # Operations backend (orchestrator, planner, placement, scheduler)
-│   ├── animator/          # Interactive execution animations and visualizer lowers
-│   ├── checker.py         # ZAIR-to-Circuit builders & equivalence verification (MQT QCEC)
-│   ├── simulator.py       # Pulse thresholds and fidelity execution simulators
-│   └── types/             # Common models for tiling and transport allocations
-├── config/
-│   ├── multiq/            # Global/default E2E controller setup (e.g., e2e_config.yaml)
-│   └── zac/               # Subsystem architecture weights and JSON bounds
-├── scripts/
-│   ├── baselines/         # Execution scripts supporting solver comparisons
-│   ├── plotting/          # Evaluation report chart generations
-│   └── run_evaluation.py  # Main workflow setup for grid evaluators benchmarks
-├── data/                  # Source benchmarking circuits
-└── figures/               # Layout files and benchmarks outcomes visualizations
-```
-
----
-
-## 🔧 Dev Specifications
-
-Formattings & lint-check styles adhere to Black specifications for clean consistency checks. To maintain code styles:
-```bash
-pdm run black src/
-```
-
-## 📄 License
-This package is licensed under the terms of the MIT License, as disclosed inside `pyproject.toml`.
+<placeholder: license. pyproject.toml declares MIT, but no LICENSE file is included yet.>

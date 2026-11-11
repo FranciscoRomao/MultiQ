@@ -3,13 +3,9 @@ from multiq.configuration import MultiQConfig
 from math import e
 
 class Simulator():
-    """calculate circuit fidelity based on code_full files."""
+    """Compute circuit fidelity from a compiled code file."""
 
     def __init__(self, config:MultiQConfig):
-        """
-        Args:
-        """
-        # default fidelity parameter
         self.fidelity_2q_gate = config.fidelity_2q_gate
         self.fidelity_2q_gate_for_idle = 1 - (1-self.fidelity_2q_gate)/2
         self.fidelity_1q_gate = config.fidelity_1q_gate
@@ -25,7 +21,6 @@ class Simulator():
         self.n_qubit = 0
         self.list_instrcution = []
 
-        # data members for fidelity computation
         self.cir_fidelity = 1
         self.cir_fidelity_2q_gate = 1
         self.cir_fidelity_2q_gate_for_idle = 1
@@ -33,32 +28,8 @@ class Simulator():
         self.cir_fidelity_atom_transfer = 1
         self.cir_fidelity_coherence = 1
         self.cir_qubit_busy_time = []
-        self.on_going_1qrow_gate = False # During multiple 1q gates we can use the global rotation only in the beginning and on the end of the 1q gate sequence
+        self.on_going_1qrow_gate = False
     
-#    def set_arch_spec(self, spec: dict):
-#        if "operation_fidelity" in spec:
-#            if "two_qubit_gate" in spec["operation_fidelity"]:
-#                self.fidelity_2q_gate = spec["operation_fidelity"]["two_qubit_gate"]
-#                self.fidelity_2q_gate_for_idle = 1 - (1-self.fidelity_2q_gate)/2
-#            if "single_qubit_gate" in spec["operation_fidelity"]:
-#                self.fidelity_1q_gate = spec["operation_fidelity"]["single_qubit_gate"]
-#            if "atom_transfer" in spec["operation_fidelity"]:
-#                self.fidelity_atom_transfer = spec["operation_fidelity"]["atom_transfer"]
-#            if "T" in spec["qubit_spec"]:
-#                self.time_coherence = spec["qubit_spec"]["T"]
-#            if "transfer_time" in spec["operation_duration"]:
-#                self.time_atom_transfer = spec["operation_duration"]["atom_transfer"] 
-#            if "1qGate" in spec["operation_duration"]:
-#                self.time_1q_gate = spec["operation_duration"]["1qGate"] 
-#            if "rydberg" in spec["operation_duration"]:
-#                self.time_rydberg = spec["operation_duration"]["rydberg"] 
-#        if "entanglement_zones" in spec:
-#            for zone in spec["entanglement_zones"]:
-#                for slm_spec in zone["slms"]:
-#                    self.entanglement_zone.add(slm_spec["id"])
-#        if "aods" in spec:
-#            self.n_aod = len(spec["aods"])
-
     def parse(self, code_file: str):
         with open(code_file, 'r') as f:
             result = json.load(f)
@@ -70,15 +41,9 @@ class Simulator():
 
     def process_rydberg(self, instruction, set_qubit_in_rydberg):
         list_gates = instruction["gates"]
-        #num_idle_qubits = len(set_qubit_in_rydberg) - 2 * len(list_gates)
-        #assert(num_idle_qubits >= 0)
         if len(list_gates) == 0:
             return
-        # calculate the fidelity of two-qubit gates
-        # Shouldnt this be multiplied by the number of gates?
         self.cir_fidelity_2q_gate *= pow(self.fidelity_2q_gate, len(list_gates))
-        # calculate the fidelity of idle qubits affected by Rydberg laser
-        # self.cir_fidelity_2q_gate_for_idle *= pow(self.fidelity_2q_gate_for_idle, num_idle_qubits)
         for i in set_qubit_in_rydberg:
             self.cir_qubit_busy_time[i] += self.time_rydberg
     
@@ -86,48 +51,29 @@ class Simulator():
         list_gates = instruction["gates"]
         if len(list_gates) == 0:
             return
-        # calculate the fidelity of two-qubit gates
         self.cir_fidelity_1q_gate *= pow(self.fidelity_1q_gate, len(list_gates))
-        # self.single_qubit_extra_time += ((len(list_gates) - 1) * self.time_1q_gate)
-        # calculate the fidelity of idle qubits affected by Rydberg laser
         for gate_info in list_gates:
             self.cir_qubit_busy_time[gate_info["q"]] += self.time_1q_gate
-            # self.cir_qubit_busy_time[gate_info["q"]] += self.time_1q_gate
 
     def process_row1q_gate(self, instruction):
         list_gates = instruction["gates"]
         if len(list_gates) == 0:
             return
-        # The fidelity of row1q gates is the same as single qubit gates, they are just executed in parallel
+        # Row 1q gates have the same fidelity as single 1q gates, applied in parallel.
         self.cir_fidelity_1q_gate *= pow(self.fidelity_1q_gate, len(list_gates))
-        # self.single_qubit_extra_time += ((len(list_gates) - 1) * self.time_1q_gate)
-        # calculate the fidelity of idle qubits affected by Rydberg laser
         for gate_info in list_gates:
             self.cir_qubit_busy_time[gate_info["q"]] += self.time_1q_gate
 
     def process_arrangement(self, instruction, set_qubit_in_rydberg):
-        # get instruction duration
+        # Each transfer is a pick up and a drop off.
         time_atom_transfer = self.time_atom_transfer * 2
         num_transfer = 0
-        # collect the atoms involving in atom transfer
         list_aod_qubits = instruction["aod_qubits"]
         num_transfer += len(list_aod_qubits)
         for q in list_aod_qubits:
             self.cir_qubit_busy_time[q] += time_atom_transfer
         self.cir_fidelity_atom_transfer *= pow(self.fidelity_atom_transfer, 2*num_transfer)
-        # collect qubit location
         list_qubit_end_location = instruction["end_locs"]
-        #for qubit_info in list_qubit_end_location:
-        #    q_idx = qubit_info[0]
-        #    new_array = qubit_info[1]
-        #    if new_array in self.entanglement_zone:
-        #        set_qubit_in_rydberg.add(q_idx)
-        #    else:
-        #        set_qubit_in_rydberg.remove(q_idx)
-        
-        #for inst in instruction["insts"]:
-        #    if inst["end_time"] - inst["begin_time"] > 200:
-        #        print("long duration: ", inst["end_time"] - inst["begin_time"])
 
     def simulate(self):
         self.cir_fidelity = 1
@@ -138,7 +84,6 @@ class Simulator():
         self.cir_fidelity_coherence = 1
         self.cir_qubit_busy_time = [0 for i in range(self.n_qubit)]
 
-        # self.time_1q_gate = 25
         circuit_end_time = 0
         self.single_qubit_extra_time = 0
         set_qubit_in_rydberg = set()
@@ -158,21 +103,10 @@ class Simulator():
             instruction_end_time = instruction["end_time"]
             if circuit_end_time < instruction_end_time:
                 circuit_end_time = instruction_end_time
-            # print("after {}, the fidelity is:".format(instruction["type"]))
-            # print("                          cir_fidelity_2q_gate = {:10.04f},".format(self.cir_fidelity_2q_gate))
-            # print("                          cir_fidelity_2q_gate_for_idle = {:10.04f},".format(self.cir_fidelity_2q_gate_for_idle))
-            # print("                          cir_fidelity_atom_transfer = {:10.04f}".format(self.cir_fidelity_atom_transfer))
-            # print("                          cir_qubit_busy_time = {}".format(self.cir_qubit_busy_time))
-            # print("                          instruction_end_time[idx] = {}".format(self.instruction_end_time[i]))
-            # input()
-        # print(self.single_qubit_extra_time)
-        # ! simulation directly add single qubit execution time
         circuit_end_time += self.single_qubit_extra_time
         for t in self.cir_qubit_busy_time:
             idle_t = circuit_end_time - t
-            #self.cir_fidelity_coherence *= (1 - idle_t/self.time_coherence)
             self.cir_fidelity_coherence *= e**(-idle_t/float(self.time_coherence))
-            #self.cir_fidelity_coherence *= (1 - idle_t/float(self.time_coherence))
             
         self.cir_fidelity = self.cir_fidelity_1q_gate * self.cir_fidelity_2q_gate * self.cir_fidelity_2q_gate_for_idle \
                             * self.cir_fidelity_atom_transfer * self.cir_fidelity_coherence

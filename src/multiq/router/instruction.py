@@ -27,12 +27,10 @@ class Instructions_mixin:
                 inst["end_locs"] = list(chain.from_iterable(inst["end_locs"]))
 
     def expand_arrangement(self, inst: dict):
-        details = []  # all detailed instructions
+        details = []
 
-        # ---------------------- find out number of cols ----------------------
-        all_col_x = []  # all the x coord of qubits
-        coords = []  # coords of qubits, shape is same as "begin_locs"
-        # these coords are going to be updated as we construct the detail insts
+        all_col_x = []
+        coords = []  # same shape as begin_locs, updated as instructions are built
 
         for locs in inst["begin_locs"]:
             coords_row = []
@@ -53,13 +51,10 @@ class Instructions_mixin:
 
         all_col_x = sorted(all_col_x)
 
-        # assign AOD column ids based on all x coords needed
         col_x_to_id = {all_col_x[i]: i for i in range(len(all_col_x))}
-        # ---------------------------------------------------------------------
 
-        # -------------------- activation and parking -------------------------
-        all_col_idx_sofar = []  # which col has been activated
-        for row_id, locs in enumerate(inst["begin_locs"]):  # each row
+        all_col_idx_sofar = []
+        for row_id, locs in enumerate(inst["begin_locs"]):
 
             row_y = self.architecture.exact_SLM_location(
                 locs[0][1],
@@ -68,8 +63,7 @@ class Instructions_mixin:
             )[1]
             row_loc = [locs[0][1], locs[0][2]]
 
-            # before activation, adjust column position. This is necessary
-            # whenever cols are parked (the `parking` movement below).
+            # Columns parked earlier must shift back before activation.
             shift_back = {
                 "type": "move",
                 "move_type": "before",
@@ -87,7 +81,6 @@ class Instructions_mixin:
                 "end_coord": [],
             }
 
-            # activate one row and some columns
             activate = {
                 "type": "activate",
                 "row_id": [row_id, ],
@@ -107,21 +100,16 @@ class Instructions_mixin:
                 col_loc = [loc[1], loc[3]]
                 col_id = col_x_to_id[col_x]
                 if col_id not in all_col_idx_sofar:
-                    # the col hasn't been activated, so there's no shift back
-                    # and we need to activate it at `col_x`.`
                     all_col_idx_sofar.append(col_id)
                     activate["col_id"].append(col_id)
                     activate["col_x"].append(col_x)
                     activate["col_loc"].append(col_loc)
                 else:
-                    # the col has been activated, thus parked previously and we
-                    # need the shift back, but we do not activate again.
                     shift_back["col_id"].append(col_id)
                     shift_back["col_x_begin"].append(col_x + self.PARKING_DIST)
                     shift_back["col_x_end"].append(col_x)
                     shift_back["col_loc_begin"].append([-1, -1])
                     shift_back["col_loc_end"].append(col_loc)
-                    # since there's a shift, update the coords of the qubit
                     coords[row_id][j]["x"] = col_x
 
             shift_back["end_coord"] = deepcopy(coords)
@@ -131,11 +119,7 @@ class Instructions_mixin:
             details.append(activate)
 
             if row_id < len(inst["begin_locs"]) - 1:
-                # parking movement after the activation
-                # parking is required if we have activated some col, and there is
-                # some qubit we don't want to pick up at the intersection of this
-                # col and some future row to activate. We just always park here.
-                # the last parking is not needed since there's a big move after it.
+                # Park after activation so later rows do not pick up unwanted qubits; the last row needs no parking.
                 parking = {
                     "type": "move",
                     "move_type": "after",
@@ -159,7 +143,6 @@ class Instructions_mixin:
                          loc[3])[0]
                     col_loc = [loc[1], loc[3]]
                     col_id = col_x_to_id[col_x]
-                    # all columns used in this row are parked after the activation
                     parking["col_id"].append(col_id)
                     parking["col_x_begin"].append(col_x)
                     parking["col_x_end"].append(col_x + self.PARKING_DIST)
@@ -169,9 +152,7 @@ class Instructions_mixin:
                     coords[row_id][j]["y"] = parking["row_y_end"][0]
                 parking["end_coord"] = deepcopy(coords)
                 details.append(parking)
-        # ---------------------------------------------------------------------
 
-        # ------------------------- big move ----------------------------------
         big_move = {
             "type": "move:big",
             "move_type": "big",
@@ -198,7 +179,6 @@ class Instructions_mixin:
                 coords[row_id][0]["y"]
             )
             if init_coords[row_id][0]["y"] == coords[row_id][0]["y"]:
-                # AOD row is align with SLM row
                 big_move["row_loc_begin"].append(
                     [begin_locs[0][1], begin_locs[0][2]])
             else:
@@ -222,11 +202,9 @@ class Instructions_mixin:
                 col_id = col_x_to_id[col_x]
 
                 if col_id not in big_move["col_id"]:
-                    # the movement of this rol has not been recorded before
                     big_move["col_id"].append(col_id)
                     big_move["col_x_begin"].append(coords[row_id][j]["x"])
                     if init_coords[row_id][j]["x"] == coords[row_id][j]["x"]:
-                        # AOD col is align with SLM col
                         big_move["col_loc_begin"].append(
                             [begin_loc[1], begin_loc[3]])
                     else:
@@ -240,8 +218,6 @@ class Instructions_mixin:
                     )
                     big_move["col_loc_end"].append([end_loc[1], end_loc[3]])
 
-                # whether or not the movement of this col has been considered
-                # before, we need to update the coords of the qubit.
                 coords[row_id][j]["x"] = self.architecture.exact_SLM_location(
                     end_loc[1],
                     end_loc[2],
@@ -255,15 +231,12 @@ class Instructions_mixin:
 
         big_move["end_coord"] = deepcopy(coords)
         details.append(big_move)
-        # ---------------------------------------------------------------------
 
-        # --------------------------- deactivation ----------------------------
         details.append({
             "type": "deactivate",
             "row_id": [i for i in range(len(inst["begin_locs"]))],
             "col_id": [i for i in range(len(all_col_x))],
         })
-        # ---------------------------------------------------------------------
 
         for inst_counter, detail_inst in enumerate(details):
             detail_inst["id"] = inst_counter

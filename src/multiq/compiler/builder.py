@@ -24,7 +24,7 @@ class InstructionBuilder:
                     "id": 0,
                     "begin_time": 0,
                     "end_time": 0,
-                    # qubit_mapping format: qubit |-> (aod_idx=0, row, col)
+                    # qubit_mapping entries are (aod_idx, row, col).
                     "init_locs": [[i, tile.qubit_mapping[0][i][0], tile.qubit_mapping[0][i][1], tile.qubit_mapping[0][i][2]]
                                   for i in range(tile.n_q)]
                 }
@@ -33,7 +33,7 @@ class InstructionBuilder:
         return self.row_1q_init_gates(tiles)
 
     def row_1q_init_gates(self, tiles: list[list[Tile | None]]):
-        """ Instead of applying 1q gates serially, apply a whole row at a time using AoD laser. """
+        """ Apply 1q gates one storage row at a time with the AOD laser. """
 
         r1q_time = self.config.r1q_time
         end_time = 0.0
@@ -41,12 +41,10 @@ class InstructionBuilder:
         for _, row in enumerate(tiles):
             for _, tile in enumerate(row):
                 if tile:
-                    # It is the same for all tiles, but if we set more tile spaces (grid_cols x grid_rows)
-                    # than the input circuits we need to find the first non-empty tile to get this information
+                    # All tiles share this value, but some grid slots can be empty.
                     storage_zone_rows = tile.config.storage_zone_rows
                     break
 
-        # process the gates per tile row so that we can use row-based 1q gate application
         for tile_row in range(storage_zone_rows):
             pulse_applied = False
             for i, row in enumerate(tiles):
@@ -54,9 +52,6 @@ class InstructionBuilder:
                     if not tile:
                         continue
 
-                    # NB: qubit_mapping[layer][qubit_idx=i] = (aod_idx=0, row, col)
-                    # row_mapping = [
-                    #     mapping for mapping in tile.qubit_mapping[layer] if mapping[1] == tile_row]
                     row_mapping = [
                         mapping for mapping in tile.qubit_mapping[0]]
 
@@ -71,7 +66,6 @@ class InstructionBuilder:
 
                     result_gate = []
                     for gate_info in list_1q_gate:
-                        # collect qubit dependency
                         set_qubit_dependency.add(
                             tile.qubit_dependency[gate_info[1]])
                         tile.qubit_dependency[gate_info[1]] = inst_idx
@@ -98,7 +92,7 @@ class InstructionBuilder:
 
 
     def row_1q_gate_instruction(self, tiles: list[list[Tile | None]], layer: int, begin_time: float):
-        """ Instead of applying 1q gates serially, apply a whole row at a time using AoD laser. """
+        """ Apply 1q gates one storage row at a time with the AOD laser. """
 
         r1q_time = self.config.r1q_time
         end_time = begin_time
@@ -106,12 +100,10 @@ class InstructionBuilder:
         for _, row in enumerate(tiles):
             for _, tile in enumerate(row):
                 if tile:
-                    # It is the same for all tiles, but if we set more tile spaces (grid_cols x grid_rows)
-                    # than the input circuits we need to find the first non-empty tile to get this information
+                    # All tiles share this value, but some grid slots can be empty.
                     storage_zone_rows = tile.config.storage_zone_rows
                     break
 
-        # process the gates per tile row so that we can use row-based 1q gate application
         for tile_row in range(storage_zone_rows):
             pulse_applied = False
             for i, row in enumerate(tiles):
@@ -119,9 +111,6 @@ class InstructionBuilder:
                     if not tile or layer >= len(tile.gate_1q_scheduling):
                         continue
 
-                    # NB: qubit_mapping[layer][qubit_idx=i] = (aod_idx=0, row, col)
-                    # row_mapping = [
-                    #     mapping for mapping in tile.qubit_mapping[layer] if mapping[1] == tile_row]
                     row_mapping = [
                         mapping for mapping in tile.qubit_mapping[2 * layer]]
 
@@ -136,7 +125,6 @@ class InstructionBuilder:
 
                     result_gate = []
                     for gate_info in list_1q_gate:
-                        # collect qubit dependency
                         set_qubit_dependency.add(
                             tile.qubit_dependency[gate_info[1]])
                         tile.qubit_dependency[gate_info[1]] = inst_idx
