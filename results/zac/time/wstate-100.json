@@ -1,7 +1,7 @@
 {
-  "scheduling": 0.0003070831298828125,
-  "initial placement": 24.07546091079712,
-  "intermediate placement": 0.6055343151092529,
-  "routing": 0.39283251762390137,
-  "total": 25.07690954208374
+  "scheduling": 0.00021958351135253906,
+  "initial placement": 10.535946607589722,
+  "intermediate placement": 0.25237607955932617,
+  "routing": 0.0397946834564209,
+  "total": 10.83004379272461
 }
