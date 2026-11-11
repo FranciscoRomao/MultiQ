@@ -70,8 +70,6 @@ def run_atomique_single_benchmarks(benchmark_file: str, output_file: str, timeou
     bench_type = _parse_benchmark_type(benchmark_file)
     filename = os.path.join("data/benchmarks", benchmark_file)
 
-    print("==============================================")
-    print(f"Compile circuit {benchmark_file} with Atomique (FPQAC)")
 
     circuit = QuantumCircuit.from_qasm_file(filename)
     nqubits = circuit.num_qubits

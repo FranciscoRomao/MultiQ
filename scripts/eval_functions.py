@@ -675,13 +675,8 @@ def plot_e2e_results_fidelity(ax, set_size, title, multiq_results_file="results/
     xtick_labels = df['benchmark'].unique().tolist()
     ax.set_xticklabels(xtick_labels, fontsize=11)
     ax.set_ylim(0.3, 0.9)
-    print(f'Mean ratios: \n \
-          \t MultiQ (1 Row): {df[df['compiler']=='MultiQ (1 Row)']['total_fidelity'].mean()},\n \
-          \t MultiQ (2 Row): {df[df['compiler']=='MultiQ (2 Row)']['total_fidelity'].mean()}, \n \
-          \t ZAC: {df[df["compiler"] == "ZAC"]["total_fidelity"].mean()} \n ')
     
             
-    print(df)
     
 def plot_e2e_results_duration(ax, set_size, title,multiq_results_file="results/multiq/e2e_results.csv", zac_results_file="results/zac/e2e_results.csv", pachinqo_results_file="results/pachinqo/e2e_results.csv", powermove_results_file="results/powermove/e2e_results.csv", qmap_results_file="results/qmap/e2e_results.csv", zap_results_file="results/zap/e2e_results.csv", include_pachinqo=False, include_powermove=False, include_qmap=False, include_zap=False, higher_lower_is_better='lower'):
     data_multiq = pd.read_csv(multiq_results_file)
@@ -776,7 +771,6 @@ def plot_e2e_results_duration(ax, set_size, title,multiq_results_file="results/m
     xtick_labels = df['benchmark'].unique().tolist()
     ax.set_ylim(0, max(df['cir_duration']+0.5))
     ax.set_xticklabels(xtick_labels, fontsize=11)
-    print(f'Mean ratios: \n \t MultiQ (1 Row): {df[df["compiler"] == "MultiQ (1 Row)"]["cir_duration"].mean()} \n \t MultiQ (2 Row): {df[df["compiler"] == "MultiQ (2 Row)"]["cir_duration"].mean()}, \n\t ZAC: {df[df["compiler"] == "ZAC"]["cir_duration"].mean()}')
 
     # PachinQo times out on bv_n19, so mark its empty bar.
     if include_pachinqo and 'bv_n19' in xtick_labels:

@@ -14,6 +14,7 @@ from qiskit import QuantumCircuit, transpile
 from qiskit.qasm2 import dumps
 
 from baselines.qmap_arch import general_arch_to_qmap_arch, load_general_arch
+from status import warn
 
 # AODs move whole rows and columns, so use strict routing instead of qmap's relaxed default.
 ROUTING_METHOD = RoutingMethod.strict
@@ -285,9 +286,10 @@ def _compile_one(benchmark_path: str, arch_json_str: str) -> dict:
                 return metrics
             except (RuntimeError, TimeoutError) as e:
                 last_error = e
-                print(f"[WARN] {PLACEMENT_METHOD} with max_nodes={cap} failed on {benchmark_path} ({e}); trying a lower cap")
+                print(f"{PLACEMENT_METHOD} with max_nodes={cap} failed on {benchmark_path} ({e}); trying a lower cap")
 
-        print(f"[WARN] {PLACEMENT_METHOD} failed on {benchmark_path} at every max_nodes cap ({last_error}); falling back to {FALLBACK_PLACEMENT_METHOD}")
+        print(f"{PLACEMENT_METHOD} failed on {benchmark_path} at every max_nodes cap ({last_error})")
+        warn("QMAP", f"{PLACEMENT_METHOD} placement failed on {os.path.basename(benchmark_path)}, falling back to {FALLBACK_PLACEMENT_METHOD}")
         metrics = _compile_in_subprocess(benchmark_path, arch_json_str, FALLBACK_PLACEMENT_METHOD, ROUTING_METHOD, MAX_NODES_CAPS[-1])
         metrics["placement_method_used"] = f"{FALLBACK_PLACEMENT_METHOD} (fallback from {PLACEMENT_METHOD})"
         return metrics
@@ -304,8 +306,6 @@ def run_qmap_single_benchmarks(benchmark_file: str, arch_spec_path: str, output_
     filename = os.path.join("data/benchmarks", benchmark_file)
     benchmark = benchmark_file.split("/")[-1]
 
-    print("==============================================")
-    print(f"Compile circuit {benchmark_file} with qmap (routing={ROUTING_METHOD}, placement={PLACEMENT_METHOD})")
 
     metrics = _compile_one(filename, arch_json_str)
 
@@ -389,8 +389,6 @@ def run_qmap_merge_benchmarks(benchmark_set: list[str], arch_spec_path: str, out
     with open(merged_path, "w") as f:
         f.write(dumps(merged_circuit))
 
-    print("==============================================")
-    print(f"Compile merged benchmark set {bench} with qmap (routing={ROUTING_METHOD}, placement={PLACEMENT_METHOD})")
 
     metrics = _compile_one(merged_path, arch_json_str)
 

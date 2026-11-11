@@ -6,6 +6,8 @@ import pandas as pd
 from qiskit import QuantumCircuit, transpile
 from qiskit.qasm2 import dumps
 
+from status import warn
+
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "../../compilers/powermove"))
 
 import mvqc_multi_aod as mm
@@ -69,11 +71,6 @@ def run_powermove_single_benchmarks(benchmark_file: str, arch_spec_path: str, ou
     filename = os.path.join("data/benchmarks", benchmark_file)
     benchmark = benchmark_file.split("/")[-1]
 
-    print("==============================================")
-    print(
-        f"Compile circuit {benchmark_file} with PowerMove "
-        f"(grid {target['grid_rows']}x{target['grid_cols']}, {target['num_aods']} AOD(s))"
-    )
 
     metrics = _compile_one(filename, target)
 
@@ -160,17 +157,12 @@ def run_powermove_merge_benchmarks(benchmark_set: list[str], arch_spec_path: str
     with open(merged_path, "w") as f:
         f.write(dumps(merged_circuit))
 
-    print("==============================================")
-    print(
-        f"Compile merged benchmark set {bench} with PowerMove "
-        f"(grid {target['grid_rows']}x{target['grid_cols']}, {target['num_aods']} AOD(s))"
-    )
 
     try:
         metrics = _compile_one(merged_path, target)
     except Exception as e:
         # PowerMove's grid only covers the entanglement zone, so large merged sets may not fit.
-        print(f"[WARN] PowerMove could not compile merged benchmark set {bench} ({e}); skipping this set size")
+        warn("PowerMove", f"could not compile merged set of size {len(benchmark_set)} ({e}), skipping")
         return
 
     data = pd.DataFrame(

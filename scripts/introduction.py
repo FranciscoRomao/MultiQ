@@ -1,7 +1,6 @@
 """Data collection and plot for the introduction figure (Figure 1)."""
 import json
 import os
-import time
 
 import numpy as np
 import pandas as pd
@@ -12,6 +11,7 @@ from framework.grid import Grid
 from plotting import utils
 from tools.gen_benchmarks import gen_single_benchmarks
 import eval_functions
+from status import step, warn
 
 BENCH_TYPES = ["ghz", "wstate", "dj"]
 SIZES = [25, 50, 100, 150, 200, 250]
@@ -26,29 +26,29 @@ PACHINQO_ZONES = [
 ]
 
 
-def _progress(msg):
-    print(f"[{time.strftime('%H:%M:%S')}] {msg}", flush=True)
-
-
 def _benchmark_path(bench_type, size):
     return f"single/{bench_type}-{size}.qasm"
 
 
+def _runs():
+    runs = [(size, bench_type) for size in SIZES for bench_type in BENCH_TYPES]
+    return [(i + 1, len(runs), size, bench_type) for i, (size, bench_type) in enumerate(runs)]
+
+
 def run_zac_introduction():
     rows = []
-    for size in SIZES:
-        for bench_type in BENCH_TYPES:
-            name = f"{bench_type}-{size}"
-            _progress(f"[zac] compiling {name}")
-            run_zac([_benchmark_path(bench_type, size)], ZAC_SETTINGS_FILE)
-            fid = json.load(open(f"results/zac/fidelity/{name}.json"))
-            rows.append({
-                "benchmark": bench_type,
-                "nqubits": size,
-                "total_fidelity": fid["cir_fidelity"],
-                "total_coherence_fidelity": fid["cir_fidelity_coherence"],
-                "execution_time": fid["cir_duration"],
-            })
+    for i, n, size, bench_type in _runs():
+        name = f"{bench_type}-{size}"
+        step("ZAC", i, n, name)
+        run_zac([_benchmark_path(bench_type, size)], ZAC_SETTINGS_FILE)
+        fid = json.load(open(f"results/zac/fidelity/{name}.json"))
+        rows.append({
+            "benchmark": bench_type,
+            "nqubits": size,
+            "total_fidelity": fid["cir_fidelity"],
+            "total_coherence_fidelity": fid["cir_fidelity_coherence"],
+            "execution_time": fid["cir_duration"],
+        })
     pd.DataFrame(rows).to_csv(f"{RESULTS_DIR}/zac_preeval.csv", index=False)
 
 
@@ -82,17 +82,16 @@ def run_pachinqo_introduction():
     from baselines.pachinqo_runner import transpile_single_benchmark
 
     rows = []
-    for size in SIZES:
-        for bench_type in BENCH_TYPES:
-            bench_file = _benchmark_path(bench_type, size)
-            _progress(f"[pachinqo] compiling {bench_file}")
-            try:
-                grid = Grid(PACHINQO_ZONES, 0, transpile_single_benchmark(bench_file), num_atoms=250)
-                total_fidelity, execution_time = _pachinqo_fidelity(grid.return_vals(), size)
-                rows.append({"benchmark": bench_type, "nqubits": size,
-                             "total_fidelity": total_fidelity, "execution_time": execution_time})
-            except Exception as e:
-                _progress(f"[pachinqo] {bench_file} failed ({e}), skipping")
+    for i, n, size, bench_type in _runs():
+        bench_file = _benchmark_path(bench_type, size)
+        step("PachinQo", i, n, f"{bench_type}-{size}")
+        try:
+            grid = Grid(PACHINQO_ZONES, 0, transpile_single_benchmark(bench_file), num_atoms=250)
+            total_fidelity, execution_time = _pachinqo_fidelity(grid.return_vals(), size)
+            rows.append({"benchmark": bench_type, "nqubits": size,
+                         "total_fidelity": total_fidelity, "execution_time": execution_time})
+        except Exception as e:
+            warn("PachinQo", f"{bench_type}-{size} failed ({e}), skipping")
     pd.DataFrame(rows).to_csv(f"{RESULTS_DIR}/pachinqo_preeval.csv", index=False)
 
 
@@ -100,14 +99,12 @@ def run_atomique_introduction():
     output_file = f"{RESULTS_DIR}/atomique_preeval.csv"
     if os.path.isfile(output_file):
         os.remove(output_file)
-    for size in SIZES:
-        for bench_type in BENCH_TYPES:
-            bench_file = _benchmark_path(bench_type, size)
-            _progress(f"[atomique] compiling {bench_file}")
-            try:
-                run_atomique_single_benchmarks(bench_file, output_file, timeout=ATOMIQUE_TIMEOUT)
-            except (RuntimeError, TimeoutError) as e:
-                _progress(f"[atomique] {bench_file} failed ({e}), skipping")
+    for i, n, size, bench_type in _runs():
+        step("Atomique", i, n, f"{bench_type}-{size}")
+        try:
+            run_atomique_single_benchmarks(_benchmark_path(bench_type, size), output_file, timeout=ATOMIQUE_TIMEOUT)
+        except (RuntimeError, TimeoutError) as e:
+            warn("Atomique", f"{bench_type}-{size} failed ({e}), skipping")
 
 
 def run_introduction():

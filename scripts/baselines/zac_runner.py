@@ -80,8 +80,6 @@ def run_zac(benchmark_set, settings_file):
     zac_compiler = None
 
     for benchmark in benchmark_set:
-        print("==============================================")
-        print("Compile circuit {}".format(benchmark))
 
 
         filename = os.path.join('data/benchmarks',benchmark)
@@ -140,7 +138,7 @@ def run_zac_single_benchmarks(benchmark_file, settings_file, output_file):
 
     info = run_zac([benchmark_file], settings_file)
     
-    logger.info("ZAC Compilation Info:", info)
+    logger.info("ZAC compilation info: %s", info)
 
     data = pd.DataFrame(columns=['benchmark',
                              'nqubits',
@@ -200,7 +198,6 @@ def run_zac_merge_benchmarks(benchmark_set, settings_file, output_file):
 
     save_circuit(merged_circuit, os.path.join(os.path.dirname(__file__), '../../data/benchmarks/merged', f'{bench}.qasm'))
         
-    print(f"Runnig ZAC for benchmark set: {bench}")
     
     settings_file = os.path.join(os.path.dirname(__file__), settings_file)
 
@@ -208,7 +205,7 @@ def run_zac_merge_benchmarks(benchmark_set, settings_file, output_file):
 
     info = run_zac(merged_bench, settings_file)
     
-    logger.info("ZAC Compilation Info:", info)
+    logger.info("ZAC compilation info: %s", info)
 
     data = pd.DataFrame(columns=['benchmark',
                              'nqubits',
@@ -223,7 +220,6 @@ def run_zac_merge_benchmarks(benchmark_set, settings_file, output_file):
     
     for i, bench in enumerate(merged_bench_files):
 
-        print(f"Processing benchmark: {bench}")
 
         fid_file = os.path.join(os.path.dirname(__file__), '../../results/zac/fidelity', f'{bench}.json')
         time_file = os.path.join(os.path.dirname(__file__), '../../results/zac/time', f'{bench}.json')

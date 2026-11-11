@@ -88,6 +88,8 @@ uv run python scripts/run_evaluation.py --all
 ```
 
 The raw results are written to `results/` and the plots to `results/plots/`.
+The terminal only shows which experiment and which run is in progress, for example `ZAC [5/14] single/qft_n20.qasm`.
+The full compiler output of each experiment is written to `results/logs/<experiment>.log`.
 The benchmark circuits listed in `data/*_bench_list*.txt` are generated with MQT Bench if they are missing.
 
 ### Figures and experiments

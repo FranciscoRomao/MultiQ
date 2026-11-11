@@ -3,8 +3,8 @@ from qiskit.qasm2 import dumps
 import os
 import logging
 import pandas as pd
-import logging
 from multiq.multiq import MultiQ
+from status import step
 
 logger = logging.getLogger("multiq.evaluation.multiq_runner")
 
@@ -35,9 +35,12 @@ def run_multiq_planner_eval(config_file:str = "../../config/multiq/planner_confi
                                  'total_transfer_fidelity',
                                  'total_duration'])
 
+    n_runs = len(perf_weights) * len(benchmark_set)
+    run_idx = 0
     for weight in perf_weights:
         for bench in benchmark_set:
-            logger.info(f"Running MultiQ with weight {weight} on benchmark {bench}")
+            run_idx += 1
+            step("MultiQ", run_idx, n_runs, f"perf_weight {weight}, {os.path.basename(bench)}")
             mq = MultiQ(config_file)
             mq.config.perf_weight = weight
             output_files = mq.set_inputs([bench])

@@ -33,17 +33,15 @@ from tools.gen_architectures import generate_scaled_arch
 from plotting import utils, defaults
 from eval_functions import generate_e2e_means_table
 from introduction import run_introduction, plot_introduction
+from status import status, step, warn, output_to_log
 import eval_functions as eval
 
+# Logging goes to the per-stage log file under results/logs.
 logging.basicConfig(level=logging.INFO, format="[%(asctime)s] [%(levelname)s] %(name)s: %(message)s", datefmt="%H:%M:%S")
 for _name in ("qiskit", "fontTools", "matplotlib", "stevedore", "PIL"):
     logging.getLogger(_name).setLevel(logging.WARNING)
 
 logger = logging.getLogger("multiq.evaluation")
-
-
-def _progress(msg):
-    print(f"[{time.strftime('%H:%M:%S')}] {msg}", flush=True)
 
 # Sweeps write per-run config copies here so the base templates stay untouched.
 GENERATED_CONFIG_DIR = os.path.join(os.path.dirname(__file__), "..", "config/multiq/_generated")
@@ -83,18 +81,19 @@ def run_end_to_end_evaluation():
     multiq_results_file = os.path.join(os.path.dirname(__file__), f"../results/multiq/e2e_results.csv")
 
     n_pachinqo = len(multi_benchmark_set_pachinqo)
-    _progress(f"Baseline sweep (PachinQo): {n_pachinqo} benchmarks")
     for i, bench in enumerate(multi_benchmark_set_pachinqo):
-        _progress(f"  [{i + 1}/{n_pachinqo}] PachinQo: {bench}")
+        step("PachinQo", i + 1, n_pachinqo, bench)
         run_pachiqo_single_benchmark(bench, zac_settings_file, pachinqo_results_file)
 
     n_single = len(multi_benchmark_set)
-    _progress(f"Baseline sweep (ZAC/PowerMove/QMAP/ZAP): {n_single} benchmarks")
     for i, bench in enumerate(multi_benchmark_set):
-        _progress(f"  [{i + 1}/{n_single}] {bench}")
+        step("ZAC", i + 1, n_single, bench)
         run_zac_single_benchmarks(bench, zac_settings_file, zac_results_file)
+        step("PowerMove", i + 1, n_single, bench)
         run_powermove_single_benchmarks(bench, general_arch_file, powermove_results_file)
+        step("QMAP", i + 1, n_single, bench)
         run_qmap_single_benchmarks(bench, general_arch_file, qmap_results_file)
+        step("ZAP", i + 1, n_single, bench)
         run_zap_single_benchmarks(bench, general_arch_file, zap_results_file)
 
     random.seed(42)  # For reproducibility
@@ -103,8 +102,6 @@ def run_end_to_end_evaluation():
     n_multiq_configs = len(multi_benchmark_sets) * 2
     multiq_config_idx = 0
     for benchmark_set in multi_benchmark_sets:
-        _progress(f"Running MultiQ with benchmark set of size {len(benchmark_set)}")
-
         for rows in [1, 2]:
             with open(base_config_file, "r") as file:
                 config = yaml.safe_load(file)
@@ -140,7 +137,7 @@ def run_end_to_end_evaluation():
             )
 
             multiq_config_idx += 1
-            _progress(f"  [{multiq_config_idx}/{n_multiq_configs}] MultiQ, set size {len(benchmark_set)}, {rows} row(s)")
+            step("MultiQ", multiq_config_idx, n_multiq_configs, f"set size {len(benchmark_set)}, {rows} row(s)")
 
             run_multiq(
                 benchmarks=benchmark_set,
@@ -148,7 +145,6 @@ def run_end_to_end_evaluation():
                 output_file=multiq_results_file,
             )
 
-    _progress("run_end_to_end_evaluation done")
 
 
 # ----- 2. MultiQ overhead evaluation -----
@@ -186,14 +182,14 @@ def run_multiq_overhead_vs_circuit_size():
             config["grid_rows"] = rows
             config["qpu_width"] = fixed_qpu_width
             config["qpu_height"] = fixed_qpu_height
-            config["selection_algorithm"] = "fifo"
+            config["selection_algorithm"] = "sa"
             config["perf_weight"] = PERF_WEIGHT_BY_CIRCUIT_SIZE[size]
             tmp_config_path = os.path.join(os.path.dirname(__file__), f"../config/multiq/_generated/overhead_circuit_size_config_{size}q_rows{rows}.yaml")
             with open(tmp_config_path, "w") as file:
                 yaml.dump(config, file)
 
             config_idx += 1
-            _progress(f"  [{config_idx}/{n_configs}] MultiQ overhead eval for circuit size {size}q with {rows} rows (fixed QPU)")
+            step("MultiQ", config_idx, n_configs, f"circuit size {size}q, {rows} row(s)")
 
             run_multiq(
                 benchmarks=benchmark_set,
@@ -201,7 +197,6 @@ def run_multiq_overhead_vs_circuit_size():
                 output_file=results_file,
             )
 
-    _progress("run_multiq_overhead_vs_circuit_size done")
 
 
 def run_multiq_overhead_vs_qpu_size():
@@ -233,7 +228,7 @@ def run_multiq_overhead_vs_qpu_size():
             config["grid_rows"] = rows
             config["qpu_width"] = qpu_width
             config["qpu_height"] = qpu_height
-            config["selection_algorithm"] = "fifo"
+            config["selection_algorithm"] = "sa"
             # Keeps all 6 tiles in one bin at every capacity.
             config["perf_weight"] = 0.3
             tmp_config_path = os.path.join(os.path.dirname(__file__), f"../config/multiq/_generated/overhead_qpu_size_config_{capacity}q_rows{rows}.yaml")
@@ -241,7 +236,7 @@ def run_multiq_overhead_vs_qpu_size():
                 yaml.dump(config, file)
 
             config_idx += 1
-            _progress(f"  [{config_idx}/{n_configs}] MultiQ overhead eval for QPU capacity {capacity}q (actual {actual_r}x{actual_c}) with {rows} rows")
+            step("MultiQ", config_idx, n_configs, f"QPU capacity {capacity}q ({actual_r}x{actual_c} storage), {rows} row(s)")
 
             run_multiq(
                 benchmarks=benchmark_set,
@@ -249,7 +244,6 @@ def run_multiq_overhead_vs_qpu_size():
                 output_file=results_file,
             )
 
-    _progress("run_multiq_overhead_vs_qpu_size done")
 
 
 # ----- 3. Storage-zone rows sweep -----
@@ -276,7 +270,7 @@ def run_multiq_rows_sweep():
     max_retries = 10
 
     achieved_rows = []
-    for target_rows in ROWS_SWEEP_TARGETS:
+    for target_idx, target_rows in enumerate(ROWS_SWEEP_TARGETS):
         actual_rows = actual_rows_by_target.get(target_rows, target_rows)
         retries = 0
         while True:
@@ -285,7 +279,7 @@ def run_multiq_rows_sweep():
                 config = yaml.safe_load(file)
             config["grid_rows"] = 1
             config["qpu_height"] = qpu_height
-            config["selection_algorithm"] = "fifo"
+            config["selection_algorithm"] = "sa"
             config["perf_weight"] = perf_weight_by_rows.get(actual_rows, default_perf_weight)
             tmp_config_path = os.path.join(os.path.dirname(__file__), f"../config/multiq/_generated/rows_sweep_config_{actual_rows}rows.yaml")
             with open(tmp_config_path, "w") as file:
@@ -295,7 +289,7 @@ def run_multiq_rows_sweep():
             if os.path.isfile(results_file):
                 os.remove(results_file)  # run_multiq appends to the file.
 
-            _progress(f"Running MultiQ rows sweep: target storage rows={target_rows}, actual={actual_rows} (qpu_height={qpu_height})")
+            step("MultiQ", target_idx + 1, len(ROWS_SWEEP_TARGETS), f"{actual_rows} storage rows (target {target_rows})")
             try:
                 run_multiq(
                     benchmarks=benchmark_set,
@@ -304,23 +298,22 @@ def run_multiq_rows_sweep():
                 )
                 nbins = pd.read_csv(results_file)["nbins"].iloc[0]
                 if nbins != 1:
-                    _progress(f"rows={actual_rows} bundled into {nbins} bins (expected 1) with perf_weight={config['perf_weight']} -- "
-                          f"add a lower override to perf_weight_by_rows for this point to force a single bin")
+                    warn("MultiQ", f"{actual_rows} rows bundled into {nbins} bins (expected 1) with perf_weight={config['perf_weight']}, "
+                                   f"add a lower override to perf_weight_by_rows for this point")
                 achieved_rows.append(actual_rows)
                 break
             except Exception:
                 retries += 1
-                _progress(f"rows={actual_rows} infeasible (attempt {retries}/{max_retries}):\n{traceback.format_exc()}")
+                print(traceback.format_exc())
                 if retries >= max_retries:
                     raise RuntimeError(
                         f"rows sweep: target_rows={target_rows} still infeasible after {max_retries} bumps "
                         f"(last actual_rows={actual_rows}); pin a working actual_rows_by_target[{target_rows}] "
-                        f"or investigate the traceback above"
+                        f"or see the traceback in results/logs/rows_sweep.log"
                     )
-                _progress(f"bumping actual_rows from {actual_rows} to {actual_rows + 5} and retrying")
+                warn("MultiQ", f"{actual_rows} rows infeasible (attempt {retries}/{max_retries}), retrying with {actual_rows + 5}")
                 actual_rows += 5
 
-    _progress(f"Rows sweep complete. Achieved row counts: {achieved_rows}")
     return achieved_rows
 
 
@@ -466,10 +459,8 @@ def plot_e2e_detailed_full(detailed_set_sizes=(4, 8, 12), include_pachinqo=True,
         axes.append(fig.add_subplot(gs[idx * 2]))
         axes.append(fig.add_subplot(gs[idx * 2 + 1]))
 
-    _progress("Plotting fidelity")
     letters = ["a", "b", "c", "d", "e", "f", "g", "h", "i", "j", "k", "l"]
     for idx, set_size in enumerate(detailed_set_sizes):
-        _progress(f"Plotting results for benchmark set of size {set_size}")
         eval.plot_e2e_results_fidelity(
             ax=axes[idx * 2],
             set_size=set_size,
@@ -491,9 +482,7 @@ def plot_e2e_detailed_full(detailed_set_sizes=(4, 8, 12), include_pachinqo=True,
         for label in axes[idx * 2].get_xticklabels():
             label.set_ha('right')
 
-    _progress("Plotting circuit duration")
     for idx, set_size in enumerate(detailed_set_sizes):
-        _progress(f"Plotting results for benchmark set of size {set_size}")
         eval.plot_e2e_results_duration(
             ax=axes[idx * 2 + 1],
             set_size=set_size,
@@ -542,7 +531,6 @@ def plot_e2e_detailed_full(detailed_set_sizes=(4, 8, 12), include_pachinqo=True,
     )
 
     fig.savefig("results/plots/e2e_plot_detailed_full.pdf", format="pdf")
-    _progress("Wrote results/plots/e2e_plot_detailed_full.pdf")
 
 
 def plot_e2e_total_runtime(include_powermove=True, include_qmap=True, include_zap=True, include_pachinqo=True):
@@ -914,8 +902,7 @@ def run_bundler_eval(set_sizes=None, perf_weights=None, config_file=None, result
 
     n_fifo = len(benchmark_sets)
     for i, benchmark_set in enumerate(benchmark_sets):
-        bench = "-".join([os.path.basename(b).split(".")[0] for b in benchmark_set])
-        logger.info(f"[{i + 1}/{n_fifo}] Running MultiQ with FIFO selection algorithm on benchmark set: {bench}")
+        step("MultiQ", i + 1, n_fifo, f"FIFO selection, set size {len(benchmark_set)}")
         run_multiq(
             benchmarks=benchmark_set,
             config_file=fifo_config_file,
@@ -937,18 +924,14 @@ def run_bundler_eval(set_sizes=None, perf_weights=None, config_file=None, result
         sa_config_file = _write_generated_config(config, f"bundler_config_sa_{weight}.yaml")
 
         for benchmark_set in benchmark_sets:
-            bench = "-".join([os.path.basename(b).split(".")[0] for b in benchmark_set])
             sa_config_idx += 1
-            logger.info(
-                f"[{sa_config_idx}/{n_sa_configs}] Running MultiQ with bundler evaluation on benchmark: {bench} with temporal utilization weight: {weight}"
-            )
+            step("MultiQ", sa_config_idx, n_sa_configs, f"SA selection, temporal utilization weight {weight}, set size {len(benchmark_set)}")
             run_multiq(
                 benchmarks=benchmark_set,
                 config_file=sa_config_file,
                 output_file=multiq_results_file,
             )
 
-    _progress("run_bundler_eval done")
 
 
 def run_controller_eval():
@@ -973,13 +956,16 @@ def run_controller_eval():
 
     n_sets = len(multi_benchmark_sets)
     for i, benchmark_set in enumerate(multi_benchmark_sets):
-        _progress(f"[{i + 1}/{n_sets}] Controller baselines (ZAC/PowerMove/QMAP/ZAP) on merged set of size {len(benchmark_set)}")
+        what = f"merged set of size {len(benchmark_set)}"
+        step("ZAC", i + 1, n_sets, what)
         run_zac_merge_benchmarks(benchmark_set, zac_settings_file, zac_results_file)
+        step("PowerMove", i + 1, n_sets, what)
         run_powermove_merge_benchmarks(benchmark_set, general_arch_file, powermove_results_file)
+        step("QMAP", i + 1, n_sets, what)
         run_qmap_merge_benchmarks(benchmark_set, general_arch_file, qmap_results_file)
+        step("ZAP", i + 1, n_sets, what)
         run_zap_merge_benchmarks(benchmark_set, general_arch_file, zap_results_file)
 
-    _progress("run_controller_eval done")
 
 
 def plot_controller_eval(include_powermove=True, include_qmap=True, include_zap=True):
@@ -1104,8 +1090,16 @@ EXPERIMENTS = [
 ]
 
 
-def _progress_stage(name, stage, start, run_start):
-    _progress(f"=== [{name}] {stage} done in {time.time() - start:.1f}s (total {time.time() - run_start:.1f}s) ===")
+LOGS_DIR = os.path.join(os.path.dirname(__file__), "..", "results/logs")
+
+
+def _run_stage(name, stage, fn, run_start):
+    # Compiler output goes to results/logs/<name>.log; the terminal only shows status lines.
+    status(f"=== [{name}] {stage} ===")
+    start = time.time()
+    with output_to_log(os.path.join(LOGS_DIR, f"{name}.log")):
+        fn()
+    status(f"=== [{name}] done in {time.time() - start:.1f}s (total {time.time() - run_start:.1f}s) ===")
 
 
 def _parse_args():
@@ -1138,27 +1132,26 @@ def main():
             raise SystemExit(f"Unknown experiment(s): {', '.join(sorted(unknown))}. Use --list to see the names.")
 
     os.makedirs(PLOTS_DIR, exist_ok=True)
-    if not args.plots_only:
-        _progress("=== preparing benchmarks ===")
-        gen_benchmarks_from_list("data/multi_eval_bench_list.txt")
-        gen_benchmarks_from_list("data/multi_eval_bench_list_pachinqo.txt")
-
+    os.makedirs(LOGS_DIR, exist_ok=True)
+    status(f"Compiler output is written to {os.path.relpath(LOGS_DIR)}/<experiment>.log")
     run_start = time.time()
-    for exp in EXPERIMENTS:
-        if selected is not None and exp.name not in selected:
-            continue
-        if exp.data_fn and not args.plots_only:
-            _progress(f"=== [{exp.name}] collecting data ===")
-            start = time.time()
-            exp.data_fn()
-            _progress_stage(exp.name, "data", start, run_start)
-        if exp.plot_fn and not args.data_only:
-            _progress(f"=== [{exp.name}] plotting ===")
-            start = time.time()
-            exp.plot_fn()
-            _progress_stage(exp.name, "plot", start, run_start)
+    if not args.plots_only:
+        def prepare():
+            gen_benchmarks_from_list("data/multi_eval_bench_list.txt")
+            gen_benchmarks_from_list("data/multi_eval_bench_list_pachinqo.txt")
+        _run_stage("benchmarks", "preparing benchmarks", prepare, run_start)
 
-    _progress(f"Done in {time.time() - run_start:.1f}s")
+    todo = [exp for exp in EXPERIMENTS if selected is None or exp.name in selected]
+    for idx, exp in enumerate(todo):
+        log_path = os.path.join(LOGS_DIR, f"{exp.name}.log")
+        if os.path.isfile(log_path):
+            os.remove(log_path)
+        if exp.data_fn and not args.plots_only:
+            _run_stage(exp.name, f"collecting data ({idx + 1}/{len(todo)})", exp.data_fn, run_start)
+        if exp.plot_fn and not args.data_only:
+            _run_stage(exp.name, f"plotting ({idx + 1}/{len(todo)})", exp.plot_fn, run_start)
+
+    status(f"Done in {time.time() - run_start:.1f}s, plots in {os.path.relpath(PLOTS_DIR)}")
 
 
 if __name__ == "__main__":

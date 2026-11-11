@@ -40,7 +40,7 @@ class MultiQ:
 
         output_files:list[list] = []
 
-        print(f"---------------------Number of grid cols: {self.config.grid_cols}")
+        logger.info(f"Number of grid cols: {self.config.grid_cols}")
 
         scheduling_time = 0.0
         placement_time = 0.0

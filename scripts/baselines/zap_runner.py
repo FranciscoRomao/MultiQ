@@ -6,6 +6,8 @@ import pandas as pd
 from qiskit import QuantumCircuit, transpile
 from qiskit.qasm2 import dumps
 
+from status import warn
+
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "../../compilers/zap"))
 
 from zap.scheduler.scheduler import Scheduler
@@ -154,8 +156,6 @@ def run_zap_single_benchmarks(benchmark_file: str, arch_spec_path: str, output_f
     filename = os.path.join("data/benchmarks", benchmark_file)
     benchmark = benchmark_file.split("/")[-1]
 
-    print("==============================================")
-    print(f"Compile circuit {benchmark_file} with ZAP")
 
     metrics = _compile_one(filename, architecture)
 
@@ -239,14 +239,12 @@ def run_zap_merge_benchmarks(benchmark_set: list[str], arch_spec_path: str, outp
     with open(merged_path, "w") as f:
         f.write(dumps(merged_circuit))
 
-    print("==============================================")
-    print(f"Compile merged benchmark set {bench} with ZAP")
 
     try:
         metrics = _compile_one(merged_path, architecture)
     except Exception as e:
         # ZAP's baseline placer can run out of candidate pairs on the largest merged circuits.
-        print(f"[WARN] ZAP could not compile merged benchmark set {bench} ({e}); skipping this set size")
+        warn("ZAP", f"could not compile merged set of size {len(benchmark_set)} ({e}), skipping")
         return
 
     data = pd.DataFrame(

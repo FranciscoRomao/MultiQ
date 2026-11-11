@@ -68,7 +68,6 @@ def transpile_single_benchmark(benchmark) -> str:
         transpiled_circuit = QuantumCircuit.from_qasm_file(file_path)
         transpiled_circuit = transpile(transpiled_circuit, optimization_level=3, basis_gates=['u3', 'cz'])
         transpiled_circuit.remove_final_measurements()
-        print(f"Saving {name}...")
         save_circuit(transpiled_circuit, name)
 
     return name
@@ -96,7 +95,6 @@ def run_pachiqo_single_benchmark(benchmark, settings_file, output_file="results/
             {'type': 'ReadoutZone', 'bottom_left_x': 175, 'bottom_left_y': 110, 'width': 55, 'height':40}
     ]
 
-    print(f"Running {transpiled_benchmark}...")
         
     grid = Grid(zone_specs, 0, transpiled_benchmark, num_atoms=150)
 
