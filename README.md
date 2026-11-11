@@ -113,7 +113,8 @@ Figure 9 (c) reads the output of `rows_sweep`, so `rows_sweep` must run before t
 
 MultiQ's planner and bundler use simulated annealing, and some baselines rely on heuristics with time limits.
 Thus, the results of a new run can differ slightly from the paper.
-<placeholder: expected tolerance, for example "within about 5% of the values reported in the paper", as in Weaver>
+The fidelity and execution time results are expected to be within about 5% of the values reported in the paper.
+The compilation times in Figure 13 depend on the CPU and on the load of the machine, so their absolute values can differ more than 5%, while the ordering between the configurations stays the same.
 
 ## Using MultiQ on other circuits
 
