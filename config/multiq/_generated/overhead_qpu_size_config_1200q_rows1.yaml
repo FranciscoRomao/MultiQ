@@ -35,7 +35,7 @@ resyn: true
 reuse: true
 routing_strategy: maximalis_sort
 scheduling_strategy: asap
-selection_algorithm: fifo
+selection_algorithm: sa
 storage_site_separation:
 - 3
 - 3

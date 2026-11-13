@@ -182,7 +182,7 @@ def run_multiq_overhead_vs_circuit_size():
             config["grid_rows"] = rows
             config["qpu_width"] = fixed_qpu_width
             config["qpu_height"] = fixed_qpu_height
-            config["selection_algorithm"] = "fifo"
+            config["selection_algorithm"] = "sa"
             config["perf_weight"] = PERF_WEIGHT_BY_CIRCUIT_SIZE[size]
             tmp_config_path = os.path.join(os.path.dirname(__file__), f"../config/multiq/_generated/overhead_circuit_size_config_{size}q_rows{rows}.yaml")
             with open(tmp_config_path, "w") as file:
@@ -228,7 +228,7 @@ def run_multiq_overhead_vs_qpu_size():
             config["grid_rows"] = rows
             config["qpu_width"] = qpu_width
             config["qpu_height"] = qpu_height
-            config["selection_algorithm"] = "fifo"
+            config["selection_algorithm"] = "sa"
             # Keeps all 6 tiles in one bin at every capacity.
             config["perf_weight"] = 0.3
             tmp_config_path = os.path.join(os.path.dirname(__file__), f"../config/multiq/_generated/overhead_qpu_size_config_{capacity}q_rows{rows}.yaml")
