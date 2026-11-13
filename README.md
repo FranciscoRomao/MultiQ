@@ -44,7 +44,6 @@ The versions and the changes made to each baseline are listed in `compilers/READ
 - Python 3.12 (and Python 3.10 for the Atomique baseline; uv downloads both if needed)
 - [uv](https://docs.astral.sh/uv/) for dependency management
 - About 2 GB of disk space, including both Python environments
-- <placeholder: RAM>
 
 ## Installation
 
