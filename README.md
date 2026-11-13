@@ -43,7 +43,8 @@ The versions and the changes made to each baseline are listed in `compilers/READ
 - Linux or macOS. No special hardware is required; all experiments run on a CPU.
 - Python 3.12 (and Python 3.10 for the Atomique baseline; uv downloads both if needed)
 - [uv](https://docs.astral.sh/uv/) for dependency management
-- <placeholder: RAM and disk requirements, and the machine used for the paper's results>
+- About 2 GB of disk space, including both Python environments
+- <placeholder: RAM>
 
 ## Installation
 
@@ -96,17 +97,18 @@ The benchmark circuits listed in `data/*_bench_list*.txt` are generated with MQT
 
 | Paper | Experiment (`--only`) | Output (`results/plots/`) | Approx. runtime |
 |---|---|---|---|
-| Figure 1 | `introduction` | `introduction_plots.pdf` | <placeholder> |
-| Figure 8 | `e2e`, then `e2e_total_runtime` | `e2e_durations.pdf` | <placeholder> |
-| Figure 9 | `rows_sweep`, then `e2e` | `e2e_plot_detailed.pdf` | <placeholder> |
-| Figure 10 | `planner` | `planner_plot.pdf` | <placeholder> |
-| Figure 11 | `bundler` | `bundler_plot.pdf` | <placeholder> |
-| Figure 12 | `controller` | `controller_plot.pdf` | <placeholder> |
-| Figure 13 | `overhead_circuit_size`, `overhead_qpu_size`, then `overhead_combined` (needs `e2e`) | `multiq_overhead_combined.pdf` | <placeholder> |
+| Figure 1 | `introduction` | `introduction_plots.pdf` | 5 min |
+| Figure 8 | `e2e`, then `e2e_total_runtime` | `e2e_durations.pdf` | 17 min |
+| Figure 9 | `rows_sweep`, then `e2e` | `e2e_plot_detailed.pdf` | 1 min, plus `e2e` |
+| Figure 10 | `planner` | `planner_plot.pdf` | 11 min |
+| Figure 11 | `bundler` | `bundler_plot.pdf` | 32 min |
+| Figure 12 | `controller` | `controller_plot.pdf` | 5 min |
+| Figure 13 | `overhead_circuit_size`, `overhead_qpu_size`, then `overhead_combined` (needs `e2e`) | `multiq_overhead_combined.pdf` | 54 min |
 | Table 4 | `e2e_means_table` (needs `e2e`) | `e2e_means_table.tex` | seconds |
 | Figure 17 | `e2e_detailed_full` (needs `e2e`) | `e2e_plot_detailed_full.pdf` | seconds |
 
-The end-to-end experiment (`e2e`) dominates the total runtime, since it compiles every benchmark set (4 to 14 circuits) with MultiQ and all baselines.
+The runtimes above were measured on a shared server with an AMD EPYC 7713P (64 cores, up to 3.7 GHz) and 900 GB of RAM, and the complete evaluation (`--all`) took about 2 hours.
+The overhead experiments (Figure 13) and the bundler experiment (Figure 11) take most of this time.
 Figure 9 (c) reads the output of `rows_sweep`, so `rows_sweep` must run before the `e2e` plot; `--all` already runs the experiments in the order of `--list`.
 
 ### Expected results
@@ -147,4 +149,4 @@ The main configuration parameters are:
 
 ## License
 
-<placeholder: license. pyproject.toml declares MIT, but no LICENSE file is included yet.>
+MultiQ is released under the MIT License (see `LICENSE`). Each baseline in `compilers/` keeps its upstream license, see `compilers/README.md`.
